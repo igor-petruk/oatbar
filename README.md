@@ -1,6 +1,6 @@
 # Oatbar
 
-[![Latest Version](https://img.shields.io/crates/v/scriptisto.svg)](https://crates.io/crates/oatbar)
+[![Latest Version](https://img.shields.io/crates/v/oatbar.svg)](https://crates.io/crates/oatbar)
 ![Crates.io License](https://img.shields.io/crates/l/oatbar)
 ![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/cargo/oatbar)
 ![GitHub top language](https://img.shields.io/github/languages/top/igor-petruk/oatbar)
