@@ -20,7 +20,6 @@ description = "Powerful and customizable DE and WM status bar"
 keywords = ["x11", "wm", "bar"]
 categories = ["graphics", "visualisation"]
 license = "Apache-2.0"
-license-file = "LICENSE"
 documentation = "https://github.com/igor-petruk/oatbar"
 repository = "https://github.com/igor-petruk/oatbar"
 homepage = "https://github.com/igor-petruk/oatbar"
