@@ -22,7 +22,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.66"
 bytesize = "1.1.0"
-cairo-rs = { version = "0.16.0", features = ["xcb"], default-features=false }
+cairo-rs = { version = "0.16.0", features = ["xcb", "png"], default-features=false }
 chrono = { version = "0.4.22", features = ["serde"] }
 crossbeam-channel = "0.5.6"
 derive_builder = "0.11.2"

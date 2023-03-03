@@ -37,7 +37,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn create_and_show(config: config::Config) -> anyhow::Result<Self> {
+    pub fn create_and_show(config: config::Config<config::Placeholder>) -> anyhow::Result<Self> {
         let (conn, screen_num) = xcb::Connection::connect_with_xlib_display().unwrap();
         let conn = Arc::new(conn);
         let screen = {

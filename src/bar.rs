@@ -17,9 +17,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use anyhow::Context;
 use pangocairo::pango;
+use tracing::error;
 
-use crate::config::OptionValueExt;
 use crate::{config, state};
 
 pub struct FontCache {
@@ -56,13 +57,13 @@ struct BaseBlock {
     height: f64,
     margin: f64,
     padding: f64,
-    display_options: config::DisplayOptions,
+    display_options: config::DisplayOptions<String>,
     inner_block: Box<dyn Block>,
 }
 
 impl BaseBlock {
     fn new(
-        display_options: config::DisplayOptions,
+        display_options: config::DisplayOptions<String>,
         inner_block: Box<dyn Block>,
         height: f64,
     ) -> Self {
@@ -95,8 +96,11 @@ impl Block for BaseBlock {
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
         context.set_operator(cairo::Operator::Source);
-        if let Some(color) = &self.display_options.background.not_empty_opt() {
-            context_color(&context, color)?;
+
+        // if let Some(color) = &self.display_options.background.not_empty_opt() {
+        let background_color = &self.display_options.background;
+        if !background_color.is_empty() {
+            context_color(&context, background_color)?;
             context.rectangle(
                 self.margin,
                 0.0,
@@ -105,10 +109,13 @@ impl Block for BaseBlock {
             );
             context.fill()?;
         }
+
         let line_width = 3.0;
         context.set_line_width(line_width);
 
-        if let Some(overline_color) = self.display_options.overline_color.not_empty_opt() {
+        //if let Some(overline_color) = self.display_options.overline_color.not_empty_opt() {
+        let overline_color = &self.display_options.overline_color;
+        if !overline_color.is_empty() {
             context_color(&context, overline_color)?;
             context.move_to(0.0, line_width / 2.0);
             context.line_to(
@@ -118,7 +125,9 @@ impl Block for BaseBlock {
             context.stroke()?;
         }
 
-        if let Some(underline_color) = self.display_options.underline_color.not_empty_opt() {
+        //if let Some(underline_color) = self.display_options.underline_color.not_empty_opt() {
+        let underline_color = &self.display_options.underline_color;
+        if !underline_color.is_empty() {
             context_color(&context, underline_color)?;
             context.move_to(0.0, self.height - line_width / 2.0);
             context.line_to(
@@ -139,18 +148,19 @@ impl Block for BaseBlock {
 
 struct TextBlock {
     pango_layout: pango::Layout,
-    display_options: config::DisplayOptions,
+    display_options: config::DisplayOptions<String>,
 }
 
 impl TextBlock {
     fn new(
         pango_context: &pango::Context,
         font_cache: Arc<Mutex<FontCache>>,
-        display_options: config::DisplayOptions,
+        display_options: config::DisplayOptions<String>,
         height: f64,
     ) -> Box<dyn Block> {
         let pango_layout = pango::Layout::new(&pango_context);
-        if display_options.pango_markup {
+        if display_options.pango_markup == Some(true) {
+            // TODO: fix this.
             pango_layout.set_markup(&display_options.value.as_str());
         } else {
             pango_layout.set_text(&display_options.value.as_str());
@@ -180,7 +190,8 @@ impl Block for TextBlock {
     }
     fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
         context.save()?;
-        if let Some(color) = &self.display_options.foreground.not_empty_opt() {
+        let color = &self.display_options.foreground;
+        if !color.is_empty() {
             context_color(&context, color)?;
         }
         pangocairo::show_layout(&context, &self.pango_layout);
@@ -188,11 +199,7 @@ impl Block for TextBlock {
         Ok(())
     }
     fn is_visible(&self) -> bool {
-        if let Some(value) = &self.display_options.show_if_set {
-            !value.0.is_empty()
-        } else {
-            true
-        }
+        !self.display_options.show_if_set.is_empty()
     }
 }
 
@@ -203,7 +210,7 @@ struct TextProgressBarNumberBlock {
 impl TextProgressBarNumberBlock {
     fn progress_bar_string(
         number_value: &state::NumberBlockValue,
-        text_progress_bar: &config::TextProgressBarDisplay,
+        text_progress_bar: &config::TextProgressBarDisplay<String>,
         width: usize,
     ) -> String {
         let empty_result = (0..width).map(|_| ' ');
@@ -216,21 +223,9 @@ impl TextProgressBarNumberBlock {
         if value < min_value || value > max_value || min_value >= max_value {
             return empty_result.collect();
         }
-        let fill = text_progress_bar
-            .fill
-            .as_ref()
-            .map(|v| v.0.clone())
-            .unwrap_or_else(|| "絛".into());
-        let empty = text_progress_bar
-            .empty
-            .as_ref()
-            .map(|v| v.0.clone())
-            .unwrap_or_else(|| " ".into());
-        let indicator = text_progress_bar
-            .empty
-            .as_ref()
-            .map(|v| v.0.clone())
-            .unwrap_or_else(|| fill.clone());
+        let fill = &text_progress_bar.fill;
+        let empty = &text_progress_bar.empty;
+        let indicator = &text_progress_bar.indicator;
         let indicator_pos =
             ((value - min_value) / (max_value - min_value) * width as f64) as i32 - 1;
         let segments: Vec<_> = (0..width as i32)
@@ -251,19 +246,15 @@ impl TextProgressBarNumberBlock {
         pango_context: &pango::Context,
         font_cache: Arc<Mutex<FontCache>>,
         value: state::NumberBlockValue,
-        text_progress_bar: config::TextProgressBarDisplay,
+        text_progress_bar: config::TextProgressBarDisplay<String>,
         height: f64,
     ) -> Self {
         let progress_bar = Self::progress_bar_string(&value, &text_progress_bar, 10);
-        let format = text_progress_bar
-            .bar_format
-            .as_ref()
-            .map(|v| v.0.as_str())
-            .unwrap_or_else(|| "BAR");
+        let format = text_progress_bar.bar_format;
         let markup = format.replace("BAR", &progress_bar);
         let display = config::DisplayOptions {
-            value: Some(config::Value(markup.clone())),
-            pango_markup: true,
+            value: markup.clone(),
+            pango_markup: Some(true), // TODO: fix
             ..value.display.clone()
         };
         let text_block = TextBlock::new(&pango_context, font_cache.clone(), display, height);
@@ -305,7 +296,7 @@ impl EnumBlock {
             } else {
                 value.display.clone()
             };
-            display_options.value = Some(config::Value(item.clone()));
+            display_options.value = item.clone();
             let variant_block = TextBlock::new(
                 &pango_context,
                 font_cache.clone(),
@@ -341,11 +332,66 @@ impl Block for EnumBlock {
     }
 
     fn is_visible(&self) -> bool {
-        if let Some(value) = &self.value.display.show_if_set {
-            !value.0.is_empty()
-        } else {
-            true
+        !self.value.display.show_if_set.is_empty()
+    }
+}
+
+struct ImageBlock {
+    display_options: config::DisplayOptions<String>,
+    image_buf: anyhow::Result<cairo::ImageSurface>,
+}
+
+impl ImageBlock {
+    fn load_image(file_name: &str) -> anyhow::Result<cairo::ImageSurface> {
+        let mut file = std::fs::File::open(file_name).context("Unable to open PNG")?;
+        let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open image")?;
+        Ok(image)
+    }
+
+    fn new(display_options: config::DisplayOptions<String>, height: f64) -> Box<dyn Block> {
+        let image_buf = Self::load_image(&display_options.value.as_str());
+        if let Err(e) = &image_buf {
+            error!("Error loading PNG file: {:?}", e)
         }
+        let image_block = Self {
+            image_buf,
+            display_options: display_options.clone(),
+        };
+        Box::new(BaseBlock::new(
+            display_options,
+            Box::new(image_block),
+            height,
+        ))
+    }
+}
+
+impl Block for ImageBlock {
+    fn get_dimensions(&self) -> Dimensions {
+        match &self.image_buf {
+            Ok(image_buf) => Dimensions {
+                width: image_buf.width().into(),
+                height: image_buf.height().into(),
+            },
+            _ => Dimensions {
+                width: 0.0,
+                height: 0.0,
+            },
+        }
+    }
+    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
+        if let Ok(image_buf) = &self.image_buf {
+            context.save()?;
+            let dim = self.get_dimensions();
+            context.set_operator(cairo::Operator::Over);
+            context.set_source_surface(&image_buf, 0.0, 0.0)?;
+            context.rectangle(0.0, 0.0, dim.width.into(), dim.height.into());
+            context.fill()?;
+            context.restore()?;
+        }
+        Ok(())
+    }
+    fn is_visible(&self) -> bool {
+        !self.display_options.show_if_set.is_empty()
     }
 }
 
@@ -358,7 +404,7 @@ impl BlockGroup {
     fn new(
         state: &[state::BlockData],
         pango_context: &pango::Context,
-        bar_config: config::Bar,
+        bar_config: config::Bar<String>,
         font_cache: Arc<Mutex<FontCache>>,
     ) -> Self {
         let blocks: Vec<Box<dyn Block>> = state
@@ -391,6 +437,9 @@ impl BlockGroup {
                             bar_config.height as f64,
                         ));
                         b
+                    }
+                    state::BlockValue::Image(image) => {
+                        ImageBlock::new(image.display.clone(), bar_config.height as f64)
                     }
                 };
                 b
@@ -448,12 +497,12 @@ pub struct DrawingContext {
 }
 
 pub struct Bar {
-    config: config::Config,
+    config: config::Config<config::Placeholder>,
     font_cache: Arc<Mutex<FontCache>>,
 }
 
 impl Bar {
-    pub fn new(config: &config::Config) -> anyhow::Result<Self> {
+    pub fn new(config: &config::Config<config::Placeholder>) -> anyhow::Result<Self> {
         Ok(Self {
             config: config.clone(),
             font_cache: Arc::new(Mutex::new(FontCache::new())),
@@ -469,7 +518,7 @@ impl Bar {
         context.save()?;
         context_color(&context, self.config.bar.display.background.as_str())?;
         context.set_operator(cairo::Operator::Source);
-        context.paint().unwrap();
+        context.paint()?;
         context.restore()?;
 
         let flat_left = state.flatten(&self.config, &self.config.bar.modules_left);
@@ -496,7 +545,7 @@ impl Bar {
         );
 
         context.save()?;
-        context.translate(self.config.bar.side_gap as f64, 0.0);
+        context_color(&context, self.config.bar.display.background.as_str())?;
         left_group.render(context)?;
         context.restore()?;
 

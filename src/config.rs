@@ -14,14 +14,49 @@
 
 use crate::source;
 
+use std::fmt::Debug;
 use std::{collections::HashMap, io::Read};
 
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize};
 use tracing::debug;
 
+pub type Placeholder = String;
+
+/*
+impl From<String> for Placeholder {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct PlaceholderOpt(Option<String>);
+
+impl From<String> for Option<Placeholder> {
+    fn from(value: String) -> Self {
+        Some(Placeholder(value))
+    }
+}
+*/
+
+pub trait PlaceholderExt {
+    type R;
+
+    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R>;
+}
+
+impl PlaceholderExt for String {
+    type R = String;
+    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
+        replace_placeholders(&self, vars)
+    }
+}
+
+type PlaceholderVars = HashMap<String, String>;
+
 fn replace_placeholders(
-    value_str: &str,
+    value_str: &Placeholder,
     hash_map: &HashMap<String, String>,
 ) -> anyhow::Result<String> {
     let mut result = Vec::<char>::with_capacity(value_str.len());
@@ -70,7 +105,7 @@ fn replace_placeholders(
     }
     Ok(result.into_iter().collect())
 }
-
+/*
 trait PushSomeExt<'a> {
     fn push_some(&mut self, v: &'a mut Option<Value>);
 }
@@ -83,6 +118,9 @@ impl<'a> PushSomeExt<'a> for Vec<&'a mut Value> {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct Value<T: for<'a> Deserialize<'a> + Clone + Default + Debug>(pub T);
+
 pub trait PlaceholderReplace {
     fn values(&mut self) -> Vec<&mut Value>;
 
@@ -93,47 +131,86 @@ pub trait PlaceholderReplace {
         Ok(())
     }
 }
+*/
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct DisplayOptions {
-    pub font: Option<Value>,
-    pub foreground: Option<Value>,
-    pub value: Option<Value>,
-    pub background: Option<Value>,
-    pub overline_color: Option<Value>,
-    pub underline_color: Option<Value>,
-    #[serde(default = "default_pango_markup")]
-    pub pango_markup: bool,
+pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
+    pub font: Dynamic,
+    pub foreground: Dynamic,
+    pub value: Dynamic,
+    pub background: Dynamic,
+    pub overline_color: Dynamic,
+    pub underline_color: Dynamic,
+    pub pango_markup: Option<bool>,
     pub margin: Option<f64>,
     pub padding: Option<f64>,
-    pub show_if_set: Option<Value>,
+    pub show_if_set: Dynamic,
 }
 
-fn default_pango_markup() -> bool {
-    true
-}
-
-impl DisplayOptions {
-    pub fn with_default(self, default: &Self) -> Self {
-        Self {
-            font: self.font.or_else(|| default.font.clone()),
-            foreground: self.foreground.or_else(|| default.foreground.clone()),
-            background: self.background.or_else(|| default.background.clone()),
-            value: self.value.or_else(|| default.value.clone()),
+impl DisplayOptions<Option<Placeholder>> {
+    pub fn with_default(
+        self,
+        default: &DisplayOptions<Placeholder>,
+    ) -> DisplayOptions<Placeholder> {
+        DisplayOptions {
+            font: self.font.unwrap_or_else(|| default.font.clone()),
+            foreground: self
+                .foreground
+                .unwrap_or_else(|| default.foreground.clone()),
+            background: self
+                .background
+                .unwrap_or_else(|| default.background.clone()),
+            value: self.value.unwrap_or_else(|| default.value.clone()),
             overline_color: self
                 .overline_color
-                .or_else(|| default.overline_color.clone()),
+                .unwrap_or_else(|| default.overline_color.clone()),
             underline_color: self
                 .underline_color
-                .or_else(|| default.underline_color.clone()),
+                .unwrap_or_else(|| default.underline_color.clone()),
             margin: self.margin.or(default.margin),
             padding: self.padding.or(default.padding),
-            show_if_set: self.show_if_set.or_else(|| default.show_if_set.clone()),
-            ..self
+            show_if_set: self
+                .show_if_set
+                .unwrap_or_else(|| default.show_if_set.clone()),
+            pango_markup: Some(self.pango_markup.unwrap_or(true)),
         }
     }
 }
 
+impl PlaceholderExt for DisplayOptions<Placeholder> {
+    type R = DisplayOptions<String>;
+
+    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R> {
+        Ok(DisplayOptions {
+            font: self.font.resolve_placeholders(&vars).context("font")?,
+            foreground: self
+                .foreground
+                .resolve_placeholders(&vars)
+                .context("foreground")?,
+            background: self
+                .background
+                .resolve_placeholders(&vars)
+                .context("background")?,
+            value: self.value.resolve_placeholders(&vars).context("value")?,
+            overline_color: self
+                .overline_color
+                .resolve_placeholders(&vars)
+                .context("overline_color")?,
+            underline_color: self
+                .underline_color
+                .resolve_placeholders(&vars)
+                .context("underline_color")?,
+            margin: self.margin,
+            padding: self.padding,
+            show_if_set: self
+                .show_if_set
+                .resolve_placeholders(&vars)
+                .context("show_if_set")?,
+            pango_markup: self.pango_markup.clone(),
+        })
+    }
+}
+/*
 impl PlaceholderReplace for DisplayOptions {
     fn values(&mut self) -> Vec<&mut Value> {
         let mut r = vec![];
@@ -147,6 +224,7 @@ impl PlaceholderReplace for DisplayOptions {
         r
     }
 }
+*/
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Replace(Vec<Vec<String>>);
@@ -163,65 +241,58 @@ impl Replace {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct Value(pub String);
-
-impl Value {
-    pub fn replace_placeholders(
-        &self,
-        hash_map: &HashMap<String, String>,
-    ) -> anyhow::Result<String> {
-        replace_placeholders(&self.0, hash_map)
-    }
-}
-
-pub trait OptionValueExt {
-    fn as_str(&self) -> &str;
-    fn not_empty_opt(&self) -> Option<&str>;
-}
-
-impl OptionValueExt for Option<Value> {
-    fn as_str(&self) -> &str {
-        &self.as_ref().unwrap().0
-    }
-
-    fn not_empty_opt(&self) -> Option<&str> {
-        if let Some(value) = self {
-            if !value.0.is_empty() {
-                return Some(&value.0);
-            }
-        }
-        None
-    }
-}
-
 serde_with::with_prefix!(prefix_active "active_");
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct EnumBlock {
+pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
-    pub active: Value,
-    pub variants: Value,
+    pub active: Dynamic,
+    pub variants: Dynamic,
     #[serde(flatten)]
-    pub display: DisplayOptions,
+    pub display: DisplayOptions<Dynamic>,
     #[serde(flatten, with = "prefix_active")]
-    pub active_display: DisplayOptions,
+    pub active_display: DisplayOptions<Dynamic>,
 }
 
-impl EnumBlock {
-    pub fn with_default(self, bar: &Bar) -> Self {
-        Self {
+impl EnumBlock<Option<Placeholder>> {
+    pub fn with_default(self, bar: &Bar<Placeholder>) -> EnumBlock<Placeholder> {
+        EnumBlock {
+            name: self.name.clone(),
+            active: self.active.unwrap_or_default(),
+            variants: self.variants.unwrap_or_default(),
             display: self.display.clone().with_default(&bar.display),
             active_display: self
                 .active_display
-                .with_default(&self.display)
-                .with_default(&bar.active_display),
-            ..self
+                .with_default(&self.display.clone().with_default(&bar.active_display)),
         }
     }
 }
 
+impl PlaceholderExt for EnumBlock<Placeholder> {
+    type R = EnumBlock<String>;
+
+    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<EnumBlock<String>> {
+        Ok(EnumBlock {
+            name: self.name.clone(),
+            active: self.active.resolve_placeholders(&vars).context("active")?,
+            variants: self
+                .variants
+                .resolve_placeholders(&vars)
+                .context("variants")?,
+            display: self
+                .display
+                .resolve_placeholders(&vars)
+                .context("display")?,
+            active_display: self
+                .active_display
+                .resolve_placeholders(&vars)
+                .context("active_display")?,
+        })
+    }
+}
+
+/*
 impl PlaceholderReplace for EnumBlock {
     fn values(&mut self) -> Vec<&mut Value> {
         let mut r: Vec<&mut Value> = vec![];
@@ -232,29 +303,46 @@ impl PlaceholderReplace for EnumBlock {
         r
     }
 }
+*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct TextBlock {
+pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
     #[serde(flatten)]
-    pub display: DisplayOptions,
+    pub display: DisplayOptions<Dynamic>,
 }
 
-impl TextBlock {
-    pub fn with_default(self, bar: &Bar) -> Self {
-        Self {
+impl TextBlock<Option<Placeholder>> {
+    pub fn with_default(self, bar: &Bar<Placeholder>) -> TextBlock<Placeholder> {
+        TextBlock {
+            name: self.name.clone(),
             display: self.display.clone().with_default(&bar.display),
-            ..self
         }
     }
 }
 
+impl TextBlock<Placeholder> {
+    pub fn resolve_placeholders(
+        &self,
+        vars: &PlaceholderVars,
+    ) -> anyhow::Result<TextBlock<String>> {
+        Ok(TextBlock {
+            name: self.name.clone(),
+            display: self
+                .display
+                .resolve_placeholders(&vars)
+                .context("display")?,
+        })
+    }
+}
+/*
 impl PlaceholderReplace for TextBlock {
     fn values(&mut self) -> Vec<&mut Value> {
         self.display.values()
     }
 }
+*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -280,13 +368,44 @@ impl NumberType {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct TextProgressBarDisplay {
-    pub empty: Option<Value>,
-    pub fill: Option<Value>,
-    pub indicator: Option<Value>,
-    pub bar_format: Option<Value>,
+pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debug> {
+    pub empty: Dynamic,
+    pub fill: Dynamic,
+    pub indicator: Dynamic,
+    pub bar_format: Dynamic,
+}
+impl TextProgressBarDisplay<Option<Placeholder>> {
+    pub fn with_default(self) -> TextProgressBarDisplay<Placeholder> {
+        TextProgressBarDisplay {
+            empty: " ".into(),
+            fill: "絛".into(),
+            indicator: "絛".into(),
+            bar_format: "BAR".into(),
+        }
+    }
 }
 
+impl TextProgressBarDisplay<Placeholder> {
+    pub fn resolve_placeholders(
+        &self,
+        vars: &PlaceholderVars,
+    ) -> anyhow::Result<TextProgressBarDisplay<String>> {
+        Ok(TextProgressBarDisplay {
+            empty: self.empty.resolve_placeholders(&vars).context("empty")?,
+            fill: self.fill.resolve_placeholders(&vars).context("fill")?,
+            indicator: self
+                .indicator
+                .resolve_placeholders(&vars)
+                .context("indicator")?,
+            bar_format: self
+                .bar_format
+                .resolve_placeholders(&vars)
+                .context("bar_format")?,
+        })
+    }
+}
+
+/*
 impl PlaceholderReplace for TextProgressBarDisplay {
     fn values(&mut self) -> Vec<&mut Value> {
         let mut r: Vec<&mut Value> = vec![];
@@ -298,37 +417,75 @@ impl PlaceholderReplace for TextProgressBarDisplay {
         r
     }
 }
+*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
-pub enum ProgressBar {
-    Text(TextProgressBarDisplay),
+pub enum ProgressBar<Dynamic: From<String> + Clone + Default + Debug> {
+    Text(TextProgressBarDisplay<Dynamic>),
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct NumberBlock {
+pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
-    pub min_value: Option<Value>,
-    pub max_value: Option<Value>,
+    pub min_value: Dynamic,
+    pub max_value: Dynamic,
     #[serde(flatten)]
-    pub display: DisplayOptions,
+    pub display: DisplayOptions<Dynamic>,
     #[serde(default = "default_number_type")]
     pub number_type: NumberType,
-    pub progress_bar: ProgressBar,
+    pub progress_bar: ProgressBar<Dynamic>,
 }
 
-impl NumberBlock {
-    pub fn with_default(self, bar: &Bar) -> Self {
-        Self {
+impl NumberBlock<Option<Placeholder>> {
+    pub fn with_default(self, bar: &Bar<Placeholder>) -> NumberBlock<Placeholder> {
+        NumberBlock {
+            name: self.name.clone(),
+            min_value: self.min_value.clone().unwrap_or_else(|| "0".into()),
+            max_value: self
+                .max_value
+                .clone()
+                .unwrap_or_else(|| "10000000000".into()), // TODO: fix this.
             display: self.display.clone().with_default(&bar.display),
-            min_value: self.min_value.clone().or_else(|| Some(Value("0".into()))),
-            ..self
+            number_type: self.number_type.clone(),
+            progress_bar: match self.progress_bar {
+                ProgressBar::Text(t) => ProgressBar::Text(t.with_default()),
+            },
         }
     }
 }
 
+impl NumberBlock<Placeholder> {
+    pub fn resolve_placeholders(
+        &self,
+        vars: &PlaceholderVars,
+    ) -> anyhow::Result<NumberBlock<String>> {
+        Ok(NumberBlock {
+            name: self.name.clone(),
+            min_value: self
+                .min_value
+                .resolve_placeholders(&vars)
+                .context("min_value")?,
+            max_value: self
+                .max_value
+                .resolve_placeholders(&vars)
+                .context("max_value")?,
+            display: self
+                .display
+                .resolve_placeholders(&vars)
+                .context("display")?,
+            number_type: self.number_type.clone(),
+            progress_bar: match &self.progress_bar {
+                ProgressBar::Text(t) => {
+                    ProgressBar::Text(t.resolve_placeholders(&vars).context("progress_bar")?)
+                }
+            },
+        })
+    }
+}
+/*
 impl PlaceholderReplace for NumberBlock {
     fn values(&mut self) -> Vec<&mut Value> {
         use PushSomeExt;
@@ -344,25 +501,92 @@ impl PlaceholderReplace for NumberBlock {
         r
     }
 }
+*/
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ImageBlock<Dynamic: From<String> + Clone + Default + Debug> {
+    pub name: String,
+    #[serde(flatten)]
+    pub display: DisplayOptions<Dynamic>,
+}
+
+impl ImageBlock<Option<Placeholder>> {
+    pub fn with_default(self, bar: &Bar<Placeholder>) -> ImageBlock<Placeholder> {
+        ImageBlock {
+            name: self.name.clone(),
+            display: self.display.clone().with_default(&bar.display),
+        }
+    }
+}
+
+impl ImageBlock<Placeholder> {
+    pub fn resolve_placeholders(
+        &self,
+        vars: &PlaceholderVars,
+    ) -> anyhow::Result<ImageBlock<String>> {
+        Ok(ImageBlock {
+            name: self.name.clone(),
+            display: self
+                .display
+                .resolve_placeholders(&vars)
+                .context("display")?,
+        })
+    }
+}
+/*
+impl PlaceholderReplace for ImageBlock {
+    fn values(&mut self) -> Vec<&mut Value> {
+        self.display.values()
+    }
+}
+*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
-pub enum Block {
-    Text(TextBlock),
-    Enum(EnumBlock),
-    Number(NumberBlock),
+pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
+    Text(TextBlock<Dynamic>),
+    Enum(EnumBlock<Dynamic>),
+    Number(NumberBlock<Dynamic>),
+    Image(ImageBlock<Dynamic>),
 }
 
+impl Block<Option<Placeholder>> {
+    pub fn with_default_and_name(self, bar: &Bar<Placeholder>) -> (String, Block<Placeholder>) {
+        match self {
+            Block::Enum(e) => (e.name.clone(), Block::Enum(e.with_default(&bar))),
+            Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(&bar))),
+            Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(&bar))),
+            Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(&bar))),
+        }
+    }
+}
+
+impl Block<Placeholder> {
+    pub fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Block<String>> {
+        Ok(match self {
+            Block::Enum(e) => Block::Enum(e.resolve_placeholders(&vars).context("block::enum")?),
+            Block::Text(e) => Block::Text(e.resolve_placeholders(&vars).context("block::text")?),
+            Block::Number(e) => {
+                Block::Number(e.resolve_placeholders(&vars).context("block::number")?)
+            }
+            Block::Image(e) => Block::Image(e.resolve_placeholders(&vars).context("block::image")?),
+        })
+    }
+}
+/*
 impl PlaceholderReplace for Block {
     fn values(&mut self) -> Vec<&mut Value> {
         match self {
             Block::Text(t) => t.values(),
             Block::Enum(e) => e.values(),
             Block::Number(n) => n.values(),
+            Block::Image(i) => i.values(),
         }
     }
 }
+*/
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -374,7 +598,7 @@ pub enum BarPosition {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
-pub struct Bar {
+pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub modules_left: Vec<String>,
     pub modules_center: Vec<String>,
     pub modules_right: Vec<String>,
@@ -383,39 +607,92 @@ pub struct Bar {
     #[serde(default = "default_side_gap")]
     pub side_gap: u16,
     #[serde(flatten)]
-    pub display: DisplayOptions,
+    pub display: DisplayOptions<Dynamic>,
     #[serde(flatten, with = "prefix_active")]
-    pub active_display: DisplayOptions,
+    pub active_display: DisplayOptions<Dynamic>,
     #[serde(default = "default_clock_format")]
     pub clock_format: String,
     #[serde(default = "default_bar_position")]
     pub position: BarPosition,
 }
 
+impl Bar<Option<Placeholder>> {
+    fn with_default(&self) -> Bar<Placeholder> {
+        Bar {
+            modules_left: self.modules_left.clone(),
+            modules_center: self.modules_center.clone(),
+            modules_right: self.modules_right.clone(),
+            height: self.height,
+            side_gap: self.side_gap,
+            display: self.display.clone().with_default(&default_display()),
+            active_display: self
+                .active_display
+                .clone()
+                .with_default(&default_active_display()),
+            clock_format: self.clock_format.clone(),
+            position: self.position.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct Var {
+pub struct Var<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
-    pub input: Value,
+    pub input: Dynamic,
     pub enum_separator: Option<String>,
     #[serde(default)]
     pub replace: Replace,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct Config {
-    pub bar: Bar,
+impl Var<Option<Placeholder>> {
+    fn with_defaults(&self) -> Var<Placeholder> {
+        Var {
+            name: self.name.clone(),
+            input: self.input.clone().unwrap_or_default(),
+            enum_separator: self.enum_separator.clone(),
+            replace: self.replace.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
+    pub bar: Bar<Dynamic>,
     #[serde(skip)]
-    pub blocks: HashMap<String, Block>,
+    pub blocks: HashMap<String, Block<Dynamic>>,
     #[serde(skip)]
-    pub vars: HashMap<String, Var>,
+    pub vars: HashMap<String, Var<Dynamic>>,
     #[serde(default, rename = "block")]
-    pub blocks_vec: Vec<Block>,
+    pub blocks_vec: Vec<Block<Dynamic>>,
     #[serde(default, rename = "var")]
-    pub vars_vec: Vec<Var>,
+    pub vars_vec: Vec<Var<Dynamic>>,
     #[serde(default, rename = "i3bar")]
     pub i3bars: Vec<source::I3BarConfig>,
     #[serde(default, rename = "command")]
     pub commands: Vec<source::CommandConfig>,
+}
+
+impl Config<Option<Placeholder>> {
+    fn with_defaults(&self) -> Config<Placeholder> {
+        let bar = self.bar.with_default();
+        Config {
+            bar: bar.clone(),
+            blocks: self
+                .blocks_vec
+                .iter()
+                .map(|b| b.clone().with_default_and_name(&bar))
+                .collect(),
+            vars: self
+                .vars_vec
+                .iter()
+                .map(|v| (v.name.clone(), v.clone().with_defaults()))
+                .collect(),
+            blocks_vec: vec![],
+            vars_vec: vec![],
+            i3bars: self.i3bars.clone(),
+            commands: self.commands.clone(),
+        }
+    }
 }
 
 fn default_number_type() -> NumberType {
@@ -438,58 +715,38 @@ fn default_side_gap() -> u16 {
     8
 }
 
-fn default_display() -> DisplayOptions {
+fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        value: Some(Value("${value}".into())),
-        font: Some(Value("monospace 12".into())),
-        foreground: Some(Value("#dddddd".into())),
-        background: Some(Value("#191919".into())),
-        overline_color: None,
-        underline_color: None,
-        pango_markup: true,
+        value: "${value}".into(),
+        font: "monospace 12".into(),
+        foreground: "#dddddd".into(),
+        background: "#191919".into(),
+        overline_color: "".into(),
+        underline_color: "".into(),
+        pango_markup: Some(true),
         margin: Some(0.0),
         padding: Some(8.0),
-        show_if_set: None,
+        show_if_set: "visible".into(),
     }
 }
 
-fn default_active_display() -> DisplayOptions {
+fn default_active_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        foreground: Some(Value("#ffffff".into())),
-        ..Default::default()
+        foreground: "#ffffff".into(),
+        ..default_display()
     }
 }
-
-pub fn load() -> anyhow::Result<Config> {
+pub fn load() -> anyhow::Result<Config<Placeholder>> {
     let mut path = dirs::config_dir().expect("Missing config dir");
     path.push("oatbar.toml");
     let mut file = std::fs::File::open(&path).context(format!("unable to open {:?}", &path))?;
     let mut data = String::new();
     file.read_to_string(&mut data)?;
-    let mut config: Config = toml::from_str(&data)?;
 
-    config.bar.display = config.bar.display.with_default(&default_display());
-    config.bar.active_display = config
-        .bar
-        .active_display
-        .with_default(&default_active_display())
-        .with_default(&config.bar.display);
-
-    let vars_vec: Vec<_> = config.vars_vec.drain(..).collect();
-    for var in vars_vec.into_iter() {
-        config.vars.insert(var.name.clone(), var);
-    }
-    let block_vec: Vec<_> = config.blocks_vec.drain(..).collect();
-    for block in block_vec.into_iter() {
-        let (name, block) = match block {
-            Block::Enum(e) => (e.name.clone(), Block::Enum(e.with_default(&config.bar))),
-            Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(&config.bar))),
-            Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(&config.bar))),
-        };
-        config.blocks.insert(name, block);
-    }
-    debug!("Parsed config:\n{:#?}", config);
-    Ok(config)
+    let config: Config<Option<Placeholder>> = toml::from_str(&data)?;
+    let resolved_config = config.with_defaults();
+    debug!("Parsed config:\n{:#?}", resolved_config);
+    Ok(resolved_config)
 }
 
 #[cfg(test)]
@@ -502,8 +759,7 @@ mod tests {
         map.insert("foo".into(), "hello".into());
         map.insert("bar".into(), "world".into());
         map.insert("baz".into(), "unuzed".into());
-        let value =
-            Value("<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>".into());
+        let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>".into();
         let result = value.replace_placeholders(&map);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "<test> hello $ world, () default </test>");
@@ -514,11 +770,11 @@ mod tests {
         let mut map = HashMap::new();
         map.insert("foo".into(), "hello".into());
         let mut block = Block::Enum(EnumBlock {
-            name: "".into(),
-            active: Value("a ${foo} b".into()),
-            variants: Value("".into()),
+            name: Some("".into()),
+            active: Some("a ${foo} b".into()),
+            variants: Some("".into()),
             display: DisplayOptions {
-                foreground: Some(Value("b ${foo} c".into())),
+                foreground: Some("b ${foo} c".into()),
                 ..Default::default()
             },
             active_display: DisplayOptions {

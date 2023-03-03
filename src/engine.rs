@@ -14,7 +14,7 @@
 
 use std::sync::{Arc, RwLock};
 
-use crate::config::Config;
+use crate::config::{Config, Placeholder, PlaceholderExt};
 use crate::{state, window};
 
 pub struct Engine {
@@ -22,11 +22,11 @@ pub struct Engine {
     state_update_rx: crossbeam_channel::Receiver<state::Update>,
     window: window::Window,
     state: Arc<RwLock<state::State>>,
-    config: Config,
+    config: Config<Placeholder>,
 }
 
 impl Engine {
-    pub fn new(config: Config, initial_state: state::State) -> anyhow::Result<Self> {
+    pub fn new(config: Config<Placeholder>, initial_state: state::State) -> anyhow::Result<Self> {
         let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
         let window = window::Window::create_and_show(config.clone())?;
@@ -55,7 +55,7 @@ impl Engine {
         }
 
         for var in self.config.vars.values() {
-            let var_value = var.input.replace_placeholders(&state.vars)?;
+            let var_value = var.input.resolve_placeholders(&state.vars)?;
             let replaced = if let Some(enum_separator) = &var.enum_separator {
                 let vec: Vec<_> = var_value
                     .split(enum_separator)

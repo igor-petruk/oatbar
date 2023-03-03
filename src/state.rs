@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::config::{self, OptionValueExt};
+use crate::config::{self, PlaceholderExt};
+
+use anyhow::Context;
+
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct TextBlockValue {
-    pub display: config::DisplayOptions,
+    pub display: config::DisplayOptions<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -26,16 +29,20 @@ pub struct NumberBlockValue {
     pub min_value: Option<f64>,
     pub max_value: Option<f64>,
     pub number_type: config::NumberType,
-    pub display: config::DisplayOptions,
-    pub progress_bar: config::ProgressBar,
+    pub display: config::DisplayOptions<String>,
+    pub progress_bar: config::ProgressBar<String>,
 }
 
 #[derive(Clone, Debug)]
 pub struct EnumBlockValue {
     pub active: usize,
     pub variants: Vec<String>,
-    pub display: config::DisplayOptions,
-    pub active_display: config::DisplayOptions,
+    pub display: config::DisplayOptions<String>,
+    pub active_display: config::DisplayOptions<String>,
+}
+#[derive(Clone, Debug)]
+pub struct ImageBlockValue {
+    pub display: config::DisplayOptions<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -43,11 +50,12 @@ pub enum BlockValue {
     Text(TextBlockValue),
     Number(NumberBlockValue),
     Enum(EnumBlockValue),
+    Image(ImageBlockValue),
 }
 
 #[derive(Clone, Debug)]
 pub struct BlockData {
-    pub config: config::Block,
+    pub config: config::Block<String>,
     pub value: BlockValue,
 }
 
@@ -57,59 +65,64 @@ pub struct State {
 }
 
 fn format_active_inactive(
-    config: &config::EnumBlock,
+    config: &config::EnumBlock<config::Placeholder>,
     active: usize,
     index: usize,
     value: String,
-) -> String {
-    let value_placeholder = config.display.value.as_ref().expect("TODO");
-    let active_value_placeholder = config.active_display.value.as_ref().expect("TODO:active");
+) -> anyhow::Result<String> {
+    let value_placeholder = &config.display.value;
+    let active_value_placeholder = &config.active_display.value;
     let mut value_map = HashMap::with_capacity(1);
     value_map.insert("value".to_string(), value);
     let result = if index == active {
         active_value_placeholder
-            .replace_placeholders(&value_map)
-            .expect("TODO_ACTIVE")
+            .resolve_placeholders(&value_map)
+            .context("failed to replace active placeholder")?
     } else {
         value_placeholder
-            .replace_placeholders(&value_map)
-            .expect("TODO_ACTIVE")
+            .resolve_placeholders(&value_map)
+            .context("failed to replace placeholder")?
     };
-    result
+    Ok(result)
 }
 
 impl State {
-    fn text_block(&self, b: &config::TextBlock) -> BlockData {
-        let mut display = b.display.clone();
-        use config::PlaceholderReplace;
-        display.replace_placeholders(&self.vars).expect("TODO");
+    fn text_block(&self, b: &config::TextBlock<config::Placeholder>) -> BlockData {
+        let display = b.display.resolve_placeholders(&self.vars).expect("TODO");
         BlockData {
             value: BlockValue::Text(TextBlockValue { display }),
             config: config::Block::Text(b.clone()),
         }
     }
 
-    fn number_block(&self, b: &config::NumberBlock) -> BlockData {
+    fn image_block(&self, b: &config::ImageBlock<config::Placeholder>) -> BlockData {
+        let display = b.display.resolve_placeholders(&self.vars).expect("TODO");
+        BlockData {
+            value: BlockValue::Image(ImageBlockValue { display }),
+            config: config::Block::Image(b.clone()),
+        }
+    }
+
+    fn number_block(&self, b: &config::NumberBlock<config::Placeholder>) -> BlockData {
         let number_type = b.number_type.clone();
-        let mut display = b.display.clone();
-        use config::PlaceholderReplace;
-        display.replace_placeholders(&self.vars).expect("TODO");
+        let display = b.display.resolve_placeholders(&self.vars).expect("TODO");
         let value = number_type
             .parse_str(display.value.as_str())
             .unwrap_or_default();
-
-        let (min_value, max_value) = match number_type {
-            config::NumberType::Percent => (Some(0.0), Some(100.0)),
-            _ => (
-                b.min_value
-                    .as_ref()
-                    .map(|v| number_type.parse_str(&v.0).unwrap_or_default()),
-                b.max_value
-                    .as_ref()
-                    .map(|v| number_type.parse_str(&v.0).unwrap_or_default()),
-            ),
-        };
-
+        let (min_value, max_value) = (Some(0.0), Some(100.0));
+        /*
+                let (min_value, max_value) = match number_type {
+                    config::NumberType::Percent => (Some(0.0), Some(100.0)),
+                    _ => (
+                        b.min_value
+                            .as_ref()
+                            .map(|v| number_type.parse_str(&v.0).unwrap_or_default()),
+                        b.max_value
+                            .as_ref()
+                            .map(|v| number_type.parse_str(&v.0).unwrap_or_default()),
+                    ),
+                };
+        */
         BlockData {
             value: BlockValue::Number(NumberBlockValue {
                 value,
@@ -122,23 +135,32 @@ impl State {
             config: config::Block::Number(b.clone()),
         }
     }
-    fn enum_block(&self, b: &config::EnumBlock) -> BlockData {
-        let active_str = &b.active.replace_placeholders(&self.vars).expect("TODO");
+    fn enum_block(&self, b: &config::EnumBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
+        let active_str = &b
+            .active
+            .resolve_placeholders(&self.vars)
+            .context("cannot replace placeholders for active_str")?;
         let active: usize = if active_str.trim().is_empty() {
             0
         } else {
             active_str.parse().unwrap()
         };
-        let variants = b
+        let (variants, errors): (Vec<_>, Vec<_>) = b
             .variants
-            .replace_placeholders(&self.vars)
-            .expect("TODO")
+            .resolve_placeholders(&self.vars)
+            .context("cannot replace placeholders")?
             .split(",")
             .enumerate()
             .map(|(index, value)| format_active_inactive(b, active, index, value.to_string()))
-            .collect();
+            .partition(|r| r.is_ok());
 
-        BlockData {
+        if let Some(Err(err)) = errors.into_iter().next() {
+            return Err(err);
+        }
+
+        let variants = variants.into_iter().map(|r| r.unwrap()).collect();
+
+        Ok(BlockData {
             value: BlockValue::Enum(EnumBlockValue {
                 active,
                 variants,
@@ -146,10 +168,14 @@ impl State {
                 active_display: b.active_display.clone(),
             }),
             config: config::Block::Enum(b.clone()),
-        }
+        })
     }
 
-    pub fn flatten(&self, config: &config::Config, modules: &[String]) -> Vec<BlockData> {
+    pub fn flatten(
+        &self,
+        config: &config::Config<config::Placeholder>,
+        modules: &[String],
+    ) -> Vec<BlockData> {
         // TODO: optimize.
         let mut result = vec![];
         for module in modules {
@@ -161,8 +187,9 @@ impl State {
 
             let block_data = match block_config {
                 config::Block::Text(text_block) => self.text_block(&text_block),
-                config::Block::Enum(enum_block) => self.enum_block(&enum_block),
+                config::Block::Enum(enum_block) => self.enum_block(&enum_block).expect("TODO"),
                 config::Block::Number(number_block) => self.number_block(&number_block),
+                config::Block::Image(image_block) => self.image_block(&image_block),
             };
             result.push(block_data);
         }
