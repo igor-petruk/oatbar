@@ -16,6 +16,9 @@
 name = "oatbar"
 version = "0.0.0"
 edition = "2021"
+description = "Powerful and customizable DE and WM status bar"
+keywords = ["x11", "wm", "bar"]
+categories = ["graphics", "visualisation"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
