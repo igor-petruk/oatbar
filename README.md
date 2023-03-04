@@ -12,10 +12,20 @@ This bar supports conversion of inputs in various data formats to strong types t
 
 ## Installation
 
-WIP: instructions to build, install and configure. Bear with me, the project was put on Github on March 3rd.
+### Pre-requisites
+
+Please install `cargo` via the package manager or http://rustup.rs.
+
+#### Ubuntu
 
 ```sh
-cargo install --path .
+# apt-get install -y build-essential pkg-config libcairo2-dev libpango1.0-dev libx11-xcb-dev
+```
+
+### Install oatbar
+
+```sh
+$ cargo install oatbar
 ```
 
 ## Disclaimer
