@@ -39,7 +39,7 @@ pub fn get_property(
     long_length: u32,
 ) -> anyhow::Result<x::GetPropertyReply> {
     let reply = query(
-        &conn,
+        conn,
         &x::GetProperty {
             property: atom,
             window,
@@ -60,7 +60,7 @@ pub fn replace_property_atom<P: x::PropEl + Debug>(
     value: &[P],
 ) -> anyhow::Result<()> {
     send(
-        &conn,
+        conn,
         &x::ChangeProperty {
             mode: x::PropMode::Replace,
             window,
@@ -82,7 +82,7 @@ pub fn replace_property<P: x::PropEl + Debug>(
 ) -> anyhow::Result<x::Atom> {
     let atom = get_atom(conn, atom_name)?;
     send(
-        &conn,
+        conn,
         &x::ChangeProperty {
             mode: x::PropMode::Replace,
             window,
@@ -102,7 +102,7 @@ pub fn replace_atom_property(
     value_atom_name: &str,
 ) -> anyhow::Result<(x::Atom, x::Atom)> {
     let value_atom = get_atom(conn, value_atom_name)?;
-    let atom = replace_property(&conn, window, atom_name, x::ATOM_ATOM, &[value_atom])?;
+    let atom = replace_property(conn, window, atom_name, x::ATOM_ATOM, &[value_atom])?;
     Ok((atom, value_atom))
 }
 
@@ -124,9 +124,8 @@ where
     <X as xcb::Request>::Cookie: xcb::CookieWithReplyChecked,
 {
     let cookie = conn.send_request(req);
-    Ok(conn
-        .wait_for_reply(cookie)
-        .with_context(|| format!("xcb request failed: req={:?}", req))?)
+    conn.wait_for_reply(cookie)
+        .with_context(|| format!("xcb request failed: req={:?}", req))
 }
 
 #[inline]

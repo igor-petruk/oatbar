@@ -43,9 +43,9 @@ pub fn validate_wm(
 }
 
 pub fn refetch_atoms(conn: &xcb::Connection) -> anyhow::Result<(x::Atom, x::Atom, x::Atom)> {
-    let wm_support_atom = xutils::get_atom(&conn, "_NET_SUPPORTING_WM_CHECK")?;
-    let wm_name = xutils::get_atom(&conn, "_NET_WM_NAME")?;
-    let wm_supported = xutils::get_atom(&conn, "_NET_SUPPORTED")?;
+    let wm_support_atom = xutils::get_atom(conn, "_NET_SUPPORTING_WM_CHECK")?;
+    let wm_name = xutils::get_atom(conn, "_NET_WM_NAME")?;
+    let wm_supported = xutils::get_atom(conn, "_NET_SUPPORTED")?;
     info!(
         "Debug: wm_support={:?}, wm_name={:?}, wm_net_supported={:?}",
         wm_support_atom, wm_name, wm_supported
@@ -69,7 +69,7 @@ pub fn wait_ready() -> anyhow::Result<()> {
     conn.flush()?;
 
     let (wm_support_atom, wm_name, wm_supported) = refetch_atoms(&conn)?;
-    if let Ok(wm) = validate_wm(&conn, &screen, wm_support_atom, wm_name, wm_supported) {
+    if let Ok(wm) = validate_wm(&conn, screen, wm_support_atom, wm_name, wm_supported) {
         info!("Detected WM: {:?}", wm);
         return Ok(());
     }
@@ -82,8 +82,7 @@ pub fn wait_ready() -> anyhow::Result<()> {
         let (wm_support_atom, wm_name, wm_supported) = refetch_atoms(&conn)?;
         match event {
             Some(xcb::Event::X(x::Event::PropertyNotify(pn))) if pn.atom() == wm_support_atom => {
-                if let Ok(wm) = validate_wm(&conn, &screen, wm_support_atom, wm_name, wm_supported)
-                {
+                if let Ok(wm) = validate_wm(&conn, screen, wm_support_atom, wm_name, wm_supported) {
                     info!("Eventually detected WM: {:?}", wm);
 
                     return Ok(());
