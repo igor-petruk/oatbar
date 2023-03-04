@@ -16,15 +16,21 @@ This bar supports conversion of inputs in various data formats to strong types t
 
 Please install `cargo` via the package manager or http://rustup.rs.
 
+#### ArchLinux
+
+```shell
+# pacman -Sy pango cairo libxcb pkgconf
+```
+
 #### Ubuntu/Debian
 
-```sh
+```shell
 # apt-get install -y build-essential pkg-config libcairo2-dev libpango1.0-dev libx11-xcb-dev
 ```
 
 ### Install oatbar
 
-```sh
+```shell
 $ cargo install oatbar
 ```
 
