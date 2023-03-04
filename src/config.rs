@@ -15,11 +15,13 @@
 use crate::source;
 
 use std::fmt::Debug;
+use std::io::Write;
+use std::path::Path;
 use std::{collections::HashMap, io::Read};
 
 use anyhow::Context;
 use serde::{de::DeserializeOwned, Deserialize};
-use tracing::debug;
+use tracing::{debug, warn};
 
 pub type Placeholder = String;
 
@@ -607,9 +609,28 @@ fn default_active_display() -> DisplayOptions<Placeholder> {
         ..default_display()
     }
 }
+
+pub fn write_default_config(config_path: &Path) -> anyhow::Result<()> {
+    let config = include_bytes!("../data/default_config.toml");
+    let config_dir = config_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Unexpected lack of parent directory"))?;
+    std::fs::create_dir_all(&config_dir).context("Unable to create parent dir for config")?;
+    let mut config_file =
+        std::fs::File::create(&config_path).context("Cannot create default config")?;
+    config_file
+        .write_all(config)
+        .context("Cannot write default config")?;
+    Ok(())
+}
+
 pub fn load() -> anyhow::Result<Config<Placeholder>> {
     let mut path = dirs::config_dir().expect("Missing config dir");
     path.push("oatbar.toml");
+    if !path.exists() {
+        warn!("Config at {:?} is missing. Writing default config...", path);
+        write_default_config(&path)?;
+    }
     let mut file = std::fs::File::open(&path).context(format!("unable to open {:?}", &path))?;
     let mut data = String::new();
     file.read_to_string(&mut data)?;

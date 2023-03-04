@@ -1,0 +1,54 @@
+[bar]
+height=32
+modules_left=[ "workspace", "active_window"]
+modules_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
+background="#191919dd"
+clock_format="%H:%M %a %e %b %Y"
+
+[[command]]
+name="disk_free"
+command="df -h / | tail -1 | awk '{print $5}'"
+interval=60
+
+[[block]]
+name = 'workspace'
+type = 'enum'
+active = '${workspace.active}'
+variants = '${workspace.variants}'
+active_background="#333333dd"
+active_value = '<span color="#53e2ae" weight="bold">${value}</span>'
+active_overline_color = "#53e2ae"
+
+[[block]]
+name = 'layout_enum'
+type = 'enum'
+active = '${layout.active}'
+variants = '${layout.variants}'
+active_value = '<span color="#53e2ae" weight="bold">${value}</span>'
+value = '<span color="#dddddd">${value}</span>'
+active_overline_color="#53e2ae"
+
+[[block]]
+name='disk_free'
+type = 'text'
+value = '<span foreground="#53e2ae">/</span> ${disk_free.full_text}'
+
+[[block]]
+name = 'clock'
+type = 'text'
+value = '${clock.datetime}'
+
+[[block]]
+name='active_window'
+type = 'text'
+value = ':: ${active_window.title} ::'
+show_if_set = '${active_window.title}'
+pango_markup = false
+
+[[block]]
+name='sep'
+type = 'text'
+value = '|'
+padding = 0.0
+foreground = "#777777"
+
