@@ -3,6 +3,9 @@ height=32
 modules_left=[ "workspace", "active_window"]
 modules_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
 background="#191919dd"
+active_background="#333333dd"
+active_overline_color = "#facd5a"
+active_foreground = "#facd5a"
 clock_format="%H:%M %a %e %b %Y"
 
 [[command]]
@@ -15,23 +18,20 @@ name = 'workspace'
 type = 'enum'
 active = '${workspace.active}'
 variants = '${workspace.variants}'
-active_background="#333333dd"
-active_value = '<span color="#53e2ae" weight="bold">${value}</span>'
-active_overline_color = "#53e2ae"
+active_value = '<span weight="bold">${value}</span>'
 
 [[block]]
 name = 'layout_enum'
 type = 'enum'
 active = '${layout.active}'
 variants = '${layout.variants}'
-active_value = '<span color="#53e2ae" weight="bold">${value}</span>'
+active_value = '<span weight="bold">${value}</span>'
 value = '<span color="#dddddd">${value}</span>'
-active_overline_color="#53e2ae"
 
 [[block]]
 name='disk_free'
 type = 'text'
-value = '<span foreground="#53e2ae">/</span> ${disk_free.full_text}'
+value = '<span weight="bold" foreground="#facd5a">/</span> ${disk_free.full_text}'
 
 [[block]]
 name = 'clock'
