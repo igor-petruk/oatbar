@@ -28,7 +28,7 @@ struct Workspaces {
 }
 
 impl Workspaces {
-    fn to_state_update(self) -> state::Update {
+    fn to_state_update(&self) -> state::Update {
         state::Update {
             entries: vec![
                 state::UpdateEntry {
@@ -130,9 +130,9 @@ fn send_title(title: String, tx: &crossbeam_channel::Sender<state::Update>) -> a
     Ok(())
 }
 
-pub struct EWMH {}
+pub struct Source {}
 
-impl state::Source for EWMH {
+impl state::Source for Source {
     fn spawn(self, tx: crossbeam_channel::Sender<state::Update>) -> anyhow::Result<()> {
         let (conn, screen_num) =
             xcb::Connection::connect_with_xlib_display_and_extensions(&[], &[]).unwrap();

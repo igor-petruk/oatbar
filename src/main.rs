@@ -51,15 +51,15 @@ fn main() -> anyhow::Result<()> {
     let layout = keyboard::Layout {};
     layout.spawn(state_update_tx.clone())?;
 
-    for (index,config) in i3bars.into_iter().enumerate() {
+    for (index, config) in i3bars.into_iter().enumerate() {
         let i3bar = source::I3Bar { index, config };
         i3bar.spawn(state_update_tx.clone())?;
     }
-    for (index,config) in commands.into_iter().enumerate() {
+    for (index, config) in commands.into_iter().enumerate() {
         let command = source::Command { index, config };
         command.spawn(state_update_tx.clone())?;
     }
-    let ewmh = ewmh::EWMH {};
+    let ewmh = ewmh::Source {};
     ewmh.spawn(state_update_tx.clone())?;
 
     let clock = clock::Clock {
