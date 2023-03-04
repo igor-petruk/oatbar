@@ -65,7 +65,7 @@ pub fn block_to_su_entry(name: &str, idx: usize, block: Block) -> Vec<state::Upd
                 name: name.clone(),
                 instance: block.instance.clone(),
                 var,
-                value: value.to_string(),
+                value,
             }
         })
         .collect()
@@ -86,8 +86,7 @@ impl<'de> Visitor<'de> for RowVisitor {
             let entries = row
                 .into_iter()
                 .enumerate()
-                .map(|(idx, block)| block_to_su_entry(&self.name, idx, block))
-                .flatten()
+                .flat_map(|(idx, block)| block_to_su_entry(&self.name, idx, block))
                 .collect();
             self.tx
                 .send(state::Update {
@@ -149,7 +148,7 @@ pub struct Command {
 }
 
 fn line_to_opt(line: Option<std::io::Result<String>>) -> Option<String> {
-    line.map(|v| v.ok()).flatten()
+    line.and_then(|v| v.ok())
 }
 
 impl state::Source for Command {
@@ -183,7 +182,7 @@ impl state::Source for Command {
                 ..Default::default()
             }];
 
-            if let Some(_) = line_to_opt(lines.next()) {
+            if line_to_opt(lines.next()).is_some() {
                 // Ignore short_text.
             }
 

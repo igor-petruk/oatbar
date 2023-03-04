@@ -50,7 +50,7 @@ impl Workspaces {
                 state::UpdateEntry {
                     name: "workspace".into(),
                     var: "variants".into(),
-                    value: self.names.join(",").into(),
+                    value: self.names.join(","),
                     ..Default::default()
                 },
             ],
@@ -65,9 +65,9 @@ fn get_workspaces(
     current: &Atom,
     names: &Atom,
 ) -> anyhow::Result<Workspaces> {
-    let reply = xutils::get_property(&conn, root, current.clone(), x::ATOM_CARDINAL, 1)?;
-    let current: u32 = *reply.value().get(0).ok_or(anyhow!("Empty reply"))?;
-    let reply = xutils::get_property(&conn, root, names.clone(), x::ATOM_ANY, 1024)?;
+    let reply = xutils::get_property(conn, root, *current, x::ATOM_CARDINAL, 1)?;
+    let current: u32 = *reply.value().first().ok_or(anyhow!("Empty reply"))?;
+    let reply = xutils::get_property(conn, root, *names, x::ATOM_ANY, 1024)?;
     let buf: &[u8] = reply.value();
     let bufs = buf.split(|f| *f == 0);
     let utf8 = bufs
@@ -85,7 +85,7 @@ fn get_active_window_title(
     active_window: &Atom,
     window_name: &Atom,
 ) -> anyhow::Result<String> {
-    let reply = xutils::get_property(&conn, root, active_window.clone(), x::ATOM_WINDOW, 1)
+    let reply = xutils::get_property(conn, root, *active_window, x::ATOM_WINDOW, 1)
         .context("Getting active window")?;
     let window: Option<&Window> = reply.value().get(0);
     if window.is_none() {
@@ -102,17 +102,17 @@ fn get_active_window_title(
     // TODO: fix a negligible memory leak monitoring all windows ever active.
     // There is a finite number of them possible.
     xutils::send(
-        &conn,
+        conn,
         &x::ChangeWindowAttributes {
             window,
             value_list: &[x::Cw::EventMask(x::EventMask::PROPERTY_CHANGE)],
         },
     )
     .context("Unable to monitor active window")?;
-    let reply = xutils::get_property(&conn, window, window_name.clone(), x::ATOM_ANY, 1024)
+    let reply = xutils::get_property(conn, window, *window_name, x::ATOM_ANY, 1024)
         .context("Getting window title")?;
     let buf: &[u8] = reply.value();
-    let title = String::from_utf8_lossy(&buf).into_owned();
+    let title = String::from_utf8_lossy(buf).into_owned();
     Ok(title)
 }
 

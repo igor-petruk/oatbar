@@ -34,7 +34,7 @@ pub trait PlaceholderExt {
 impl PlaceholderExt for String {
     type R = String;
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        replace_placeholders(&self, vars)
+        replace_placeholders(self, vars)
     }
 }
 
@@ -57,7 +57,7 @@ fn replace_placeholders(
                             Some('}') => {
                                 let var: String = var.into_iter().collect();
                                 let (var, default_value) =
-                                    if let Some((var_name, default_value)) = var.split_once("|") {
+                                    if let Some((var_name, default_value)) = var.split_once('|') {
                                         (var_name, default_value)
                                     } else {
                                         (var.as_str(), "")
@@ -140,31 +140,31 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
 
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R> {
         Ok(DisplayOptions {
-            font: self.font.resolve_placeholders(&vars).context("font")?,
+            font: self.font.resolve_placeholders(vars).context("font")?,
             foreground: self
                 .foreground
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("foreground")?,
             background: self
                 .background
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("background")?,
-            value: self.value.resolve_placeholders(&vars).context("value")?,
+            value: self.value.resolve_placeholders(vars).context("value")?,
             overline_color: self
                 .overline_color
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("overline_color")?,
             underline_color: self
                 .underline_color
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("underline_color")?,
             margin: self.margin,
             padding: self.padding,
             show_if_set: self
                 .show_if_set
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("show_if_set")?,
-            pango_markup: self.pango_markup.clone(),
+            pango_markup: self.pango_markup,
         })
     }
 }
@@ -207,7 +207,7 @@ impl EnumBlock<Option<Placeholder>> {
             display: self.display.clone().with_default(&bar.display),
             active_display: self
                 .active_display
-                .with_default(&self.display.clone().with_default(&bar.active_display)),
+                .with_default(&self.display.with_default(&bar.active_display)),
         }
     }
 }
@@ -218,18 +218,18 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<EnumBlock<String>> {
         Ok(EnumBlock {
             name: self.name.clone(),
-            active: self.active.resolve_placeholders(&vars).context("active")?,
+            active: self.active.resolve_placeholders(vars).context("active")?,
             variants: self
                 .variants
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("variants")?,
             display: self
                 .display
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("display")?,
             active_display: self
                 .active_display
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("active_display")?,
         })
     }
@@ -247,7 +247,7 @@ impl TextBlock<Option<Placeholder>> {
     pub fn with_default(self, bar: &Bar<Placeholder>) -> TextBlock<Placeholder> {
         TextBlock {
             name: self.name.clone(),
-            display: self.display.clone().with_default(&bar.display),
+            display: self.display.with_default(&bar.display),
         }
     }
 }
@@ -261,7 +261,7 @@ impl TextBlock<Placeholder> {
             name: self.name.clone(),
             display: self
                 .display
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("display")?,
         })
     }
@@ -289,7 +289,7 @@ impl NumberType {
                 .map_err(|e| anyhow::anyhow!("could not parse bytes: {:?}", e))?
                 .as_u64() as f64),
         };
-        number.map(|n| Some(n))
+        number.map(Some)
     }
 }
 
@@ -318,15 +318,15 @@ impl TextProgressBarDisplay<Placeholder> {
         vars: &PlaceholderVars,
     ) -> anyhow::Result<TextProgressBarDisplay<String>> {
         Ok(TextProgressBarDisplay {
-            empty: self.empty.resolve_placeholders(&vars).context("empty")?,
-            fill: self.fill.resolve_placeholders(&vars).context("fill")?,
+            empty: self.empty.resolve_placeholders(vars).context("empty")?,
+            fill: self.fill.resolve_placeholders(vars).context("fill")?,
             indicator: self
                 .indicator
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("indicator")?,
             bar_format: self
                 .bar_format
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("bar_format")?,
         })
     }
@@ -376,20 +376,20 @@ impl NumberBlock<Placeholder> {
             name: self.name.clone(),
             min_value: self
                 .min_value
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("min_value")?,
             max_value: self
                 .max_value
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("max_value")?,
             display: self
                 .display
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("display")?,
             number_type: self.number_type.clone(),
             progress_bar: match &self.progress_bar {
                 ProgressBar::Text(t) => {
-                    ProgressBar::Text(t.resolve_placeholders(&vars).context("progress_bar")?)
+                    ProgressBar::Text(t.resolve_placeholders(vars).context("progress_bar")?)
                 }
             },
         })
@@ -408,7 +408,7 @@ impl ImageBlock<Option<Placeholder>> {
     pub fn with_default(self, bar: &Bar<Placeholder>) -> ImageBlock<Placeholder> {
         ImageBlock {
             name: self.name.clone(),
-            display: self.display.clone().with_default(&bar.display),
+            display: self.display.with_default(&bar.display),
         }
     }
 }
@@ -422,7 +422,7 @@ impl ImageBlock<Placeholder> {
             name: self.name.clone(),
             display: self
                 .display
-                .resolve_placeholders(&vars)
+                .resolve_placeholders(vars)
                 .context("display")?,
         })
     }
@@ -441,10 +441,10 @@ pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
 impl Block<Option<Placeholder>> {
     pub fn with_default_and_name(self, bar: &Bar<Placeholder>) -> (String, Block<Placeholder>) {
         match self {
-            Block::Enum(e) => (e.name.clone(), Block::Enum(e.with_default(&bar))),
-            Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(&bar))),
-            Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(&bar))),
-            Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(&bar))),
+            Block::Enum(e) => (e.name.clone(), Block::Enum(e.with_default(bar))),
+            Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(bar))),
+            Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(bar))),
+            Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(bar))),
         }
     }
 }
@@ -452,12 +452,12 @@ impl Block<Option<Placeholder>> {
 impl Block<Placeholder> {
     pub fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Block<String>> {
         Ok(match self {
-            Block::Enum(e) => Block::Enum(e.resolve_placeholders(&vars).context("block::enum")?),
-            Block::Text(e) => Block::Text(e.resolve_placeholders(&vars).context("block::text")?),
+            Block::Enum(e) => Block::Enum(e.resolve_placeholders(vars).context("block::enum")?),
+            Block::Text(e) => Block::Text(e.resolve_placeholders(vars).context("block::text")?),
             Block::Number(e) => {
-                Block::Number(e.resolve_placeholders(&vars).context("block::number")?)
+                Block::Number(e.resolve_placeholders(vars).context("block::number")?)
             }
-            Block::Image(e) => Block::Image(e.resolve_placeholders(&vars).context("block::image")?),
+            Block::Image(e) => Block::Image(e.resolve_placeholders(vars).context("block::image")?),
         })
     }
 }
@@ -617,9 +617,9 @@ pub fn write_default_config(config_path: &Path) -> anyhow::Result<()> {
     let config_dir = config_path
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Unexpected lack of parent directory"))?;
-    std::fs::create_dir_all(&config_dir).context("Unable to create parent dir for config")?;
+    std::fs::create_dir_all(config_dir).context("Unable to create parent dir for config")?;
     let mut config_file =
-        std::fs::File::create(&config_path).context("Cannot create default config")?;
+        std::fs::File::create(config_path).context("Cannot create default config")?;
     config_file
         .write_all(DEFAULT_CONFIG)
         .context("Cannot write default config")?;

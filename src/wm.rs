@@ -25,17 +25,17 @@ pub fn validate_wm(
     wm_name: x::Atom,
     wm_supported: x::Atom,
 ) -> anyhow::Result<String> {
-    let reply = xutils::get_property(&conn, screen.root(), wm_support_atom, x::ATOM_WINDOW, 2)?;
+    let reply = xutils::get_property(conn, screen.root(), wm_support_atom, x::ATOM_WINDOW, 2)?;
 
     let wm_window = reply
         .value::<x::Window>()
         .get(0)
         .ok_or_else(|| anyhow!("Failed to find wm window"))?;
 
-    let reply = xutils::get_property(&conn, wm_window.clone(), wm_name, x::ATOM_ANY, 256)?;
+    let reply = xutils::get_property(conn, *wm_window, wm_name, x::ATOM_ANY, 256)?;
     let wm_name = String::from_utf8_lossy(reply.value::<u8>());
 
-    let reply = xutils::get_property(&conn, screen.root(), wm_supported, x::ATOM_ATOM, 4096)?;
+    let reply = xutils::get_property(conn, screen.root(), wm_supported, x::ATOM_ATOM, 4096)?;
 
     info!("Supported EWMH: {:?}", reply);
 

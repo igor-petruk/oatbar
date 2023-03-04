@@ -160,7 +160,7 @@ impl State {
             .variants
             .resolve_placeholders(&self.vars)
             .context("cannot replace placeholders")?
-            .split(",")
+            .split(',')
             .enumerate()
             .map(|(index, value)| format_active_inactive(b, active, index, value.to_string()))
             .partition(|r| r.is_ok());
@@ -197,10 +197,10 @@ impl State {
             let block_config = block_config.unwrap();
 
             let block_data = match block_config {
-                config::Block::Text(text_block) => self.text_block(&text_block),
-                config::Block::Enum(enum_block) => self.enum_block(&enum_block),
-                config::Block::Number(number_block) => self.number_block(&number_block),
-                config::Block::Image(image_block) => self.image_block(&image_block),
+                config::Block::Text(text_block) => self.text_block(text_block),
+                config::Block::Enum(enum_block) => self.enum_block(enum_block),
+                config::Block::Number(number_block) => self.number_block(number_block),
+                config::Block::Image(image_block) => self.image_block(image_block),
             };
 
             match block_data {

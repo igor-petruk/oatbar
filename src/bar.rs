@@ -37,7 +37,7 @@ impl FontCache {
     fn get(&mut self, font_str: &str) -> &pango::FontDescription {
         self.cache
             .entry(font_str.into())
-            .or_insert_with(|| pango::FontDescription::from_string(&font_str))
+            .or_insert_with(|| pango::FontDescription::from_string(font_str))
     }
 }
 
@@ -81,7 +81,7 @@ impl BaseBlock {
 
 impl Block for BaseBlock {
     fn is_visible(&self) -> bool {
-        return self.inner_block.is_visible();
+        self.inner_block.is_visible()
     }
 
     fn get_dimensions(&self) -> Dimensions {
@@ -100,11 +100,11 @@ impl Block for BaseBlock {
         // if let Some(color) = &self.display_options.background.not_empty_opt() {
         let background_color = &self.display_options.background;
         if !background_color.is_empty() {
-            context_color(&context, background_color)?;
+            context_color(context, background_color)?;
             context.rectangle(
                 self.margin,
                 0.0,
-                inner_dim.width as f64 + 2.0 * self.padding,
+                inner_dim.width + 2.0 * self.padding,
                 self.height,
             );
             context.fill()?;
@@ -116,10 +116,10 @@ impl Block for BaseBlock {
         //if let Some(overline_color) = self.display_options.overline_color.not_empty_opt() {
         let overline_color = &self.display_options.overline_color;
         if !overline_color.is_empty() {
-            context_color(&context, overline_color)?;
+            context_color(context, overline_color)?;
             context.move_to(0.0, line_width / 2.0);
             context.line_to(
-                inner_dim.width as f64 + 2.0 * self.padding,
+                inner_dim.width + 2.0 * self.padding,
                 line_width / 2.0,
             );
             context.stroke()?;
@@ -128,10 +128,10 @@ impl Block for BaseBlock {
         //if let Some(underline_color) = self.display_options.underline_color.not_empty_opt() {
         let underline_color = &self.display_options.underline_color;
         if !underline_color.is_empty() {
-            context_color(&context, underline_color)?;
+            context_color(context, underline_color)?;
             context.move_to(0.0, self.height - line_width / 2.0);
             context.line_to(
-                inner_dim.width as f64 + 2.0 * self.padding,
+                inner_dim.width + 2.0 * self.padding,
                 self.height - line_width / 2.0,
             );
             context.stroke()?;
@@ -140,7 +140,7 @@ impl Block for BaseBlock {
             self.margin + self.padding,
             (self.height - inner_dim.height) / 2.0,
         );
-        self.inner_block.render(&context)?;
+        self.inner_block.render(context)?;
         context.restore()?;
         Ok(())
     }
@@ -158,16 +158,16 @@ impl TextBlock {
         display_options: config::DisplayOptions<String>,
         height: f64,
     ) -> Box<dyn Block> {
-        let pango_layout = pango::Layout::new(&pango_context);
+        let pango_layout = pango::Layout::new(pango_context);
         if display_options.pango_markup == Some(true) {
             // TODO: fix this.
-            pango_layout.set_markup(&display_options.value.as_str());
+            pango_layout.set_markup(display_options.value.as_str());
         } else {
-            pango_layout.set_text(&display_options.value.as_str());
+            pango_layout.set_text(display_options.value.as_str());
         }
         let mut font_cache = font_cache.lock().unwrap();
-        let fd = font_cache.get(&display_options.font.as_str());
-        pango_layout.set_font_description(Some(&fd));
+        let fd = font_cache.get(display_options.font.as_str());
+        pango_layout.set_font_description(Some(fd));
         let text_block = Self {
             pango_layout,
             display_options: display_options.clone(),
@@ -192,9 +192,9 @@ impl Block for TextBlock {
         context.save()?;
         let color = &self.display_options.foreground;
         if !color.is_empty() {
-            context_color(&context, color)?;
+            context_color(context, color)?;
         }
-        pangocairo::show_layout(&context, &self.pango_layout);
+        pangocairo::show_layout(context, &self.pango_layout);
         context.restore()?;
         Ok(())
     }
@@ -256,11 +256,11 @@ impl TextProgressBarNumberBlock {
         let format = text_progress_bar.bar_format;
         let markup = format.replace("BAR", &progress_bar);
         let display = config::DisplayOptions {
-            value: markup.clone(),
+            value: markup,
             pango_markup: Some(true), // TODO: fix
-            ..value.display.clone()
+            ..value.display
         };
-        let text_block = TextBlock::new(&pango_context, font_cache.clone(), display, height);
+        let text_block = TextBlock::new(pango_context, font_cache, display, height);
         Self { text_block }
     }
 }
@@ -301,7 +301,7 @@ impl EnumBlock {
             };
             display_options.value = item.clone();
             let variant_block = TextBlock::new(
-                &pango_context,
+                pango_context,
                 font_cache.clone(),
                 display_options.clone(),
                 height,
@@ -327,7 +327,7 @@ impl Block for EnumBlock {
         for variant_block in self.variant_blocks.iter() {
             context.save()?;
             context.translate(x_offset, 0.0);
-            variant_block.render(&context)?;
+            variant_block.render(context)?;
             context.restore()?;
             x_offset += variant_block.get_dimensions().width;
         }
@@ -352,7 +352,7 @@ impl ImageBlock {
     }
 
     fn new(display_options: config::DisplayOptions<String>, height: f64) -> Box<dyn Block> {
-        let image_buf = Self::load_image(&display_options.value.as_str());
+        let image_buf = Self::load_image(display_options.value.as_str());
         if let Err(e) = &image_buf {
             error!("Error loading PNG file: {:?}", e)
         }
@@ -386,8 +386,8 @@ impl Block for ImageBlock {
             context.save()?;
             let dim = self.get_dimensions();
             context.set_operator(cairo::Operator::Over);
-            context.set_source_surface(&image_buf, 0.0, 0.0)?;
-            context.rectangle(0.0, 0.0, dim.width.into(), dim.height.into());
+            context.set_source_surface(image_buf, 0.0, 0.0)?;
+            context.rectangle(0.0, 0.0, dim.width, dim.height);
             context.fill()?;
             context.restore()?;
         }
@@ -415,7 +415,7 @@ impl BlockGroup {
             .map(|bd| {
                 let b: Box<dyn Block> = match &bd.value {
                     state::BlockValue::Text(text) => TextBlock::new(
-                        &pango_context,
+                        pango_context,
                         font_cache.clone(),
                         text.display.clone(),
                         bar_config.height as f64,
@@ -423,7 +423,7 @@ impl BlockGroup {
                     state::BlockValue::Number(number) => match &number.progress_bar {
                         config::ProgressBar::Text(text_progress_bar) => {
                             let b: Box<dyn Block> = Box::new(TextProgressBarNumberBlock::new(
-                                &pango_context,
+                                pango_context,
                                 font_cache.clone(),
                                 number.clone(),
                                 text_progress_bar.clone(),
@@ -434,7 +434,7 @@ impl BlockGroup {
                     },
                     state::BlockValue::Enum(enum_block_value) => {
                         let b: Box<dyn Block> = Box::new(EnumBlock::new(
-                            &pango_context,
+                            pango_context,
                             font_cache.clone(),
                             enum_block_value.clone(),
                             bar_config.height as f64,
@@ -485,7 +485,7 @@ impl BlockGroup {
             let b_dim = block.get_dimensions();
             context.save()?;
             context.translate(pos, 0.0);
-            block.render(&context)?;
+            block.render(context)?;
             context.restore()?;
             pos += b_dim.width;
         }
@@ -517,9 +517,9 @@ impl Bar {
     pub fn render(&self, d_context: &DrawingContext, state: &state::State) -> anyhow::Result<()> {
         let context = &d_context.context;
 
-        let pango_context = pangocairo::create_context(&context);
+        let pango_context = pangocairo::create_context(context);
         context.save()?;
-        context_color(&context, self.config.bar.display.background.as_str())?;
+        context_color(context, self.config.bar.display.background.as_str())?;
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
@@ -548,7 +548,7 @@ impl Bar {
         );
 
         context.save()?;
-        context_color(&context, self.config.bar.display.background.as_str())?;
+        context_color(context, self.config.bar.display.background.as_str())?;
         left_group.render(context)?;
         context.restore()?;
 
@@ -569,7 +569,7 @@ impl Bar {
 }
 
 fn context_color(context: &cairo::Context, color: &str) -> anyhow::Result<()> {
-    match hex_color::HexColor::parse(&color) {
+    match hex_color::HexColor::parse(color) {
         Ok(color) => {
             context.set_source_rgba(
                 color.r as f64 / 256.,

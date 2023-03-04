@@ -36,22 +36,19 @@ fn get_current_layout(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Resu
         },
     )?;
     let one_value = reply
-        .value_list()
-        .iter()
-        .cloned()
-        .next()
+        .value_list().first().cloned()
         .ok_or_else(|| anyhow::anyhow!("More than one value"))?;
     let atom_name = if let xkb::GetNamesReplyValueList::Symbols(atom) = one_value {
-        let reply = xutils::query(&conn, &x::GetAtomName { atom: atom.clone() })?;
+        let reply = xutils::query(conn, &x::GetAtomName { atom })?;
         Ok(reply.name().to_utf8().to_string())
     } else {
         Err(anyhow::anyhow!("Unexpected reply type"))
     }?;
 
     let variants: Vec<String> = atom_name
-        .split("+")
-        .filter(|s| !s.contains("("))
-        .map(|s| s.split(":").next().unwrap())
+        .split('+')
+        .filter(|s| !s.contains('('))
+        .map(|s| s.split(':').next().unwrap())
         .filter(|s| s != &"pc")
         .map(String::from)
         .collect();
@@ -156,7 +153,7 @@ impl state::Source for Layout {
                     debug!("Unhandled XCB event: {:?}", event);
                 }
             }
-            return Ok(true);
+            Ok(true)
         })?;
 
         Ok(())

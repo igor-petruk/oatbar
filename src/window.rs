@@ -49,7 +49,7 @@ impl Window {
         let mut vis32 = find_32bit_visual(&screen).unwrap();
 
         let height = config.bar.height;
-        let width = screen.width_in_pixels().into();
+        let width = screen.width_in_pixels();
 
         let cid = conn.generate_id();
         xutils::send(
@@ -107,7 +107,7 @@ impl Window {
             "_NET_WM_STRUT_PARTIAL",
             x::ATOM_CARDINAL,
             &[
-                0 as u32,
+                0_u32,
                 0,
                 if top { height.into() } else { 0 },
                 if top { 0 } else { height.into() },
@@ -130,7 +130,7 @@ impl Window {
                 "_NET_WM_STRUT",
                 x::ATOM_CARDINAL,
                 &[
-                    0 as u32,
+                    0_u32,
                     0,
                     if top { height.into() } else { 0 },
                     if top { 0 } else { height.into() },
@@ -148,8 +148,8 @@ impl Window {
                 depth: 32,
                 pid: back_buffer,
                 drawable: xcb::x::Drawable::Window(id),
-                width: width.into(),
-                height: height.into(),
+                width,
+                height,
             },
         )?;
 
@@ -222,7 +222,7 @@ impl Window {
 
     pub fn render(&self, state: &state::State) -> anyhow::Result<()> {
         let dc = self.make_drawing_context()?;
-        self.bar.render(&dc, &state)?;
+        self.bar.render(&dc, state)?;
         self.swap_buffers()?;
         Ok(())
     }
