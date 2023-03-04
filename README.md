@@ -6,12 +6,20 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/igor-petruk/oatbar)
 ![Crates.io](https://img.shields.io/crates/d/oatbar?label=Cargo.io%20downloads)
 
-It is a standalone desktop bar that can be used with various WMs and DEs.
+It is a standalone desktop bar that can be used with various WMs and DEs. This bar aims to become one of the most full-featured bars available.
+
+* Flexibility and pluggability of information sources from existing ecosystems
+  * Arbitrary scripts
+  * `i3blocks` format 
+  * `i3status` format
+  * PNG image embedding that could be rendered by a source script at runtime.
+* External plugins are preferred, but the most basic modules are embedded: EWHM, layouts, clock, etc.
+* Conversion of string sources to other types (numbers, bytes, percentages) that could be rendered by specialize widgets
+* Native Pango markup support
+* Source data cleaning via regexes so inflexible source module data can be cleaned inside of the `oatbar`.
 
 ![Panel Left](panel-sample-left.png)
 ![Panel Right](panel-sample-right.png)
-
-This bar supports conversion of inputs in various data formats to strong types that can be displayed on specialized bar widgets.
 
 ## Installation
 
