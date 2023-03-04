@@ -16,7 +16,7 @@ This bar supports conversion of inputs in various data formats to strong types t
 
 Please install `cargo` via the package manager or http://rustup.rs.
 
-#### Ubuntu
+#### Ubuntu/Debian
 
 ```sh
 # apt-get install -y build-essential pkg-config libcairo2-dev libpango1.0-dev libx11-xcb-dev
