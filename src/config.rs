@@ -424,13 +424,6 @@ impl ImageBlock<Placeholder> {
         })
     }
 }
-/*
-impl PlaceholderReplace for ImageBlock {
-    fn values(&mut self) -> Vec<&mut Value> {
-        self.display.values()
-    }
-}
-*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -638,7 +631,7 @@ mod tests {
         map.insert("bar".into(), "world".into());
         map.insert("baz".into(), "unuzed".into());
         let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>".into();
-        let result = value.replace_placeholders(&map);
+        let result = replace_placeholders(&value, &map);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "<test> hello $ world, () default </test>");
     }
@@ -648,21 +641,21 @@ mod tests {
         let mut map = HashMap::new();
         map.insert("foo".into(), "hello".into());
         let mut block = Block::Enum(EnumBlock {
-            name: Some("".into()),
-            active: Some("a ${foo} b".into()),
-            variants: Some("".into()),
+            name: "".into(),
+            active: "a ${foo} b".into(),
+            variants: "".into(),
             display: DisplayOptions {
-                foreground: Some("b ${foo} c".into()),
+                foreground: "b ${foo} c".into(),
                 ..Default::default()
             },
             active_display: DisplayOptions {
                 ..Default::default()
             },
         });
-        block.replace_placeholders(&map);
+        let block = block.resolve_placeholders(&map).unwrap();
         if let Block::Enum(e) = block {
-            assert_eq!(e.active.0, "a hello b");
-            assert_eq!(e.display.foreground.unwrap().0, "b hello c");
+            assert_eq!(e.active, "a hello b");
+            assert_eq!(e.display.foreground, "b hello c");
         }
     }
 
