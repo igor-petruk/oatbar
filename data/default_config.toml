@@ -26,7 +26,6 @@ type = 'enum'
 active = '${layout.active}'
 variants = '${layout.variants}'
 active_value = '<span weight="bold">${value}</span>'
-value = '<span color="#dddddd">${value}</span>'
 
 [[block]]
 name='disk_free'
