@@ -691,19 +691,22 @@ mod tests {
 
     #[test]
     fn test_number_parse() {
-        assert_eq!(10.0, NumberType::Number.parse_str("  10   ").unwrap());
+        assert_eq!(Some(10.0), NumberType::Number.parse_str("  10   ").unwrap());
     }
 
     #[test]
     fn test_percent_parse() {
-        assert_eq!(10.0, NumberType::Percent.parse_str("  10 %  ").unwrap());
+        assert_eq!(
+            Some(10.0),
+            NumberType::Percent.parse_str("  10 %  ").unwrap()
+        );
     }
 
     #[test]
     fn test_bytes_parse() {
-        assert_eq!(10.0, NumberType::Bytes.parse_str("  10  ").unwrap());
+        assert_eq!(Some(10.0), NumberType::Bytes.parse_str("  10  ").unwrap());
         assert_eq!(
-            10.0 * 1024.0,
+            Some(10.0 * 1024.0),
             NumberType::Bytes.parse_str("  10 KiB  ").unwrap()
         );
     }
