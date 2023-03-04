@@ -12,6 +12,8 @@ This bar supports conversion of inputs in various data formats to strong types t
 
 ## Installation
 
+WIP: instructions to build, install and configure. Bear with me, the project was put on Github on March 3rd.
+
 ```sh
 cargo install --path .
 ```
