@@ -23,23 +23,6 @@ use tracing::debug;
 
 pub type Placeholder = String;
 
-/*
-impl From<String> for Placeholder {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct PlaceholderOpt(Option<String>);
-
-impl From<String> for Option<Placeholder> {
-    fn from(value: String) -> Self {
-        Some(Placeholder(value))
-    }
-}
-*/
-
 pub trait PlaceholderExt {
     type R;
 
@@ -105,33 +88,6 @@ fn replace_placeholders(
     }
     Ok(result.into_iter().collect())
 }
-/*
-trait PushSomeExt<'a> {
-    fn push_some(&mut self, v: &'a mut Option<Value>);
-}
-
-impl<'a> PushSomeExt<'a> for Vec<&'a mut Value> {
-    fn push_some(&mut self, v: &'a mut Option<Value>) {
-        if let Some(v) = v {
-            self.push(v);
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct Value<T: for<'a> Deserialize<'a> + Clone + Default + Debug>(pub T);
-
-pub trait PlaceholderReplace {
-    fn values(&mut self) -> Vec<&mut Value>;
-
-    fn replace_placeholders(&mut self, hash_map: &HashMap<String, String>) -> anyhow::Result<()> {
-        for value in self.values().iter_mut() {
-            **value = Value(replace_placeholders(&value.0, hash_map)?);
-        }
-        Ok(())
-    }
-}
-*/
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
@@ -210,21 +166,6 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
         })
     }
 }
-/*
-impl PlaceholderReplace for DisplayOptions {
-    fn values(&mut self) -> Vec<&mut Value> {
-        let mut r = vec![];
-        r.push_some(&mut self.font);
-        r.push_some(&mut self.foreground);
-        r.push_some(&mut self.background);
-        r.push_some(&mut self.value);
-        r.push_some(&mut self.overline_color);
-        r.push_some(&mut self.underline_color);
-        r.push_some(&mut self.show_if_set);
-        r
-    }
-}
-*/
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Replace(Vec<Vec<String>>);
@@ -292,19 +233,6 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
     }
 }
 
-/*
-impl PlaceholderReplace for EnumBlock {
-    fn values(&mut self) -> Vec<&mut Value> {
-        let mut r: Vec<&mut Value> = vec![];
-        r.push(&mut self.active);
-        r.push(&mut self.variants);
-        r.append(&mut self.display.values());
-        r.append(&mut self.active_display.values());
-        r
-    }
-}
-*/
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
@@ -336,13 +264,6 @@ impl TextBlock<Placeholder> {
         })
     }
 }
-/*
-impl PlaceholderReplace for TextBlock {
-    fn values(&mut self) -> Vec<&mut Value> {
-        self.display.values()
-    }
-}
-*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -404,20 +325,6 @@ impl TextProgressBarDisplay<Placeholder> {
         })
     }
 }
-
-/*
-impl PlaceholderReplace for TextProgressBarDisplay {
-    fn values(&mut self) -> Vec<&mut Value> {
-        let mut r: Vec<&mut Value> = vec![];
-        use PushSomeExt;
-        r.push_some(&mut self.empty);
-        r.push_some(&mut self.fill);
-        r.push_some(&mut self.indicator);
-        r.push_some(&mut self.bar_format);
-        r
-    }
-}
-*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -485,23 +392,6 @@ impl NumberBlock<Placeholder> {
         })
     }
 }
-/*
-impl PlaceholderReplace for NumberBlock {
-    fn values(&mut self) -> Vec<&mut Value> {
-        use PushSomeExt;
-        let mut r = vec![];
-        r.push_some(&mut self.min_value);
-        r.push_some(&mut self.max_value);
-        r.append(&mut self.display.values());
-        match &mut self.progress_bar {
-            ProgressBar::Text(text_progress_bar_display) => {
-                r.append(&mut text_progress_bar_display.values());
-            }
-        }
-        r
-    }
-}
-*/
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -575,18 +465,6 @@ impl Block<Placeholder> {
         })
     }
 }
-/*
-impl PlaceholderReplace for Block {
-    fn values(&mut self) -> Vec<&mut Value> {
-        match self {
-            Block::Text(t) => t.values(),
-            Block::Enum(e) => e.values(),
-            Block::Number(n) => n.values(),
-            Block::Image(i) => i.values(),
-        }
-    }
-}
-*/
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
