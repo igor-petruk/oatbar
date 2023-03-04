@@ -1,0 +1,38 @@
+name: On Push
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+      runs-on: ubuntu-latest
+      steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Ubuntu tools
+        run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libpango1.0-dev libx11-xcb-dev
+      
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
