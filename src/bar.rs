@@ -214,12 +214,15 @@ impl TextProgressBarNumberBlock {
         width: usize,
     ) -> String {
         let empty_result = (0..width).map(|_| ' ');
-        if number_value.max_value.is_none() || number_value.min_value.is_none() {
+        if number_value.max_value.is_none()
+            || number_value.min_value.is_none()
+            || number_value.value.is_none()
+        {
             return empty_result.collect();
         }
         let min_value = number_value.min_value.unwrap();
         let max_value = number_value.max_value.unwrap();
-        let value = number_value.value;
+        let value = number_value.value.unwrap();
         if value < min_value || value > max_value || min_value >= max_value {
             return empty_result.collect();
         }

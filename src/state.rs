@@ -25,7 +25,7 @@ pub struct TextBlockValue {
 
 #[derive(Clone, Debug)]
 pub struct NumberBlockValue {
-    pub value: f64,
+    pub value: Option<f64>,
     pub min_value: Option<f64>,
     pub max_value: Option<f64>,
     pub number_type: config::NumberType,
@@ -87,43 +87,53 @@ fn format_active_inactive(
 }
 
 impl State {
-    fn text_block(&self, b: &config::TextBlock<config::Placeholder>) -> BlockData {
-        let display = b.display.resolve_placeholders(&self.vars).expect("TODO");
-        BlockData {
+    fn text_block(&self, b: &config::TextBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
+        let display = b
+            .display
+            .resolve_placeholders(&self.vars)
+            .context("display")?;
+        Ok(BlockData {
             value: BlockValue::Text(TextBlockValue { display }),
             config: config::Block::Text(b.clone()),
-        }
+        })
     }
 
-    fn image_block(&self, b: &config::ImageBlock<config::Placeholder>) -> BlockData {
-        let display = b.display.resolve_placeholders(&self.vars).expect("TODO");
-        BlockData {
+    fn image_block(
+        &self,
+        b: &config::ImageBlock<config::Placeholder>,
+    ) -> anyhow::Result<BlockData> {
+        let display = b
+            .display
+            .resolve_placeholders(&self.vars)
+            .context("display")?;
+        Ok(BlockData {
             value: BlockValue::Image(ImageBlockValue { display }),
             config: config::Block::Image(b.clone()),
-        }
+        })
     }
 
-    fn number_block(&self, b: &config::NumberBlock<config::Placeholder>) -> BlockData {
+    fn number_block(
+        &self,
+        b: &config::NumberBlock<config::Placeholder>,
+    ) -> anyhow::Result<BlockData> {
         let number_type = b.number_type.clone();
-        let display = b.display.resolve_placeholders(&self.vars).expect("TODO");
+        let display = b
+            .display
+            .resolve_placeholders(&self.vars)
+            .context("display")?;
         let value = number_type
             .parse_str(display.value.as_str())
-            .unwrap_or_default();
-        let (min_value, max_value) = (Some(0.0), Some(100.0));
-        /*
-                let (min_value, max_value) = match number_type {
-                    config::NumberType::Percent => (Some(0.0), Some(100.0)),
-                    _ => (
-                        b.min_value
-                            .as_ref()
-                            .map(|v| number_type.parse_str(&v.0).unwrap_or_default()),
-                        b.max_value
-                            .as_ref()
-                            .map(|v| number_type.parse_str(&v.0).unwrap_or_default()),
-                    ),
-                };
-        */
-        BlockData {
+            .context("value")?;
+
+        let (min_value, max_value) = match number_type {
+            config::NumberType::Percent => (Some(0.0), Some(100.0)),
+            _ => (
+                number_type.parse_str(&b.min_value).context("min_value")?,
+                number_type.parse_str(&b.max_value).context("max_value")?,
+            ),
+        };
+
+        Ok(BlockData {
             value: BlockValue::Number(NumberBlockValue {
                 value,
                 min_value,
@@ -133,8 +143,9 @@ impl State {
                 progress_bar: b.progress_bar.clone(),
             }),
             config: config::Block::Number(b.clone()),
-        }
+        })
     }
+
     fn enum_block(&self, b: &config::EnumBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
         let active_str = &b
             .active
@@ -187,11 +198,19 @@ impl State {
 
             let block_data = match block_config {
                 config::Block::Text(text_block) => self.text_block(&text_block),
-                config::Block::Enum(enum_block) => self.enum_block(&enum_block).expect("TODO"),
+                config::Block::Enum(enum_block) => self.enum_block(&enum_block),
                 config::Block::Number(number_block) => self.number_block(&number_block),
                 config::Block::Image(image_block) => self.image_block(&image_block),
             };
-            result.push(block_data);
+
+            match block_data {
+                Ok(block_data) => {
+                    result.push(block_data);
+                }
+                Err(e) => {
+                    tracing::error!("Module {:?} has invalid value: {:?}", module, e);
+                }
+            }
         }
         result
     }

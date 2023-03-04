@@ -276,8 +276,11 @@ pub enum NumberType {
 }
 
 impl NumberType {
-    pub fn parse_str(&self, text: &str) -> anyhow::Result<f64> {
-        match self {
+    pub fn parse_str(&self, text: &str) -> anyhow::Result<Option<f64>> {
+        if text.trim().is_empty() {
+            return Ok(None);
+        }
+        let number = match self {
             Self::Number => Ok(text.trim().parse()?),
             Self::Percent => Ok(text.trim_end_matches(&[' ', '\t', '%']).trim().parse()?),
             Self::Bytes => Ok(text
@@ -285,7 +288,8 @@ impl NumberType {
                 .parse::<bytesize::ByteSize>()
                 .map_err(|e| anyhow::anyhow!("could not parse bytes: {:?}", e))?
                 .as_u64() as f64),
-        }
+        };
+        number.map(|n| Some(n))
     }
 }
 
@@ -353,10 +357,7 @@ impl NumberBlock<Option<Placeholder>> {
         NumberBlock {
             name: self.name.clone(),
             min_value: self.min_value.clone().unwrap_or_else(|| "0".into()),
-            max_value: self
-                .max_value
-                .clone()
-                .unwrap_or_else(|| "10000000000".into()), // TODO: fix this.
+            max_value: self.max_value.clone().unwrap_or_else(|| "".into()),
             display: self.display.clone().with_default(&bar.display),
             number_type: self.number_type.clone(),
             progress_bar: match self.progress_bar {
