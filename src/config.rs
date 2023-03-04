@@ -610,8 +610,9 @@ fn default_active_display() -> DisplayOptions<Placeholder> {
     }
 }
 
+const DEFAULT_CONFIG: &[u8] = include_bytes!("../data/default_config.toml");
+
 pub fn write_default_config(config_path: &Path) -> anyhow::Result<()> {
-    let config = include_bytes!("../data/default_config.toml");
     let config_dir = config_path
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Unexpected lack of parent directory"))?;
@@ -619,7 +620,7 @@ pub fn write_default_config(config_path: &Path) -> anyhow::Result<()> {
     let mut config_file =
         std::fs::File::create(&config_path).context("Cannot create default config")?;
     config_file
-        .write_all(config)
+        .write_all(DEFAULT_CONFIG)
         .context("Cannot write default config")?;
     Ok(())
 }
@@ -644,6 +645,13 @@ pub fn load() -> anyhow::Result<Config<Placeholder>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_default_config_parses() {
+        let config: Result<Config<Option<Placeholder>>, toml::de::Error> =
+            toml::from_str(&String::from_utf8_lossy(DEFAULT_CONFIG));
+        assert!(config.is_ok());
+    }
 
     #[test]
     fn test_value() {
