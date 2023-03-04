@@ -8,6 +8,9 @@
 
 It is a standalone desktop bar that can be used with various WMs and DEs.
 
+![Panel Left](panel-sample-left.png)
+![Panel Right](panel-sample-right.png)
+
 This bar supports conversion of inputs in various data formats to strong types that can be displayed on specialized bar widgets.
 
 ## Installation
