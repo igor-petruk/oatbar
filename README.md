@@ -46,6 +46,14 @@ Please install `cargo` via the package manager or http://rustup.rs.
 $ cargo install oatbar
 ```
 
+### Config oatbar
+
+During the first launch the bar will create a default config at
+`~/.config/oatbar.toml` that should work on most machines. The configuration
+format is not documented and can change at any time, but it can be
+reverse-engineered from `src/config.rs`. It will be documented when it
+becomes more or less stable.
+
 ## Disclaimer
 
 This is not an officially supported Google product.
