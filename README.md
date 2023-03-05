@@ -40,13 +40,13 @@ Please install `cargo` via the package manager or http://rustup.rs.
 # apt-get install -y build-essential pkg-config libcairo2-dev libpango1.0-dev libx11-xcb-dev
 ```
 
-### Install oatbar
+### Install
 
 ```shell
 $ cargo install oatbar
 ```
 
-### Config oatbar
+### Configure
 
 During the first launch the bar will create a default config at
 `~/.config/oatbar.toml` that should work on most machines. The configuration
