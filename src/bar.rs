@@ -100,14 +100,14 @@ impl Block for BaseBlock {
         context.save()?;
         context.set_operator(cairo::Operator::Source);
 
-        // if let Some(color) = &self.display_options.background.not_empty_opt() {
         let background_color = &self.display_options.background;
         if !background_color.is_empty() {
             context_color(context, background_color)?;
+            // TODO: figure out how to prevent a gap between neighbour blocks.
             context.rectangle(
-                self.margin,
+                self.margin - 0.5,
                 0.0,
-                inner_dim.width + 2.0 * self.padding,
+                inner_dim.width + 2.0 * self.padding + 1.0,
                 self.height,
             );
             context.fill()?;
@@ -116,7 +116,6 @@ impl Block for BaseBlock {
         let line_width = 3.0;
         context.set_line_width(line_width);
 
-        //if let Some(overline_color) = self.display_options.overline_color.not_empty_opt() {
         let overline_color = &self.display_options.overline_color;
         if !overline_color.is_empty() {
             context_color(context, overline_color)?;
@@ -125,7 +124,6 @@ impl Block for BaseBlock {
             context.stroke()?;
         }
 
-        //if let Some(underline_color) = self.display_options.underline_color.not_empty_opt() {
         let underline_color = &self.display_options.underline_color;
         if !underline_color.is_empty() {
             context_color(context, underline_color)?;
