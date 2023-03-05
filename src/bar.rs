@@ -394,6 +394,81 @@ impl Block for ImageBlock {
     }
 }
 
+struct EdgeBlock {
+    height: f64,
+    radius: f64,
+    side: config::EdgeType,
+    display_options: config::DisplayOptions<String>,
+}
+
+impl EdgeBlock {
+    fn new(
+        height: f64,
+        radius: f64,
+        side: config::EdgeType,
+        display_options: config::DisplayOptions<String>,
+    ) -> Box<dyn Block> {
+        Box::new(EdgeBlock {
+            height,
+            radius,
+            side,
+            display_options,
+        })
+    }
+}
+
+impl Block for EdgeBlock {
+    fn get_dimensions(&self) -> Dimensions {
+        Dimensions {
+            width: self.radius,
+            height: self.height,
+        }
+    }
+    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
+        context.save()?;
+        context.set_operator(cairo::Operator::Source);
+
+        let background_color = &self.display_options.background;
+        context_color(context, background_color)?;
+
+        let deg = std::f64::consts::PI / 180.0;
+
+        context.new_sub_path();
+        match self.side {
+            config::EdgeType::Right => {
+                context.arc(0.0, self.height - self.radius, self.radius, 0.0, 90.0 * deg);
+                context.line_to(0.0, 0.0);
+                context.arc(0.0, self.radius, self.radius, 270.0 * deg, 360.0 * deg);
+            }
+            config::EdgeType::Left => {
+                context.arc(
+                    self.radius,
+                    self.radius,
+                    self.radius,
+                    180.0 * deg,
+                    270.0 * deg,
+                );
+                context.line_to(self.radius, self.height);
+                context.arc(
+                    self.radius,
+                    self.height - self.radius,
+                    self.radius,
+                    90.0 * deg,
+                    180.0 * deg,
+                );
+            }
+        }
+        context.close_path();
+        context.fill()?;
+        context.restore()?;
+
+        Ok(())
+    }
+    fn is_visible(&self) -> bool {
+        !self.display_options.show_if_set.is_empty()
+    }
+}
+
 struct BlockGroup {
     blocks: Vec<Box<dyn Block>>,
     dimensions: Dimensions,
@@ -440,6 +515,12 @@ impl BlockGroup {
                     state::BlockValue::Image(image) => {
                         ImageBlock::new(image.display.clone(), bar_config.height as f64)
                     }
+                    state::BlockValue::Edge(edge) => EdgeBlock::new(
+                        bar_config.height as f64,
+                        edge.radius,
+                        edge.side.clone(),
+                        edge.display.clone(),
+                    ),
                 };
                 b
             })
@@ -515,11 +596,7 @@ impl Bar {
 
         let pango_context = pangocairo::create_context(context);
         context.save()?;
-        // TODO: consider the bar to have its own background color.
-        context_color(
-            context,
-            self.config.default_block.display.background.as_str(),
-        )?;
+        context_color(context, "#00000000")?;
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
@@ -565,6 +642,9 @@ impl Bar {
 }
 
 fn context_color(context: &cairo::Context, color: &str) -> anyhow::Result<()> {
+    if color.is_empty() {
+        return Ok(());
+    }
     match hex_color::HexColor::parse(color) {
         Ok(color) => {
             context.set_source_rgba(

@@ -425,12 +425,42 @@ impl ImageBlock<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum EdgeType {
+    Left,
+    Right,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct EdgeBlock<Dynamic: From<String> + Clone + Default + Debug> {
+    pub name: String,
+    pub side: EdgeType,
+    #[serde(default = "default_edge_radius")]
+    pub radius: f64,
+    #[serde(flatten)]
+    pub display: DisplayOptions<Dynamic>,
+}
+
+impl EdgeBlock<Option<Placeholder>> {
+    pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> EdgeBlock<Placeholder> {
+        EdgeBlock {
+            name: self.name.clone(),
+            side: self.side.clone(),
+            radius: self.radius.clone(),
+            display: self.display.with_default(&default_block.display),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
     Text(TextBlock<Dynamic>),
     Enum(EnumBlock<Dynamic>),
     Number(NumberBlock<Dynamic>),
     Image(ImageBlock<Dynamic>),
+    Edge(EdgeBlock<Dynamic>),
 }
 
 impl Block<Option<Placeholder>> {
@@ -443,6 +473,7 @@ impl Block<Option<Placeholder>> {
             Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(default_block))),
             Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(default_block))),
             Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(default_block))),
+            Block::Edge(e) => (e.name.clone(), Block::Edge(e.with_default(default_block))),
         }
     }
 }
@@ -456,6 +487,7 @@ impl Block<Placeholder> {
                 Block::Number(e.resolve_placeholders(vars).context("block::number")?)
             }
             Block::Image(e) => Block::Image(e.resolve_placeholders(vars).context("block::image")?),
+            Block::Edge(e) => Block::Edge(e.clone()),
         })
     }
 }
@@ -470,7 +502,7 @@ pub enum BarPosition {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
-pub struct Gaps {
+pub struct Margin {
     pub left: u16,
     pub right: u16,
     pub top: u16,
@@ -481,9 +513,9 @@ trait FromInt {
     fn from_int(value: i64) -> Self;
 }
 
-impl FromInt for Gaps {
+impl FromInt for Margin {
     fn from_int(value: i64) -> Self {
-        Gaps {
+        Self {
             left: value as u16,
             right: value as u16,
             top: value as u16,
@@ -506,7 +538,7 @@ where
         type Value = T;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("u16 or gaps map")
+            formatter.write_str("integer or struct")
         }
 
         fn visit_i64<E>(self, value: i64) -> Result<T, E>
@@ -542,7 +574,7 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     #[serde(skip)]
     phantom_data: PhantomData<Dynamic>,
     #[serde(default = "default_margin", deserialize_with = "int_or_struct")]
-    pub margin: Gaps,
+    pub margin: Margin,
 }
 
 impl Bar<Option<Placeholder>> {
@@ -659,7 +691,11 @@ fn default_height() -> u16 {
     32
 }
 
-fn default_margin() -> Gaps {
+fn default_edge_radius() -> f64 {
+    0.0
+}
+
+fn default_margin() -> Margin {
     FromInt::from_int(0)
 }
 

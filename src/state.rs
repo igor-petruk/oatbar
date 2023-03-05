@@ -40,8 +40,16 @@ pub struct EnumBlockValue {
     pub display: config::DisplayOptions<String>,
     pub active_display: config::DisplayOptions<String>,
 }
+
 #[derive(Clone, Debug)]
 pub struct ImageBlockValue {
+    pub display: config::DisplayOptions<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct EdgeBlockValue {
+    pub radius: f64,
+    pub side: config::EdgeType,
     pub display: config::DisplayOptions<String>,
 }
 
@@ -51,6 +59,7 @@ pub enum BlockValue {
     Number(NumberBlockValue),
     Enum(EnumBlockValue),
     Image(ImageBlockValue),
+    Edge(EdgeBlockValue),
 }
 
 #[derive(Clone, Debug)]
@@ -109,6 +118,21 @@ impl State {
         Ok(BlockData {
             value: BlockValue::Image(ImageBlockValue { display }),
             config: config::Block::Image(b.clone()),
+        })
+    }
+
+    fn edge_block(&self, b: &config::EdgeBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
+        let display = b
+            .display
+            .resolve_placeholders(&self.vars)
+            .context("display")?;
+        Ok(BlockData {
+            value: BlockValue::Edge(EdgeBlockValue {
+                radius: b.radius,
+                side: b.side.clone(),
+                display,
+            }),
+            config: config::Block::Edge(b.clone()),
         })
     }
 
@@ -201,6 +225,7 @@ impl State {
                 config::Block::Enum(enum_block) => self.enum_block(enum_block),
                 config::Block::Number(number_block) => self.number_block(number_block),
                 config::Block::Image(image_block) => self.image_block(image_block),
+                config::Block::Edge(edge_block) => self.edge_block(edge_block),
             };
 
             match block_data {
