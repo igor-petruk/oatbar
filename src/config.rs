@@ -16,6 +16,7 @@ use crate::source;
 
 use std::fmt::Debug;
 use std::io::Write;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::{collections::HashMap, io::Read};
 
@@ -199,15 +200,15 @@ pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
 }
 
 impl EnumBlock<Option<Placeholder>> {
-    pub fn with_default(self, bar: &Bar<Placeholder>) -> EnumBlock<Placeholder> {
+    pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> EnumBlock<Placeholder> {
         EnumBlock {
             name: self.name.clone(),
             active: self.active.unwrap_or_default(),
             variants: self.variants.unwrap_or_default(),
-            display: self.display.clone().with_default(&bar.display),
+            display: self.display.clone().with_default(&default_block.display),
             active_display: self
                 .active_display
-                .with_default(&self.display.with_default(&bar.active_display)),
+                .with_default(&self.display.with_default(&default_block.active_display)),
         }
     }
 }
@@ -241,10 +242,10 @@ pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
 }
 
 impl TextBlock<Option<Placeholder>> {
-    pub fn with_default(self, bar: &Bar<Placeholder>) -> TextBlock<Placeholder> {
+    pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> TextBlock<Placeholder> {
         TextBlock {
             name: self.name.clone(),
-            display: self.display.with_default(&bar.display),
+            display: self.display.with_default(&default_block.display),
         }
     }
 }
@@ -347,12 +348,15 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
 }
 
 impl NumberBlock<Option<Placeholder>> {
-    pub fn with_default(self, bar: &Bar<Placeholder>) -> NumberBlock<Placeholder> {
+    pub fn with_default(
+        self,
+        default_block: &DefaultBlock<Placeholder>,
+    ) -> NumberBlock<Placeholder> {
         NumberBlock {
             name: self.name.clone(),
             min_value: self.min_value.clone().unwrap_or_else(|| "0".into()),
             max_value: self.max_value.clone().unwrap_or_else(|| "".into()),
-            display: self.display.clone().with_default(&bar.display),
+            display: self.display.clone().with_default(&default_block.display),
             number_type: self.number_type.clone(),
             progress_bar: match self.progress_bar {
                 ProgressBar::Text(t) => ProgressBar::Text(t.with_default()),
@@ -396,10 +400,13 @@ pub struct ImageBlock<Dynamic: From<String> + Clone + Default + Debug> {
 }
 
 impl ImageBlock<Option<Placeholder>> {
-    pub fn with_default(self, bar: &Bar<Placeholder>) -> ImageBlock<Placeholder> {
+    pub fn with_default(
+        self,
+        default_block: &DefaultBlock<Placeholder>,
+    ) -> ImageBlock<Placeholder> {
         ImageBlock {
             name: self.name.clone(),
-            display: self.display.with_default(&bar.display),
+            display: self.display.with_default(&default_block.display),
         }
     }
 }
@@ -427,12 +434,15 @@ pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
 }
 
 impl Block<Option<Placeholder>> {
-    pub fn with_default_and_name(self, bar: &Bar<Placeholder>) -> (String, Block<Placeholder>) {
+    pub fn with_default_and_name(
+        self,
+        default_block: &DefaultBlock<Placeholder>,
+    ) -> (String, Block<Placeholder>) {
         match self {
-            Block::Enum(e) => (e.name.clone(), Block::Enum(e.with_default(bar))),
-            Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(bar))),
-            Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(bar))),
-            Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(bar))),
+            Block::Enum(e) => (e.name.clone(), Block::Enum(e.with_default(default_block))),
+            Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(default_block))),
+            Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(default_block))),
+            Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(default_block))),
         }
     }
 }
@@ -468,14 +478,12 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub height: u16,
     #[serde(default = "default_side_gap")]
     pub side_gap: u16,
-    #[serde(flatten)]
-    pub display: DisplayOptions<Dynamic>,
-    #[serde(flatten, with = "prefix_active")]
-    pub active_display: DisplayOptions<Dynamic>,
     #[serde(default = "default_clock_format")]
     pub clock_format: String,
     #[serde(default = "default_bar_position")]
     pub position: BarPosition,
+    #[serde(skip)]
+    phantom_data: PhantomData<Dynamic>,
 }
 
 impl Bar<Option<Placeholder>> {
@@ -486,13 +494,30 @@ impl Bar<Option<Placeholder>> {
             modules_right: self.modules_right.clone(),
             height: self.height,
             side_gap: self.side_gap,
+            clock_format: self.clock_format.clone(),
+            position: self.position.clone(),
+            phantom_data: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct DefaultBlock<Dynamic: From<String> + Clone + Default + Debug> {
+    #[serde(flatten)]
+    pub display: DisplayOptions<Dynamic>,
+    #[serde(flatten, with = "prefix_active")]
+    pub active_display: DisplayOptions<Dynamic>,
+}
+
+impl DefaultBlock<Option<Placeholder>> {
+    fn with_default(&self) -> DefaultBlock<Placeholder> {
+        DefaultBlock {
             display: self.display.clone().with_default(&default_display()),
             active_display: self
                 .active_display
                 .clone()
                 .with_default(&self.display.clone().with_default(&default_active_display())),
-            clock_format: self.clock_format.clone(),
-            position: self.position.clone(),
         }
     }
 }
@@ -520,6 +545,7 @@ impl Var<Option<Placeholder>> {
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
     pub bar: Bar<Dynamic>,
+    pub default_block: DefaultBlock<Dynamic>,
     #[serde(skip)]
     pub blocks: HashMap<String, Block<Dynamic>>,
     #[serde(skip)]
@@ -536,13 +562,14 @@ pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
 
 impl Config<Option<Placeholder>> {
     fn with_defaults(&self) -> Config<Placeholder> {
-        let bar = self.bar.with_default();
+        let default_block = self.default_block.with_default();
         Config {
-            bar: bar.clone(),
+            bar: self.bar.with_default(),
+            default_block: default_block.clone(),
             blocks: self
                 .blocks_vec
                 .iter()
-                .map(|b| b.clone().with_default_and_name(&bar))
+                .map(|b| b.clone().with_default_and_name(&default_block))
                 .collect(),
             vars: self
                 .vars_vec

@@ -515,7 +515,11 @@ impl Bar {
 
         let pango_context = pangocairo::create_context(context);
         context.save()?;
-        context_color(context, self.config.bar.display.background.as_str())?;
+        // TODO: consider the bar to have its own background color.
+        context_color(
+            context,
+            self.config.default_block.display.background.as_str(),
+        )?;
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
@@ -544,7 +548,6 @@ impl Bar {
         );
 
         context.save()?;
-        context_color(context, self.config.bar.display.background.as_str())?;
         left_group.render(context)?;
         context.restore()?;
 
