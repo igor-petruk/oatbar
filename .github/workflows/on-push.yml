@@ -26,6 +26,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+          components: clippy
       
       - name: Build
         uses: actions-rs/cargo@v1
@@ -36,3 +37,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+
+      - name: Clippy check
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
