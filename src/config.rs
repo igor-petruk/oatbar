@@ -446,7 +446,7 @@ impl EdgeBlock<Option<Placeholder>> {
         EdgeBlock {
             name: self.name.clone(),
             side: self.side.clone(),
-            radius: self.radius.clone(),
+            radius: self.radius,
             display: self.display.with_default(&default_block.display),
         }
     }
