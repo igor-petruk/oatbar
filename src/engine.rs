@@ -56,16 +56,16 @@ impl Engine {
 
         for var in self.config.vars.values() {
             let var_value = var.input.resolve_placeholders(&state.vars)?;
-            let replaced = if let Some(enum_separator) = &var.enum_separator {
+            let processed = if let Some(enum_separator) = &var.enum_separator {
                 let vec: Vec<_> = var_value
                     .split(enum_separator)
-                    .map(|s| var.replace.apply(s))
+                    .map(|s| var.process(s))
                     .collect();
                 vec.join(enum_separator)
             } else {
-                var.replace.apply(&var_value)
+                var.process(&var_value)
             };
-            state.vars.insert(var.name.clone(), replaced);
+            state.vars.insert(var.name.clone(), processed);
         }
         Ok(())
     }
