@@ -124,9 +124,9 @@ impl Window {
                 0,
                 0,
                 0,
-                0,
+                if top { margin.into() } else { 0 },
                 if top { width.into() } else { 0 },
-                0,
+                if top { 0 } else { margin.into() },
                 if top { 0 } else { width.into() },
             ],
         )
