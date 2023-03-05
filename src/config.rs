@@ -575,6 +575,7 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     phantom_data: PhantomData<Dynamic>,
     #[serde(default = "default_margin", deserialize_with = "int_or_struct")]
     pub margin: Margin,
+    pub background: Dynamic,
 }
 
 impl Bar<Option<Placeholder>> {
@@ -588,6 +589,7 @@ impl Bar<Option<Placeholder>> {
             clock_format: self.clock_format.clone(),
             position: self.position.clone(),
             phantom_data: Default::default(),
+            background: self.background.clone().unwrap_or_else(|| "#191919".into()),
         }
     }
 }

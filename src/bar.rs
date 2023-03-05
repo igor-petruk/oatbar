@@ -596,7 +596,7 @@ impl Bar {
 
         let pango_context = pangocairo::create_context(context);
         context.save()?;
-        context_color(context, "#00000000")?;
+        context_color(context, &self.config.bar.background)?;
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
