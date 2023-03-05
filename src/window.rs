@@ -49,8 +49,8 @@ impl Window {
         let mut vis32 = find_32bit_visual(&screen).unwrap();
 
         let height = config.bar.height;
-        let margin = config.bar.margin;
-        let width = screen.width_in_pixels() - 2 * config.bar.margin;
+        let margin = &config.bar.margin;
+        let width = screen.width_in_pixels() - (margin.left + margin.right);
 
         let cid = conn.generate_id();
         xutils::send(
@@ -66,15 +66,15 @@ impl Window {
         let id: x::Window = conn.generate_id();
         let top = config.bar.position == config::BarPosition::Top;
         let y = if top {
-            margin as i16
+            margin.top as i16
         } else {
-            screen.height_in_pixels() as i16 - height as i16 - margin as i16
+            screen.height_in_pixels() as i16 - height as i16 - margin.bottom as i16
         };
         conn.send_request(&x::CreateWindow {
             depth: 32,
             wid: id,
             parent: screen.root(),
-            x: margin as i16,
+            x: margin.left as i16,
             y,
             width,
             height,
@@ -111,23 +111,23 @@ impl Window {
                 0,
                 0,
                 if top {
-                    2 * margin as u32 + height as u32
+                    (margin.top + margin.bottom) as u32 + height as u32
                 } else {
                     0
                 },
                 if top {
                     0
                 } else {
-                    2 * margin as u32 + height as u32
+                    (margin.top + margin.bottom) as u32 + height as u32
                 },
                 0,
                 0,
                 0,
                 0,
-                if top { margin.into() } else { 0 },
-                if top { width.into() } else { 0 },
-                if top { 0 } else { margin.into() },
-                if top { 0 } else { width.into() },
+                if top { margin.left.into() } else { 0 },
+                if top { (margin.left + width).into() } else { 0 },
+                if top { 0 } else { margin.left.into() },
+                if top { 0 } else { (margin.left + width).into() },
             ],
         )
         .context("_NET_WM_STRUT_PARTIAL");
@@ -185,7 +185,7 @@ impl Window {
             &x::ConfigureWindow {
                 window: id,
                 value_list: &[
-                    x::ConfigWindow::X(margin as i32),
+                    x::ConfigWindow::X(margin.left as i32),
                     x::ConfigWindow::Y(y.into()),
                 ],
             },

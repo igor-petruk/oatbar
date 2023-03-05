@@ -21,7 +21,7 @@ use std::path::Path;
 use std::{collections::HashMap, io::Read};
 
 use anyhow::Context;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{de, de::DeserializeOwned, de::Deserializer, Deserialize};
 use tracing::{debug, warn};
 
 pub type Placeholder = String;
@@ -470,6 +470,65 @@ pub enum BarPosition {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
+pub struct Gaps {
+    pub left: u16,
+    pub right: u16,
+    pub top: u16,
+    pub bottom: u16,
+}
+
+trait FromInt {
+    fn from_int(value: i64) -> Self;
+}
+
+impl FromInt for Gaps {
+    fn from_int(value: i64) -> Self {
+        Gaps {
+            left: value as u16,
+            right: value as u16,
+            top: value as u16,
+            bottom: value as u16,
+        }
+    }
+}
+
+fn int_or_struct<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Deserialize<'de> + FromInt,
+    D: Deserializer<'de>,
+{
+    struct IntOrStruct<T>(PhantomData<fn() -> T>);
+
+    impl<'de, T> de::Visitor<'de> for IntOrStruct<T>
+    where
+        T: Deserialize<'de> + FromInt,
+    {
+        type Value = T;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("u16 or gaps map")
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<T, E>
+        where
+            E: de::Error,
+        {
+            Ok(FromInt::from_int(value))
+        }
+
+        fn visit_map<M>(self, map: M) -> Result<T, M::Error>
+        where
+            M: de::MapAccess<'de>,
+        {
+            Deserialize::deserialize(de::value::MapAccessDeserializer::new(map))
+        }
+    }
+
+    deserializer.deserialize_any(IntOrStruct(PhantomData))
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
 pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub modules_left: Vec<String>,
     pub modules_center: Vec<String>,
@@ -482,8 +541,8 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub position: BarPosition,
     #[serde(skip)]
     phantom_data: PhantomData<Dynamic>,
-    #[serde(default = "default_margin")]
-    pub margin: u16,
+    #[serde(default = "default_margin", deserialize_with = "int_or_struct")]
+    pub margin: Gaps,
 }
 
 impl Bar<Option<Placeholder>> {
@@ -493,7 +552,7 @@ impl Bar<Option<Placeholder>> {
             modules_center: self.modules_center.clone(),
             modules_right: self.modules_right.clone(),
             height: self.height,
-            margin: self.margin,
+            margin: self.margin.clone(),
             clock_format: self.clock_format.clone(),
             position: self.position.clone(),
             phantom_data: Default::default(),
@@ -600,8 +659,8 @@ fn default_height() -> u16 {
     32
 }
 
-fn default_margin() -> u16 {
-    0
+fn default_margin() -> Gaps {
+    FromInt::from_int(0)
 }
 
 fn default_display() -> DisplayOptions<Placeholder> {
