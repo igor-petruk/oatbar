@@ -223,10 +223,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
                 .variants
                 .resolve_placeholders(vars)
                 .context("variants")?,
-            display: self
-                .display
-                .resolve_placeholders(vars)
-                .context("display")?,
+            display: self.display.resolve_placeholders(vars).context("display")?,
             active_display: self
                 .active_display
                 .resolve_placeholders(vars)
@@ -259,10 +256,7 @@ impl TextBlock<Placeholder> {
     ) -> anyhow::Result<TextBlock<String>> {
         Ok(TextBlock {
             name: self.name.clone(),
-            display: self
-                .display
-                .resolve_placeholders(vars)
-                .context("display")?,
+            display: self.display.resolve_placeholders(vars).context("display")?,
         })
     }
 }
@@ -382,10 +376,7 @@ impl NumberBlock<Placeholder> {
                 .max_value
                 .resolve_placeholders(vars)
                 .context("max_value")?,
-            display: self
-                .display
-                .resolve_placeholders(vars)
-                .context("display")?,
+            display: self.display.resolve_placeholders(vars).context("display")?,
             number_type: self.number_type.clone(),
             progress_bar: match &self.progress_bar {
                 ProgressBar::Text(t) => {
@@ -420,10 +411,7 @@ impl ImageBlock<Placeholder> {
     ) -> anyhow::Result<ImageBlock<String>> {
         Ok(ImageBlock {
             name: self.name.clone(),
-            display: self
-                .display
-                .resolve_placeholders(vars)
-                .context("display")?,
+            display: self.display.resolve_placeholders(vars).context("display")?,
         })
     }
 }
@@ -502,7 +490,7 @@ impl Bar<Option<Placeholder>> {
             active_display: self
                 .active_display
                 .clone()
-                .with_default(&default_active_display()),
+                .with_default(&self.display.clone().with_default(&default_active_display())),
             clock_format: self.clock_format.clone(),
             position: self.position.clone(),
         }
