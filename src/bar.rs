@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(clippy::new_ret_no_self)]
+
 use std::{
+    cmp::Ordering,
     collections::HashMap,
     sync::{Arc, Mutex},
 };
@@ -118,10 +121,7 @@ impl Block for BaseBlock {
         if !overline_color.is_empty() {
             context_color(context, overline_color)?;
             context.move_to(0.0, line_width / 2.0);
-            context.line_to(
-                inner_dim.width + 2.0 * self.padding,
-                line_width / 2.0,
-            );
+            context.line_to(inner_dim.width + 2.0 * self.padding, line_width / 2.0);
             context.stroke()?;
         }
 
@@ -232,14 +232,10 @@ impl TextProgressBarNumberBlock {
         let indicator_pos =
             ((value - min_value) / (max_value - min_value) * width as f64) as i32 - 1;
         let segments: Vec<_> = (0..width as i32)
-            .map(|i| {
-                if i < indicator_pos {
-                    fill.as_str()
-                } else if i == indicator_pos {
-                    indicator.as_str()
-                } else {
-                    empty.as_str()
-                }
+            .map(|i| match i.cmp(&indicator_pos) {
+                Ordering::Less => fill.as_str(),
+                Ordering::Equal => indicator.as_str(),
+                Ordering::Greater => empty.as_str(),
             })
             .collect();
         segments.join("")
