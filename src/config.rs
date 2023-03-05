@@ -476,14 +476,14 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub modules_right: Vec<String>,
     #[serde(default = "default_height")]
     pub height: u16,
-    #[serde(default = "default_side_gap")]
-    pub side_gap: u16,
     #[serde(default = "default_clock_format")]
     pub clock_format: String,
     #[serde(default = "default_bar_position")]
     pub position: BarPosition,
     #[serde(skip)]
     phantom_data: PhantomData<Dynamic>,
+    #[serde(default = "default_margin")]
+    pub margin: u16,
 }
 
 impl Bar<Option<Placeholder>> {
@@ -493,7 +493,7 @@ impl Bar<Option<Placeholder>> {
             modules_center: self.modules_center.clone(),
             modules_right: self.modules_right.clone(),
             height: self.height,
-            side_gap: self.side_gap,
+            margin: self.margin,
             clock_format: self.clock_format.clone(),
             position: self.position.clone(),
             phantom_data: Default::default(),
@@ -600,8 +600,8 @@ fn default_height() -> u16 {
     32
 }
 
-fn default_side_gap() -> u16 {
-    8
+fn default_margin() -> u16 {
+    0
 }
 
 fn default_display() -> DisplayOptions<Placeholder> {

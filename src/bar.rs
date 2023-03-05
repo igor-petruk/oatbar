@@ -557,10 +557,7 @@ impl Bar {
         context.restore()?;
 
         context.save()?;
-        context.translate(
-            d_context.width - right_group.dimensions.width - self.config.bar.side_gap as f64,
-            0.0,
-        );
+        context.translate(d_context.width - right_group.dimensions.width, 0.0);
         right_group.render(context)?;
         context.restore()?;
         Ok(())

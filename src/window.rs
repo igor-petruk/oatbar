@@ -49,7 +49,8 @@ impl Window {
         let mut vis32 = find_32bit_visual(&screen).unwrap();
 
         let height = config.bar.height;
-        let width = screen.width_in_pixels();
+        let margin = config.bar.margin;
+        let width = screen.width_in_pixels() - 2 * config.bar.margin;
 
         let cid = conn.generate_id();
         xutils::send(
@@ -65,15 +66,15 @@ impl Window {
         let id: x::Window = conn.generate_id();
         let top = config.bar.position == config::BarPosition::Top;
         let y = if top {
-            0
+            margin as i16
         } else {
-            screen.height_in_pixels() as i16 - height as i16
+            screen.height_in_pixels() as i16 - height as i16 - margin as i16
         };
         conn.send_request(&x::CreateWindow {
             depth: 32,
             wid: id,
             parent: screen.root(),
-            x: 0,
+            x: margin as i16,
             y,
             width,
             height,
@@ -107,10 +108,18 @@ impl Window {
             "_NET_WM_STRUT_PARTIAL",
             x::ATOM_CARDINAL,
             &[
-                0_u32,
                 0,
-                if top { height.into() } else { 0 },
-                if top { 0 } else { height.into() },
+                0,
+                if top {
+                    2 * margin as u32 + height as u32
+                } else {
+                    0
+                },
+                if top {
+                    0
+                } else {
+                    2 * margin as u32 + height as u32
+                },
                 0,
                 0,
                 0,
@@ -124,6 +133,7 @@ impl Window {
         .context("_NET_WM_STRUT_PARTIAL");
         if let Err(e) = sp_result {
             debug!("Unable to set _NET_WM_STRUT_PARTIAL: {:?}", e);
+            /*
             let s_result = xutils::replace_property(
                 &conn,
                 id,
@@ -140,6 +150,7 @@ impl Window {
             if let Err(e) = s_result {
                 debug!("Unable to set _NET_WM_STRUT: {:?}", e);
             }
+            */
         }
         let back_buffer: x::Pixmap = conn.generate_id();
         xutils::send(
@@ -173,7 +184,10 @@ impl Window {
             &conn,
             &x::ConfigureWindow {
                 window: id,
-                value_list: &[x::ConfigWindow::X(0), x::ConfigWindow::Y(y.into())],
+                value_list: &[
+                    x::ConfigWindow::X(margin as i32),
+                    x::ConfigWindow::Y(y.into()),
+                ],
             },
         )?;
         conn.flush()?;
