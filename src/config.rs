@@ -630,6 +630,8 @@ pub struct Var<Dynamic: From<String> + Clone + Default + Debug> {
     pub replace: Replace,
     #[serde(flatten, default)]
     pub text_alignment: TextAlignment,
+    #[serde(default = "default_ellipsis")]
+    pub ellipsis: String,
 }
 
 impl Var<String> {
@@ -638,7 +640,7 @@ impl Var<String> {
         let mut s_chars: Vec<char> = s.chars().collect();
         match self.text_alignment.max_length {
             Some(max_length) if s_chars.len() > max_length => {
-                let ellipsis: Vec<char> = "...".chars().collect();
+                let ellipsis: Vec<char> = self.ellipsis.chars().collect();
                 let truncate_len = std::cmp::max(max_length - ellipsis.len(), 0);
                 s_chars.truncate(truncate_len);
                 s_chars.extend_from_slice(&ellipsis);
@@ -658,6 +660,7 @@ impl Var<Option<Placeholder>> {
             enum_separator: self.enum_separator.clone(),
             replace: self.replace.clone(),
             text_alignment: self.text_alignment.clone(),
+            ellipsis: self.ellipsis.clone(),
         }
     }
 }
@@ -714,6 +717,10 @@ fn default_bar_position() -> BarPosition {
 
 fn default_clock_format() -> String {
     "%a, %e %b %Y, %H:%M:%S".into()
+}
+
+fn default_ellipsis() -> String {
+    "...".into()
 }
 
 fn default_height() -> u16 {
