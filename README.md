@@ -22,6 +22,8 @@ It is a standalone desktop bar that can be used with various WMs and DEs. This b
 ![Panel Left](panel-sample-left.png)
 ![Panel Right](panel-sample-right.png)
 
+![Screenshot](https://raw.githubusercontent.com/igor-petruk/oatbar-media/main/screenshot.png).
+
 ## Installation
 
 ### Pre-requisites
