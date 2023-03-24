@@ -592,6 +592,9 @@ impl Bar {
     pub fn render(&self, d_context: &DrawingContext, state: &state::State) -> anyhow::Result<()> {
         let context = &d_context.context;
 
+        let width =
+            d_context.width - (self.config.bar.margin.left + self.config.bar.margin.right) as f64;
+
         let pango_context = pangocairo::create_context(context);
         context.save()?;
         context_color(context, &self.config.bar.background)?;
@@ -623,17 +626,25 @@ impl Bar {
         );
 
         context.save()?;
+        context.translate(
+            self.config.bar.margin.left.into(),
+            self.config.bar.margin.top.into(),
+        );
+
+        context.save()?;
         left_group.render(context)?;
         context.restore()?;
 
         context.save()?;
-        context.translate((d_context.width - center_group.dimensions.width) / 2.0, 0.0);
+        context.translate((width - center_group.dimensions.width) / 2.0, 0.0);
         center_group.render(context)?;
         context.restore()?;
 
         context.save()?;
-        context.translate(d_context.width - right_group.dimensions.width, 0.0);
+        context.translate(width - right_group.dimensions.width, 0.0);
         right_group.render(context)?;
+        context.restore()?;
+
         context.restore()?;
         Ok(())
     }

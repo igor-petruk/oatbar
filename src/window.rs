@@ -48,9 +48,11 @@ impl Window {
 
         let mut vis32 = find_32bit_visual(&screen).unwrap();
 
-        let height = config.bar.height;
         let margin = &config.bar.margin;
-        let width = screen.width_in_pixels() - (margin.left + margin.right);
+
+        let height = config.bar.height;
+        let window_width = screen.width_in_pixels();
+        let window_height = height + margin.top + margin.bottom;
 
         let cid = conn.generate_id();
         xutils::send(
@@ -66,18 +68,18 @@ impl Window {
         let id: x::Window = conn.generate_id();
         let top = config.bar.position == config::BarPosition::Top;
         let y = if top {
-            margin.top as i16
+            0
         } else {
-            screen.height_in_pixels() as i16 - height as i16 - margin.bottom as i16
+            screen.height_in_pixels() as i16 - window_height as i16
         };
         conn.send_request(&x::CreateWindow {
             depth: 32,
             wid: id,
             parent: screen.root(),
-            x: margin.left as i16,
+            x: 0,
             y,
-            width,
-            height,
+            width: window_width,
+            height: window_height,
             border_width: 0,
             class: x::WindowClass::InputOutput,
             visual: vis32.visual_id(),
@@ -110,24 +112,16 @@ impl Window {
             &[
                 0,
                 0,
-                if top {
-                    (margin.top + margin.bottom) as u32 + height as u32
-                } else {
-                    0
-                },
-                if top {
-                    0
-                } else {
-                    (margin.top + margin.bottom) as u32 + height as u32
-                },
+                if top { window_height } else { 0 },
+                if top { 0 } else { window_height },
                 0,
                 0,
                 0,
                 0,
-                if top { margin.left.into() } else { 0 },
-                if top { (margin.left + width).into() } else { 0 },
-                if top { 0 } else { margin.left.into() },
-                if top { 0 } else { (margin.left + width).into() },
+                0,
+                if top { window_width } else { 0 },
+                if top { 0 } else { 0 },
+                if top { 0 } else { window_width },
             ],
         )
         .context("_NET_WM_STRUT_PARTIAL");
@@ -159,13 +153,13 @@ impl Window {
                 depth: 32,
                 pid: back_buffer,
                 drawable: xcb::x::Drawable::Window(id),
-                width,
-                height,
+                width: window_width,
+                height: window_height,
             },
         )?;
 
         let back_buffer_surface =
-            make_pixmap_surface(&conn, &back_buffer, &mut vis32, width, height)?;
+            make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
 
         let swap_gc: x::Gcontext = conn.generate_id();
         xutils::send(
@@ -184,10 +178,7 @@ impl Window {
             &conn,
             &x::ConfigureWindow {
                 window: id,
-                value_list: &[
-                    x::ConfigWindow::X(margin.left as i32),
-                    x::ConfigWindow::Y(y.into()),
-                ],
+                value_list: &[x::ConfigWindow::X(0), x::ConfigWindow::Y(y.into())],
             },
         )?;
         conn.flush()?;
@@ -216,8 +207,8 @@ impl Window {
         Ok(Self {
             conn,
             id,
-            width,
-            height,
+            width: window_width,
+            height: window_height,
             back_buffer,
             back_buffer_surface,
             swap_gc,
