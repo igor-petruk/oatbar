@@ -120,7 +120,7 @@ impl Window {
                 0,
                 0,
                 if top { window_width } else { 0 },
-                if top { 0 } else { 0 },
+                0,
                 if top { 0 } else { window_width },
             ],
         )

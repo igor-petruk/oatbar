@@ -66,7 +66,10 @@ fn get_workspaces(
     names: &Atom,
 ) -> anyhow::Result<Workspaces> {
     let reply = xutils::get_property(conn, root, *current, x::ATOM_CARDINAL, 1)?;
-    let current: u32 = *reply.value().first().ok_or(anyhow!("Empty reply"))?;
+    let current: u32 = *reply
+        .value()
+        .first()
+        .ok_or_else(|| anyhow!("Empty reply"))?;
     let reply = xutils::get_property(conn, root, *names, x::ATOM_ANY, 1024)?;
     let buf: &[u8] = reply.value();
     let bufs = buf.split(|f| *f == 0);
