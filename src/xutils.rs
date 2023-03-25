@@ -99,11 +99,21 @@ pub fn replace_atom_property(
     conn: &xcb::Connection,
     window: x::Window,
     atom_name: &str,
-    value_atom_name: &str,
-) -> anyhow::Result<(x::Atom, x::Atom)> {
-    let value_atom = get_atom(conn, value_atom_name)?;
-    let atom = replace_property(conn, window, atom_name, x::ATOM_ATOM, &[value_atom])?;
-    Ok((atom, value_atom))
+    value_atom_name: &[&str],
+) -> anyhow::Result<(x::Atom, Vec<x::Atom>)> {
+    let mut value_atoms = Vec::with_capacity(value_atom_name.len());
+    for atom_name in value_atom_name {
+        let value_atom = get_atom(conn, atom_name)?;
+        value_atoms.push(value_atom);
+    }
+    let atom = replace_property(
+        conn,
+        window,
+        atom_name,
+        x::ATOM_ATOM,
+        value_atoms.as_slice(),
+    )?;
+    Ok((atom, value_atoms))
 }
 
 pub fn send<X: xcb::RequestWithoutReply + Debug>(

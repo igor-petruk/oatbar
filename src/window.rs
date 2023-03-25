@@ -99,11 +99,16 @@ impl Window {
             &conn,
             id,
             "_NET_WM_WINDOW_TYPE",
-            "_NET_WM_WINDOW_TYPE_DOCK",
+            &["_NET_WM_WINDOW_TYPE_DOCK"],
         ) {
             warn!("Unable to set window property: {:?}", e);
         }
-        xutils::replace_atom_property(&conn, id, "_NET_WM_STATE", "_NET_WM_STATE_STICKY")?;
+        xutils::replace_atom_property(
+            &conn,
+            id,
+            "_NET_WM_STATE",
+            &["_NET_WM_STATE_STICKY", "_NET_WM_STATE_ABOVE"],
+        )?;
         let sp_result = xutils::replace_property(
             &conn,
             id,
@@ -127,24 +132,22 @@ impl Window {
         .context("_NET_WM_STRUT_PARTIAL");
         if let Err(e) = sp_result {
             debug!("Unable to set _NET_WM_STRUT_PARTIAL: {:?}", e);
-            /*
-            let s_result = xutils::replace_property(
-                &conn,
-                id,
-                "_NET_WM_STRUT",
-                x::ATOM_CARDINAL,
-                &[
-                    0_u32,
-                    0,
-                    if top { height.into() } else { 0 },
-                    if top { 0 } else { height.into() },
-                ],
-            )
-            .context("_NET_WM_STRUT");
-            if let Err(e) = s_result {
-                debug!("Unable to set _NET_WM_STRUT: {:?}", e);
-            }
-            */
+        }
+        let s_result = xutils::replace_property(
+            &conn,
+            id,
+            "_NET_WM_STRUT",
+            x::ATOM_CARDINAL,
+            &[
+                0_u32,
+                0,
+                if top { window_height.into() } else { 0 },
+                if top { 0 } else { window_height.into() },
+            ],
+        )
+        .context("_NET_WM_STRUT");
+        if let Err(e) = s_result {
+            debug!("Unable to set _NET_WM_STRUT: {:?}", e);
         }
         let back_buffer: x::Pixmap = conn.generate_id();
         xutils::send(
