@@ -486,12 +486,9 @@ impl BlockGroup {
             };
 
             if last_edge == Some(Left) && eat_separators {
-                match sep_type {
-                    Some(Gap) => {
-                        continue;
-                    }
-                    _ => {}
-                };
+                if let Some(Gap) = sep_type {
+                    continue;
+                }
             }
 
             eat_separators = match sep_type {
