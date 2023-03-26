@@ -54,12 +54,17 @@ trait Block {
     fn get_dimensions(&self) -> Dimensions;
     fn is_visible(&self) -> bool;
     fn render(&self, context: &cairo::Context) -> anyhow::Result<()>;
+    fn separator_type(&self) -> Option<config::SeparatorType> {
+        None
+    }
 }
 
 struct BaseBlock {
     height: f64,
     margin: f64,
     padding: f64,
+    separator_type: Option<config::SeparatorType>,
+    separator_radius: Option<f64>,
     display_options: config::DisplayOptions<String>,
     inner_block: Box<dyn Block>,
 }
@@ -69,15 +74,23 @@ impl BaseBlock {
         display_options: config::DisplayOptions<String>,
         inner_block: Box<dyn Block>,
         height: f64,
+        separator_type: Option<config::SeparatorType>,
+        separator_radius: Option<f64>,
     ) -> Self {
         let margin = display_options.margin.unwrap();
-        let padding = display_options.padding.unwrap();
+        let padding = if separator_type.is_none() {
+            display_options.padding.unwrap()
+        } else {
+            0.0
+        };
         Self {
             height,
             margin,
             padding,
             display_options,
             inner_block,
+            separator_type,
+            separator_radius,
         }
     }
 }
@@ -89,8 +102,15 @@ impl Block for BaseBlock {
 
     fn get_dimensions(&self) -> Dimensions {
         let inner_dim = self.inner_block.get_dimensions();
+        // TODO: figure out correct handling of padding.
+        let radius = if self.separator_type.is_some() {
+            self.separator_radius.unwrap_or_default()
+        } else {
+            0.0
+        };
+        let inner_width = f64::max(inner_dim.width, radius);
         Dimensions {
-            width: inner_dim.width + self.margin * 2.0 + self.padding * 2.0,
+            width: inner_width + self.margin * 2.0 + self.padding * 2.0,
             height: self.height,
         }
     }
@@ -104,12 +124,39 @@ impl Block for BaseBlock {
         if !background_color.is_empty() {
             context_color(context, background_color)?;
             // TODO: figure out how to prevent a gap between neighbour blocks.
-            context.rectangle(
-                self.margin - 0.5,
-                0.0,
-                inner_dim.width + 2.0 * self.padding + 1.0,
-                self.height,
-            );
+            let deg = std::f64::consts::PI / 180.0;
+            let radius = self.separator_radius.unwrap_or_default();
+
+            match self.separator_type {
+                Some(config::SeparatorType::Right) => {
+                    context.new_sub_path();
+                    context.arc(0.0, self.height - radius, radius, 0.0, 90.0 * deg);
+                    context.line_to(0.0, 0.0);
+                    context.arc(0.0, radius, radius, 270.0 * deg, 360.0 * deg);
+                    context.close_path();
+                }
+                Some(config::SeparatorType::Left) => {
+                    context.new_sub_path();
+                    context.arc(radius, radius, radius, 180.0 * deg, 270.0 * deg);
+                    context.line_to(radius, self.height);
+                    context.arc(
+                        radius,
+                        self.height - radius,
+                        radius,
+                        90.0 * deg,
+                        180.0 * deg,
+                    );
+                    context.close_path();
+                }
+                None | Some(config::SeparatorType::Gap) => {
+                    context.rectangle(
+                        self.margin - 0.5,
+                        0.0,
+                        inner_dim.width + 2.0 * self.padding + 1.0,
+                        self.height,
+                    );
+                }
+            }
             context.fill()?;
         }
 
@@ -154,8 +201,7 @@ impl TextBlock {
         pango_context: &pango::Context,
         font_cache: Arc<Mutex<FontCache>>,
         display_options: config::DisplayOptions<String>,
-        height: f64,
-    ) -> Box<dyn Block> {
+    ) -> Self {
         let pango_layout = pango::Layout::new(pango_context);
         if display_options.pango_markup == Some(true) {
             // TODO: fix this.
@@ -166,14 +212,26 @@ impl TextBlock {
         let mut font_cache = font_cache.lock().unwrap();
         let fd = font_cache.get(display_options.font.as_str());
         pango_layout.set_font_description(Some(fd));
-        let text_block = Self {
+        Self {
             pango_layout,
             display_options: display_options.clone(),
-        };
+        }
+    }
+
+    fn new_in_base_block(
+        pango_context: &pango::Context,
+        font_cache: Arc<Mutex<FontCache>>,
+        display_options: config::DisplayOptions<String>,
+        height: f64,
+        separator_type: Option<config::SeparatorType>,
+        separator_radius: Option<f64>,
+    ) -> Box<dyn Block> {
         Box::new(BaseBlock::new(
-            display_options,
-            Box::new(text_block),
+            display_options.clone(),
+            Box::new(Self::new(pango_context, font_cache, display_options)),
             height,
+            separator_type,
+            separator_radius,
         ))
     }
 }
@@ -254,7 +312,8 @@ impl TextProgressBarNumberBlock {
             pango_markup: Some(true), // TODO: fix
             ..value.display
         };
-        let text_block = TextBlock::new(pango_context, font_cache, display, height);
+        let text_block =
+            TextBlock::new_in_base_block(pango_context, font_cache, display, height, None, None);
         Self { text_block }
     }
 }
@@ -294,11 +353,13 @@ impl EnumBlock {
                 value.display.clone()
             };
             display_options.value = item.clone();
-            let variant_block = TextBlock::new(
+            let variant_block = TextBlock::new_in_base_block(
                 pango_context,
                 font_cache.clone(),
                 display_options.clone(),
                 height,
+                None,
+                None,
             );
             width += variant_block.get_dimensions().width;
             variant_blocks.push(variant_block);
@@ -358,6 +419,8 @@ impl ImageBlock {
             display_options,
             Box::new(image_block),
             height,
+            None,
+            None,
         ))
     }
 }
@@ -392,87 +455,17 @@ impl Block for ImageBlock {
     }
 }
 
-struct EdgeBlock {
-    height: f64,
-    radius: f64,
-    side: config::EdgeType,
-    display_options: config::DisplayOptions<String>,
-}
-
-impl EdgeBlock {
-    fn new(
-        height: f64,
-        radius: f64,
-        side: config::EdgeType,
-        display_options: config::DisplayOptions<String>,
-    ) -> Box<dyn Block> {
-        Box::new(EdgeBlock {
-            height,
-            radius,
-            side,
-            display_options,
-        })
-    }
-}
-
-impl Block for EdgeBlock {
-    fn get_dimensions(&self) -> Dimensions {
-        Dimensions {
-            width: self.radius,
-            height: self.height,
-        }
-    }
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
-        context.save()?;
-        context.set_operator(cairo::Operator::Source);
-
-        let background_color = &self.display_options.background;
-        context_color(context, background_color)?;
-
-        let deg = std::f64::consts::PI / 180.0;
-
-        context.new_sub_path();
-        match self.side {
-            config::EdgeType::Right => {
-                context.arc(0.0, self.height - self.radius, self.radius, 0.0, 90.0 * deg);
-                context.line_to(0.0, 0.0);
-                context.arc(0.0, self.radius, self.radius, 270.0 * deg, 360.0 * deg);
-            }
-            config::EdgeType::Left => {
-                context.arc(
-                    self.radius,
-                    self.radius,
-                    self.radius,
-                    180.0 * deg,
-                    270.0 * deg,
-                );
-                context.line_to(self.radius, self.height);
-                context.arc(
-                    self.radius,
-                    self.height - self.radius,
-                    self.radius,
-                    90.0 * deg,
-                    180.0 * deg,
-                );
-            }
-        }
-        context.close_path();
-        context.fill()?;
-        context.restore()?;
-
-        Ok(())
-    }
-    fn is_visible(&self) -> bool {
-        !self.display_options.show_if_set.is_empty()
-    }
-}
-
 struct BlockGroup {
     blocks: Vec<Box<dyn Block>>,
     dimensions: Dimensions,
 }
 
 impl BlockGroup {
+    fn collapse_separators(blocks: Vec<Box<dyn Block>>) -> Vec<Box<dyn Block>> {
+        // TODO: implement.
+        blocks
+    }
+
     fn new(
         state: &[state::BlockData],
         pango_context: &pango::Context,
@@ -483,11 +476,13 @@ impl BlockGroup {
             .iter()
             .map(|bd| {
                 let b: Box<dyn Block> = match &bd.value {
-                    state::BlockValue::Text(text) => TextBlock::new(
+                    state::BlockValue::Text(text) => TextBlock::new_in_base_block(
                         pango_context,
                         font_cache.clone(),
                         text.display.clone(),
                         bar_config.height as f64,
+                        text.separator_type.clone(),
+                        text.separator_radius,
                     ),
                     state::BlockValue::Number(number) => match &number.progress_bar {
                         config::ProgressBar::Text(text_progress_bar) => {
@@ -513,12 +508,6 @@ impl BlockGroup {
                     state::BlockValue::Image(image) => {
                         ImageBlock::new(image.display.clone(), bar_config.height as f64)
                     }
-                    state::BlockValue::Edge(edge) => EdgeBlock::new(
-                        bar_config.height as f64,
-                        edge.radius,
-                        edge.side.clone(),
-                        edge.display.clone(),
-                    ),
                 };
                 b
             })
@@ -528,6 +517,8 @@ impl BlockGroup {
             width: 0.0,
             height: 0.0,
         };
+
+        let blocks = BlockGroup::collapse_separators(blocks);
 
         if blocks.is_empty() {
             return Self {

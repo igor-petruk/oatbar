@@ -239,13 +239,18 @@ pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
+    pub separator_type: Option<SeparatorType>,
+    pub separator_radius: Option<f64>,
 }
 
 impl TextBlock<Option<Placeholder>> {
     pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> TextBlock<Placeholder> {
+        let separator_type = self.separator_type.clone();
         TextBlock {
             name: self.name.clone(),
             display: self.display.with_default(&default_block.display),
+            separator_type,
+            separator_radius: self.separator_radius.clone(),
         }
     }
 }
@@ -258,6 +263,8 @@ impl TextBlock<Placeholder> {
         Ok(TextBlock {
             name: self.name.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
+            separator_type: self.separator_type.clone(),
+            separator_radius: self.separator_radius,
         })
     }
 }
@@ -425,31 +432,10 @@ impl ImageBlock<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EdgeType {
+pub enum SeparatorType {
     Left,
     Right,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct EdgeBlock<Dynamic: From<String> + Clone + Default + Debug> {
-    pub name: String,
-    pub side: EdgeType,
-    #[serde(default = "default_edge_radius")]
-    pub radius: f64,
-    #[serde(flatten)]
-    pub display: DisplayOptions<Dynamic>,
-}
-
-impl EdgeBlock<Option<Placeholder>> {
-    pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> EdgeBlock<Placeholder> {
-        EdgeBlock {
-            name: self.name.clone(),
-            side: self.side.clone(),
-            radius: self.radius,
-            display: self.display.with_default(&default_block.display),
-        }
-    }
+    Gap,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -460,7 +446,6 @@ pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
     Enum(EnumBlock<Dynamic>),
     Number(NumberBlock<Dynamic>),
     Image(ImageBlock<Dynamic>),
-    Edge(EdgeBlock<Dynamic>),
 }
 
 impl Block<Option<Placeholder>> {
@@ -473,7 +458,6 @@ impl Block<Option<Placeholder>> {
             Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(default_block))),
             Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(default_block))),
             Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(default_block))),
-            Block::Edge(e) => (e.name.clone(), Block::Edge(e.with_default(default_block))),
         }
     }
 }
@@ -487,7 +471,6 @@ impl Block<Placeholder> {
                 Block::Number(e.resolve_placeholders(vars).context("block::number")?)
             }
             Block::Image(e) => Block::Image(e.resolve_placeholders(vars).context("block::image")?),
-            Block::Edge(e) => Block::Edge(e.clone()),
         })
     }
 }
@@ -727,7 +710,7 @@ fn default_height() -> u16 {
     32
 }
 
-fn default_edge_radius() -> f64 {
+fn default_separator_radius() -> f64 {
     0.0
 }
 
