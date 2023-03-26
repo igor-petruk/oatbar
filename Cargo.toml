@@ -33,7 +33,7 @@ cairo-rs = { version = "0.17", features = ["xcb", "png"], default-features=false
 chrono = { version = "0.4", features = ["serde"] }
 crossbeam-channel = "0.5"
 derive_builder = "0.12"
-dirs = "4"
+dirs = "5"
 hex_color = { version = "2", default-features = false, features = ["serde"] }
 pangocairo = "0.17"
 regex = "1.7"
