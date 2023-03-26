@@ -115,6 +115,10 @@ impl Block for BaseBlock {
         }
     }
 
+    fn separator_type(&self) -> Option<config::SeparatorType> {
+        self.separator_type.clone()
+    }
+
     fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
@@ -461,9 +465,79 @@ struct BlockGroup {
 }
 
 impl BlockGroup {
-    fn collapse_separators(blocks: Vec<Box<dyn Block>>) -> Vec<Box<dyn Block>> {
-        // TODO: implement.
-        blocks
+    fn collapse_separators(input: Vec<Box<dyn Block>>) -> Vec<Box<dyn Block>> {
+        use config::SeparatorType::*;
+        let mut output = Vec::with_capacity(input.len());
+
+        let mut eat_separators = false;
+        let mut last_edge = None;
+
+        for b in input.into_iter() {
+            if !b.is_visible() {
+                continue;
+            }
+            let sep_type = &b.separator_type();
+
+            match sep_type {
+                Some(Left) | Some(Right) => {
+                    last_edge = sep_type.clone();
+                }
+                _ => {}
+            };
+
+            if last_edge == Some(Left) && eat_separators {
+                match sep_type {
+                    Some(Gap) => {
+                        continue;
+                    }
+                    _ => {}
+                };
+            }
+
+            eat_separators = match sep_type {
+                Some(Left) | Some(Gap) => true,
+                Some(Right) | None => false,
+            };
+
+            output.push(b);
+        }
+
+        // After this SR and LR pairs are possible. Remove:
+        let input = output;
+        let mut output = Vec::with_capacity(input.len());
+        let mut input_iter = input.into_iter().peekable();
+        last_edge = None;
+
+        while let Some(b) = input_iter.next() {
+            let sep_type = &b.separator_type();
+            match sep_type {
+                Some(Left) | Some(Right) => {
+                    last_edge = sep_type.clone();
+                }
+                _ => {}
+            };
+
+            if last_edge == Some(Left) {
+                if let Some(next_b) = input_iter.peek() {
+                    let next_sep_type = &next_b.separator_type();
+                    match (sep_type, next_sep_type) {
+                        (Some(Gap), Some(Right)) => {
+                            continue;
+                        }
+                        (Some(Left), Some(Right)) => {
+                            last_edge = Some(Right);
+                            input_iter.next();
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            output.push(b);
+        }
+
+        output
     }
 
     fn new(
@@ -520,17 +594,12 @@ impl BlockGroup {
 
         let blocks = BlockGroup::collapse_separators(blocks);
 
-        if blocks.is_empty() {
-            return Self {
-                blocks,
-                dimensions: dim,
-            };
-        }
-
         for block in blocks.iter() {
+            /*
             if !block.is_visible() {
                 continue;
             }
+            */
             let b_dim = block.get_dimensions();
             dim.width += b_dim.width;
             dim.height = dim.height.max(b_dim.height);
