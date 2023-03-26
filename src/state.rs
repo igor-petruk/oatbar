@@ -99,7 +99,7 @@ impl State {
             value: BlockValue::Text(TextBlockValue {
                 display,
                 separator_type: b.separator_type.clone(),
-                separator_radius: b.separator_radius.clone(),
+                separator_radius: b.separator_radius,
             }),
             config: config::Block::Text(b.clone()),
         })

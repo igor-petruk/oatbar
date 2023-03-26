@@ -245,12 +245,11 @@ pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
 
 impl TextBlock<Option<Placeholder>> {
     pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> TextBlock<Placeholder> {
-        let separator_type = self.separator_type.clone();
         TextBlock {
             name: self.name.clone(),
             display: self.display.with_default(&default_block.display),
-            separator_type,
-            separator_radius: self.separator_radius.clone(),
+            separator_type: self.separator_type.clone(),
+            separator_radius: self.separator_radius,
         }
     }
 }
