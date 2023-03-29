@@ -154,6 +154,16 @@ impl State {
     }
 
     fn enum_block(&self, b: &config::EnumBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
+        let display = b
+            .display
+            .resolve_placeholders(&self.vars)
+            .context("display")?;
+
+        let active_display = b
+            .active_display
+            .resolve_placeholders(&self.vars)
+            .context("active_display")?;
+
         let active_str = &b
             .active
             .resolve_placeholders(&self.vars)
@@ -182,8 +192,8 @@ impl State {
             value: BlockValue::Enum(EnumBlockValue {
                 active,
                 variants,
-                display: b.display.clone(),
-                active_display: b.active_display.clone(),
+                display,
+                active_display,
             }),
             config: config::Block::Enum(b.clone()),
         })

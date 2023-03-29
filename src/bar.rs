@@ -17,6 +17,7 @@
 use std::{
     cmp::Ordering,
     collections::HashMap,
+    fmt::Debug,
     sync::{Arc, Mutex},
 };
 
@@ -59,6 +60,9 @@ trait Block {
     }
 }
 
+trait DebugBlock: Block + Debug {}
+
+#[derive(Debug)]
 struct BaseBlock {
     height: f64,
     margin: f64,
@@ -66,13 +70,13 @@ struct BaseBlock {
     separator_type: Option<config::SeparatorType>,
     separator_radius: Option<f64>,
     display_options: config::DisplayOptions<String>,
-    inner_block: Box<dyn Block>,
+    inner_block: Box<dyn DebugBlock>,
 }
 
 impl BaseBlock {
     fn new(
         display_options: config::DisplayOptions<String>,
-        inner_block: Box<dyn Block>,
+        inner_block: Box<dyn DebugBlock>,
         height: f64,
         separator_type: Option<config::SeparatorType>,
         separator_radius: Option<f64>,
@@ -94,6 +98,8 @@ impl BaseBlock {
         }
     }
 }
+
+impl DebugBlock for BaseBlock {}
 
 impl Block for BaseBlock {
     fn is_visible(&self) -> bool {
@@ -126,7 +132,7 @@ impl Block for BaseBlock {
 
         let background_color = &self.display_options.background;
         if !background_color.is_empty() {
-            context_color(context, background_color)?;
+            context_color(context, background_color).context("background")?;
             // TODO: figure out how to prevent a gap between neighbour blocks.
             let deg = std::f64::consts::PI / 180.0;
             let radius = self.separator_radius.unwrap_or_default();
@@ -195,10 +201,13 @@ impl Block for BaseBlock {
     }
 }
 
+#[derive(Debug)]
 struct TextBlock {
     pango_layout: pango::Layout,
     display_options: config::DisplayOptions<String>,
 }
+
+impl DebugBlock for TextBlock {}
 
 impl TextBlock {
     fn new(
@@ -229,7 +238,7 @@ impl TextBlock {
         height: f64,
         separator_type: Option<config::SeparatorType>,
         separator_radius: Option<f64>,
-    ) -> Box<dyn Block> {
+    ) -> Box<dyn DebugBlock> {
         Box::new(BaseBlock::new(
             display_options.clone(),
             Box::new(Self::new(pango_context, font_cache, display_options)),
@@ -263,8 +272,9 @@ impl Block for TextBlock {
     }
 }
 
+#[derive(Debug)]
 struct TextProgressBarNumberBlock {
-    text_block: Box<dyn Block>,
+    text_block: Box<dyn DebugBlock>,
 }
 
 impl TextProgressBarNumberBlock {
@@ -322,6 +332,8 @@ impl TextProgressBarNumberBlock {
     }
 }
 
+impl DebugBlock for TextProgressBarNumberBlock {}
+
 impl Block for TextProgressBarNumberBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
@@ -335,8 +347,9 @@ impl Block for TextProgressBarNumberBlock {
     }
 }
 
+#[derive(Debug)]
 struct EnumBlock {
-    variant_blocks: Vec<Box<dyn Block>>,
+    variant_blocks: Vec<Box<dyn DebugBlock>>,
     dim: Dimensions,
     value: state::EnumBlockValue,
 }
@@ -377,6 +390,8 @@ impl EnumBlock {
     }
 }
 
+impl DebugBlock for EnumBlock {}
+
 impl Block for EnumBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.dim.clone()
@@ -398,10 +413,13 @@ impl Block for EnumBlock {
     }
 }
 
+#[derive(Debug)]
 struct ImageBlock {
     display_options: config::DisplayOptions<String>,
     image_buf: anyhow::Result<cairo::ImageSurface>,
 }
+
+impl DebugBlock for ImageBlock {}
 
 impl ImageBlock {
     fn load_image(file_name: &str) -> anyhow::Result<cairo::ImageSurface> {
@@ -410,7 +428,7 @@ impl ImageBlock {
         Ok(image)
     }
 
-    fn new(display_options: config::DisplayOptions<String>, height: f64) -> Box<dyn Block> {
+    fn new(display_options: config::DisplayOptions<String>, height: f64) -> Box<dyn DebugBlock> {
         let image_buf = Self::load_image(display_options.value.as_str());
         if let Err(e) = &image_buf {
             error!("Error loading PNG file: {:?}", e)
@@ -460,12 +478,12 @@ impl Block for ImageBlock {
 }
 
 struct BlockGroup {
-    blocks: Vec<Box<dyn Block>>,
+    blocks: Vec<Box<dyn DebugBlock>>,
     dimensions: Dimensions,
 }
 
 impl BlockGroup {
-    fn collapse_separators(input: Vec<Box<dyn Block>>) -> Vec<Box<dyn Block>> {
+    fn collapse_separators(input: Vec<Box<dyn DebugBlock>>) -> Vec<Box<dyn DebugBlock>> {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(input.len());
 
@@ -543,10 +561,10 @@ impl BlockGroup {
         bar_config: config::Bar<String>,
         font_cache: Arc<Mutex<FontCache>>,
     ) -> Self {
-        let blocks: Vec<Box<dyn Block>> = state
+        let blocks: Vec<Box<dyn DebugBlock>> = state
             .iter()
             .map(|bd| {
-                let b: Box<dyn Block> = match &bd.value {
+                let b: Box<dyn DebugBlock> = match &bd.value {
                     state::BlockValue::Text(text) => TextBlock::new_in_base_block(
                         pango_context,
                         font_cache.clone(),
@@ -557,7 +575,7 @@ impl BlockGroup {
                     ),
                     state::BlockValue::Number(number) => match &number.progress_bar {
                         config::ProgressBar::Text(text_progress_bar) => {
-                            let b: Box<dyn Block> = Box::new(TextProgressBarNumberBlock::new(
+                            let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
                                 pango_context,
                                 font_cache.clone(),
                                 number.clone(),
@@ -568,7 +586,7 @@ impl BlockGroup {
                         }
                     },
                     state::BlockValue::Enum(enum_block_value) => {
-                        let b: Box<dyn Block> = Box::new(EnumBlock::new(
+                        let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
                             pango_context,
                             font_cache.clone(),
                             enum_block_value.clone(),
@@ -617,7 +635,9 @@ impl BlockGroup {
             let b_dim = block.get_dimensions();
             context.save()?;
             context.translate(pos, 0.0);
-            block.render(context)?;
+            block
+                .render(context)
+                .with_context(|| format!("block: {:?}", block))?;
             context.restore()?;
             pos += b_dim.width;
         }
@@ -654,7 +674,7 @@ impl Bar {
 
         let pango_context = pangocairo::create_context(context);
         context.save()?;
-        context_color(context, &self.config.bar.background)?;
+        context_color(context, &self.config.bar.background).context("bar.background")?;
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
@@ -689,17 +709,17 @@ impl Bar {
         );
 
         context.save()?;
-        left_group.render(context)?;
+        left_group.render(context).context("left_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate((width - center_group.dimensions.width) / 2.0, 0.0);
-        center_group.render(context)?;
+        center_group.render(context).context("center_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate(width - right_group.dimensions.width, 0.0);
-        right_group.render(context)?;
+        right_group.render(context).context("right_group")?;
         context.restore()?;
 
         context.restore()?;
