@@ -20,9 +20,16 @@ use crate::{bar, config, state, thread, xutils};
 use tracing::*;
 
 #[derive(Debug)]
+pub struct ScreenMouseMoved {
+    pub edge_entered: bool,
+    pub x: i16,
+    pub y: i16,
+}
+
+#[derive(Debug)]
 pub enum Event {
     Exposed,
-    ScreenMouseMoved { edge_entered: bool, x: i16, y: i16 },
+    ScreenMouseMoved(ScreenMouseMoved),
 }
 
 pub struct Window {
@@ -241,11 +248,11 @@ impl Window {
                                     > screen.height_in_pixels() as i16 - window_height as i16
                             }
                         };
-                        tx.send(Event::ScreenMouseMoved {
+                        tx.send(Event::ScreenMouseMoved(ScreenMouseMoved {
                             edge_entered,
                             x: pointer.root_x(),
                             y: pointer.root_y(),
-                        })?;
+                        }))?;
                     }
                     None => return Ok(false),
                     _ => {

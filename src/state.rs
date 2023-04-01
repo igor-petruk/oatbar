@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::config::{self, PlaceholderExt};
+use crate::timer;
 
 use anyhow::Context;
 
@@ -64,6 +65,7 @@ pub struct BlockData {
 
 #[derive(Clone, Debug, Default)]
 pub struct State {
+    pub show_panel_timer: Option<timer::Timer>,
     pub vars: HashMap<String, String>,
 }
 

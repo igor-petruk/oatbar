@@ -8,7 +8,7 @@ use std::{
 
 use crate::thread;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Timer {
     at: Arc<Mutex<SystemTime>>,
 }

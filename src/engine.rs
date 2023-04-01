@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime};
 
 use crate::config::{Config, Placeholder, PlaceholderExt};
-use crate::{state, window};
+use crate::{state, timer, window};
 
 pub struct Engine {
     pub state_update_tx: crossbeam_channel::Sender<state::Update>,
@@ -41,7 +42,7 @@ impl Engine {
         })
     }
 
-    pub fn handle_state_update(&self, state_update: state::Update) -> anyhow::Result<()> {
+    fn handle_state_update(&self, state_update: state::Update) -> anyhow::Result<()> {
         let mut state = self.state.write().unwrap();
         if let Some(prefix) = state_update.reset_prefix {
             state.vars.retain(|k, _| !k.starts_with(&prefix));
@@ -70,6 +71,34 @@ impl Engine {
         Ok(())
     }
 
+    fn handle_mouse_motion(&self, s: &window::ScreenMouseMoved) -> anyhow::Result<()> {
+        if !s.edge_entered {
+            return Ok(());
+        }
+        let reset_timer_at = SystemTime::now()
+            .checked_add(Duration::from_secs(2))
+            .unwrap();
+        let mut state = self.state.write().expect("RwLock");
+        match &state.show_panel_timer {
+            Some(timer) => {
+                timer.set_at(reset_timer_at);
+            }
+            None => {
+                let timer = {
+                    let state = self.state.clone();
+                    timer::Timer::new("autohide-timer", reset_timer_at, move || {
+                        let mut state = state.write().expect("RwLock");
+                        state.show_panel_timer = None;
+                        tracing::info!("DONE!");
+                    })?
+                };
+                state.show_panel_timer = Some(timer.clone());
+            }
+        };
+
+        Ok(())
+    }
+
     pub fn run(&self) -> anyhow::Result<()> {
         loop {
             crossbeam_channel::select! {
@@ -78,9 +107,9 @@ impl Engine {
                         let state = self.state.read().expect("RwLock");
                         self.window.render(&state)?;
                     },
-                    Ok(ev@window::Event::ScreenMouseMoved{..}) => {
-                        tracing::debug!("{:?}", ev);
-                    }
+                    Ok(window::Event::ScreenMouseMoved(s)) => {
+                        self.handle_mouse_motion(&s)?;
+                   }
                     Err(e) => return Err(anyhow::anyhow!("Unexpected exit of engine incoming channel: {:?}", e)),
                 },
                 recv(self.state_update_rx) -> msg => match msg {
