@@ -348,7 +348,7 @@ impl Window {
     pub fn window_control(&self) -> WindowControl {
         WindowControl {
             conn: self.conn.clone(),
-            id: self.id.clone(),
+            id: self.id,
         }
     }
 }
