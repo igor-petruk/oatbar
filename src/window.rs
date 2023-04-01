@@ -44,6 +44,23 @@ pub struct Window {
     pub rx_events: crossbeam_channel::Receiver<Event>,
 }
 
+#[derive(Clone)]
+pub struct WindowControl {
+    pub conn: Arc<xcb::Connection>,
+    pub id: x::Window,
+}
+
+impl WindowControl {
+    pub fn set_visible(&self, visible: bool) -> anyhow::Result<()> {
+        if visible {
+            xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+        } else {
+            xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
+        }
+        Ok(())
+    }
+}
+
 impl Window {
     pub fn create_and_show(config: config::Config<config::Placeholder>) -> anyhow::Result<Self> {
         let (conn, screen_num) = xcb::Connection::connect_with_xlib_display_and_extensions(
@@ -110,6 +127,7 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
+                x::Cw::OverrideRedirect(config.bar.autohide),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS | x::EventMask::BUTTON_PRESS,
                 ),
@@ -145,45 +163,48 @@ impl Window {
             "_NET_WM_STATE",
             &["_NET_WM_STATE_STICKY", "_NET_WM_STATE_ABOVE"],
         )?;
-        let sp_result = xutils::replace_property(
-            &conn,
-            id,
-            "_NET_WM_STRUT_PARTIAL",
-            x::ATOM_CARDINAL,
-            &[
-                0_u32,
-                0,
-                if top { window_height.into() } else { 0 },
-                if top { 0 } else { window_height.into() },
-                0,
-                0,
-                0,
-                0,
-                0,
-                if top { window_width.into() } else { 0 },
-                0,
-                if top { 0 } else { window_width.into() },
-            ],
-        )
-        .context("_NET_WM_STRUT_PARTIAL");
-        if let Err(e) = sp_result {
-            debug!("Unable to set _NET_WM_STRUT_PARTIAL: {:?}", e);
-        }
-        let s_result = xutils::replace_property(
-            &conn,
-            id,
-            "_NET_WM_STRUT",
-            x::ATOM_CARDINAL,
-            &[
-                0_u32,
-                0,
-                if top { window_height.into() } else { 0 },
-                if top { 0 } else { window_height.into() },
-            ],
-        )
-        .context("_NET_WM_STRUT");
-        if let Err(e) = s_result {
-            debug!("Unable to set _NET_WM_STRUT: {:?}", e);
+
+        if !config.bar.autohide {
+            let sp_result = xutils::replace_property(
+                &conn,
+                id,
+                "_NET_WM_STRUT_PARTIAL",
+                x::ATOM_CARDINAL,
+                &[
+                    0_u32,
+                    0,
+                    if top { window_height.into() } else { 0 },
+                    if top { 0 } else { window_height.into() },
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    if top { window_width.into() } else { 0 },
+                    0,
+                    if top { 0 } else { window_width.into() },
+                ],
+            )
+            .context("_NET_WM_STRUT_PARTIAL");
+            if let Err(e) = sp_result {
+                debug!("Unable to set _NET_WM_STRUT_PARTIAL: {:?}", e);
+            }
+            let s_result = xutils::replace_property(
+                &conn,
+                id,
+                "_NET_WM_STRUT",
+                x::ATOM_CARDINAL,
+                &[
+                    0_u32,
+                    0,
+                    if top { window_height.into() } else { 0 },
+                    if top { 0 } else { window_height.into() },
+                ],
+            )
+            .context("_NET_WM_STRUT");
+            if let Err(e) = s_result {
+                debug!("Unable to set _NET_WM_STRUT: {:?}", e);
+            }
         }
         let back_buffer: x::Pixmap = conn.generate_id();
         xutils::send(
@@ -211,8 +232,9 @@ impl Window {
         )?;
         conn.flush()?;
 
-        xutils::send(&conn, &x::MapWindow { window: id })?;
-
+        if !config.bar.autohide {
+            xutils::send(&conn, &x::MapWindow { window: id })?;
+        }
         xutils::send(
             &conn,
             &x::ConfigureWindow {
@@ -321,6 +343,13 @@ impl Window {
         )?;
         self.conn.flush()?;
         Ok(())
+    }
+
+    pub fn window_control(&self) -> WindowControl {
+        WindowControl {
+            conn: self.conn.clone(),
+            id: self.id.clone(),
+        }
     }
 }
 

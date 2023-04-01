@@ -558,6 +558,8 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     #[serde(default = "default_margin", deserialize_with = "int_or_struct")]
     pub margin: Margin,
     pub background: Dynamic,
+    #[serde(default)]
+    pub autohide: bool,
 }
 
 impl Bar<Option<Placeholder>> {
@@ -572,6 +574,7 @@ impl Bar<Option<Placeholder>> {
             position: self.position.clone(),
             phantom_data: Default::default(),
             background: self.background.clone().unwrap_or_else(|| "#191919".into()),
+            autohide: self.autohide,
         }
     }
 }

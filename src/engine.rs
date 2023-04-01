@@ -22,6 +22,7 @@ pub struct Engine {
     pub state_update_tx: crossbeam_channel::Sender<state::Update>,
     state_update_rx: crossbeam_channel::Receiver<state::Update>,
     window: window::Window,
+    window_control: window::WindowControl,
     state: Arc<RwLock<state::State>>,
     config: Config<Placeholder>,
 }
@@ -31,12 +32,14 @@ impl Engine {
         let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
         let window = window::Window::create_and_show(config.clone())?;
+        let window_control = window.window_control();
 
         let state = Arc::new(RwLock::new(initial_state));
         Ok(Self {
             state_update_tx,
             state_update_rx,
             window,
+            window_control,
             state,
             config,
         })
@@ -85,11 +88,13 @@ impl Engine {
             }
             None => {
                 let timer = {
+                    let window_control = self.window_control.clone();
+                    window_control.set_visible(true)?;
                     let state = self.state.clone();
                     timer::Timer::new("autohide-timer", reset_timer_at, move || {
                         let mut state = state.write().expect("RwLock");
                         state.show_panel_timer = None;
-                        tracing::info!("DONE!");
+                        window_control.set_visible(false).expect("autohide-hide");
                     })?
                 };
                 state.show_panel_timer = Some(timer);
