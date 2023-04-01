@@ -92,7 +92,7 @@ impl Engine {
                         tracing::info!("DONE!");
                     })?
                 };
-                state.show_panel_timer = Some(timer.clone());
+                state.show_panel_timer = Some(timer);
             }
         };
 
