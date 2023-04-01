@@ -14,7 +14,7 @@
 
 use anyhow::Context;
 use std::sync::Arc;
-use xcb::{x, Xid};
+use xcb::{x, xinput, Xid};
 
 use crate::{bar, config, state, thread, xutils};
 use tracing::*;
@@ -22,6 +22,7 @@ use tracing::*;
 #[derive(Debug)]
 pub enum Event {
     Exposed,
+    ScreenMouseMoved { edge_entered: bool, x: i16, y: i16 },
 }
 
 pub struct Window {
@@ -38,8 +39,25 @@ pub struct Window {
 
 impl Window {
     pub fn create_and_show(config: config::Config<config::Placeholder>) -> anyhow::Result<Self> {
-        let (conn, screen_num) = xcb::Connection::connect_with_xlib_display().unwrap();
+        let (conn, screen_num) = xcb::Connection::connect_with_xlib_display_and_extensions(
+            &[xcb::Extension::Input],
+            &[],
+        )
+        .unwrap();
         let conn = Arc::new(conn);
+
+        tracing::info!(
+            "XInput init: {:?}",
+            xutils::query(
+                &conn,
+                &xinput::XiQueryVersion {
+                    major_version: 2,
+                    minor_version: 0,
+                },
+            )
+            .context("init xinput 2.0 extension")?
+        );
+
         let screen = {
             let setup = conn.get_setup();
             setup.roots().nth(screen_num as usize).unwrap()
@@ -91,6 +109,17 @@ impl Window {
                 x::Cw::Colormap(cid),
             ],
         });
+
+        let raw_motion_mask_buf =
+            xinput::EventMaskBuf::new(xinput::Device::All, &[xinput::XiEventMask::RAW_MOTION]);
+
+        xutils::send(
+            &conn,
+            &xinput::XiSelectEvents {
+                window: screen.root(),
+                masks: &[raw_motion_mask_buf],
+            },
+        )?;
 
         let app_name = "oatbar".as_bytes();
         xutils::replace_property_atom(&conn, id, x::ATOM_WM_NAME, x::ATOM_STRING, app_name)?;
@@ -197,6 +226,26 @@ impl Window {
                 match event {
                     Some(xcb::Event::X(x::Event::Expose(_ev))) => {
                         tx.send(Event::Exposed)?;
+                    }
+                    Some(xcb::Event::Input(xinput::Event::RawMotion(_))) => {
+                        let pointer = xutils::query(
+                            &conn,
+                            &x::QueryPointer {
+                                window: screen.root(),
+                            },
+                        )?;
+                        let edge_entered = match config.bar.position {
+                            config::BarPosition::Top => pointer.root_y() < window_height as i16,
+                            config::BarPosition::Bottom => {
+                                pointer.root_y()
+                                    > screen.height_in_pixels() as i16 - window_height as i16
+                            }
+                        };
+                        tx.send(Event::ScreenMouseMoved {
+                            edge_entered,
+                            x: pointer.root_x(),
+                            y: pointer.root_y(),
+                        })?;
                     }
                     None => return Ok(false),
                     _ => {

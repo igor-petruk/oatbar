@@ -22,6 +22,7 @@ mod keyboard;
 mod source;
 mod state;
 mod thread;
+mod timer;
 mod window;
 mod wm;
 mod xutils;

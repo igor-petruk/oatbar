@@ -78,6 +78,9 @@ impl Engine {
                         let state = self.state.read().expect("RwLock");
                         self.window.render(&state)?;
                     },
+                    Ok(ev@window::Event::ScreenMouseMoved{..}) => {
+                        tracing::debug!("{:?}", ev);
+                    }
                     Err(e) => return Err(anyhow::anyhow!("Unexpected exit of engine incoming channel: {:?}", e)),
                 },
                 recv(self.state_update_rx) -> msg => match msg {
