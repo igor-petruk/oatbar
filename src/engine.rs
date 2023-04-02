@@ -13,10 +13,9 @@
 // limitations under the License.
 
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, SystemTime};
 
 use crate::config::{Config, Placeholder, PlaceholderExt};
-use crate::{state, timer, window};
+use crate::{state, window};
 
 pub struct Engine {
     pub state_update_tx: crossbeam_channel::Sender<state::Update>,
@@ -75,6 +74,7 @@ impl Engine {
     }
 
     fn handle_mouse_motion(&self, s: &window::ScreenMouseMoved) -> anyhow::Result<()> {
+        /*
         if !s.edge_entered {
             return Ok(());
         }
@@ -99,7 +99,16 @@ impl Engine {
                 };
                 state.show_panel_timer = Some(timer);
             }
-        };
+        };*/
+
+        let mut state = self.state.write().expect("RwLock");
+        if !state.autohide_bar_visible && s.over_edge {
+            state.autohide_bar_visible = true;
+            self.window_control.set_visible(true)?;
+        } else if state.autohide_bar_visible && !s.over_window {
+            state.autohide_bar_visible = false;
+            self.window_control.set_visible(false)?;
+        }
 
         Ok(())
     }

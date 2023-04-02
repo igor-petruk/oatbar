@@ -21,7 +21,8 @@ use tracing::*;
 
 #[derive(Debug)]
 pub struct ScreenMouseMoved {
-    pub edge_entered: bool,
+    pub over_window: bool,
+    pub over_edge: bool,
     pub x: i16,
     pub y: i16,
 }
@@ -263,15 +264,23 @@ impl Window {
                                 window: screen.root(),
                             },
                         )?;
-                        let edge_entered = match config.bar.position {
+                        let edge_size: i16 = 3;
+                        let screen_height: i16 = screen.height_in_pixels() as i16;
+                        let over_window = match config.bar.position {
                             config::BarPosition::Top => pointer.root_y() < window_height as i16,
                             config::BarPosition::Bottom => {
-                                pointer.root_y()
-                                    > screen.height_in_pixels() as i16 - window_height as i16
+                                pointer.root_y() > screen_height - window_height as i16
+                            }
+                        };
+                        let over_edge = match config.bar.position {
+                            config::BarPosition::Top => pointer.root_y() < edge_size,
+                            config::BarPosition::Bottom => {
+                                pointer.root_y() > screen_height - edge_size
                             }
                         };
                         tx.send(Event::ScreenMouseMoved(ScreenMouseMoved {
-                            edge_entered,
+                            over_window,
+                            over_edge,
                             x: pointer.root_x(),
                             y: pointer.root_y(),
                         }))?;
