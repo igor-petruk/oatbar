@@ -666,6 +666,19 @@ impl Bar {
 }
 
 impl Bar {
+    pub fn flatten(
+        blocks: &HashMap<String, state::BlockData>,
+        names: &[String],
+    ) -> Vec<state::BlockData> {
+        let mut result = Vec::with_capacity(names.len());
+        for name in names {
+            if let Some(block) = blocks.get(name) {
+                result.push(block.clone());
+            }
+        }
+        result
+    }
+
     pub fn render(&self, d_context: &DrawingContext, state: &state::State) -> anyhow::Result<()> {
         let context = &d_context.context;
 
@@ -679,9 +692,9 @@ impl Bar {
         context.paint()?;
         context.restore()?;
 
-        let flat_left = state.flatten(&self.config, &self.config.bar.modules_left);
-        let flat_center = state.flatten(&self.config, &self.config.bar.modules_center);
-        let flat_right = state.flatten(&self.config, &self.config.bar.modules_right);
+        let flat_left = Self::flatten(&state.blocks, &self.config.bar.modules_left);
+        let flat_center = Self::flatten(&state.blocks, &self.config.bar.modules_center);
+        let flat_right = Self::flatten(&state.blocks, &self.config.bar.modules_right);
 
         let left_group = BlockGroup::new(
             &flat_left,

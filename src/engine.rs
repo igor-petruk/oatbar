@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime};
 
 use crate::config::{Config, Placeholder, PlaceholderExt};
-use crate::{state, window};
+use crate::{state, timer, window};
 
 pub struct Engine {
     pub state_update_tx: crossbeam_channel::Sender<state::Update>,
@@ -70,18 +71,20 @@ impl Engine {
             };
             state.vars.insert(var.name.clone(), processed);
         }
+        let show_bar = state.update_blocks(&self.config);
+        if show_bar {
+            self.popup_bar(&mut state)?;
+        }
         Ok(())
     }
 
-    fn handle_mouse_motion(&self, s: &window::ScreenMouseMoved) -> anyhow::Result<()> {
-        /*
-        if !s.edge_entered {
+    fn popup_bar(&self, state: &mut state::State) -> anyhow::Result<()> {
+        if state.autohide_bar_visible || !self.config.bar.autohide {
             return Ok(());
         }
         let reset_timer_at = SystemTime::now()
-            .checked_add(Duration::from_secs(2))
+            .checked_add(Duration::from_secs(1))
             .unwrap();
-        let mut state = self.state.write().expect("RwLock");
         match &state.show_panel_timer {
             Some(timer) => {
                 timer.set_at(reset_timer_at);
@@ -99,8 +102,15 @@ impl Engine {
                 };
                 state.show_panel_timer = Some(timer);
             }
-        };*/
+        }
 
+        Ok(())
+    }
+
+    fn handle_mouse_motion(&self, s: &window::ScreenMouseMoved) -> anyhow::Result<()> {
+        if !self.config.bar.autohide {
+            return Ok(());
+        }
         let mut state = self.state.write().expect("RwLock");
         if !state.autohide_bar_visible && s.over_edge {
             state.autohide_bar_visible = true;

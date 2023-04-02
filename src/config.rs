@@ -104,6 +104,7 @@ pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
     pub margin: Option<f64>,
     pub padding: Option<f64>,
     pub show_if_set: Dynamic,
+    pub show_bar_on_change: Option<bool>,
 }
 
 impl DisplayOptions<Option<Placeholder>> {
@@ -131,6 +132,7 @@ impl DisplayOptions<Option<Placeholder>> {
             show_if_set: self
                 .show_if_set
                 .unwrap_or_else(|| default.show_if_set.clone()),
+            show_bar_on_change: self.show_bar_on_change.or(default.show_bar_on_change),
             pango_markup: Some(self.pango_markup.unwrap_or(true)),
         }
     }
@@ -165,6 +167,7 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
                 .show_if_set
                 .resolve_placeholders(vars)
                 .context("show_if_set")?,
+            show_bar_on_change: self.show_bar_on_change,
             pango_markup: self.pango_markup,
         })
     }
@@ -732,6 +735,7 @@ fn default_display() -> DisplayOptions<Placeholder> {
         margin: Some(0.0),
         padding: Some(8.0),
         show_if_set: "visible".into(),
+        show_bar_on_change: Some(false),
     }
 }
 

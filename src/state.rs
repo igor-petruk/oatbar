@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::config::{self, PlaceholderExt};
+use crate::{
+    config::{self, PlaceholderExt},
+    timer,
+};
 
 use anyhow::Context;
 
@@ -60,13 +63,16 @@ pub enum BlockValue {
 pub struct BlockData {
     pub config: config::Block<String>,
     pub value: BlockValue,
+    pub value_fingerprint: String,
+    pub show_bar_on_change: bool,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct State {
-    //pub show_panel_timer: Option<timer::Timer>,
+    pub show_panel_timer: Option<timer::Timer>,
     pub autohide_bar_visible: bool,
     pub vars: HashMap<String, String>,
+    pub blocks: HashMap<String, BlockData>,
 }
 
 fn format_active_inactive(
@@ -98,6 +104,8 @@ impl State {
             .resolve_placeholders(&self.vars)
             .context("display")?;
         Ok(BlockData {
+            value_fingerprint: display.value.clone(),
+            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
             value: BlockValue::Text(TextBlockValue {
                 display,
                 separator_type: b.separator_type.clone(),
@@ -115,8 +123,12 @@ impl State {
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
+        let value_fingerprint = display.value.clone();
+
         Ok(BlockData {
+            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
             value: BlockValue::Image(ImageBlockValue { display }),
+            value_fingerprint,
             config: config::Block::Image(b.clone()),
         })
     }
@@ -133,6 +145,7 @@ impl State {
         let value = number_type
             .parse_str(display.value.as_str())
             .context("value")?;
+        let value_fingerprint = display.value.clone();
 
         let (min_value, max_value) = match number_type {
             config::NumberType::Percent => (Some(0.0), Some(100.0)),
@@ -143,6 +156,7 @@ impl State {
         };
 
         Ok(BlockData {
+            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
             value: BlockValue::Number(NumberBlockValue {
                 value,
                 min_value,
@@ -151,6 +165,7 @@ impl State {
                 display,
                 progress_bar: b.progress_bar.clone(),
             }),
+            value_fingerprint,
             config: config::Block::Number(b.clone()),
         })
     }
@@ -191,31 +206,23 @@ impl State {
         let variants = variants.into_iter().map(|r| r.unwrap()).collect();
 
         Ok(BlockData {
+            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
             value: BlockValue::Enum(EnumBlockValue {
                 active,
                 variants,
                 display,
                 active_display,
             }),
+            value_fingerprint: active_str.into(),
             config: config::Block::Enum(b.clone()),
         })
     }
 
-    pub fn flatten(
-        &self,
-        config: &config::Config<config::Placeholder>,
-        modules: &[String],
-    ) -> Vec<BlockData> {
-        // TODO: optimize.
-        let mut result = vec![];
-        for module in modules {
-            let block_config = config.blocks.get(module);
-            if block_config.is_none() {
-                continue;
-            }
-            let block_config = block_config.unwrap();
+    pub fn update_blocks(&mut self, config: &config::Config<config::Placeholder>) -> bool {
+        let mut show_bar = false;
 
-            let block_data = match block_config {
+        for (name, block) in config.blocks.iter() {
+            let block_data = match &block {
                 config::Block::Text(text_block) => self.text_block(text_block),
                 config::Block::Enum(enum_block) => self.enum_block(enum_block),
                 config::Block::Number(number_block) => self.number_block(number_block),
@@ -224,14 +231,22 @@ impl State {
 
             match block_data {
                 Ok(block_data) => {
-                    result.push(block_data);
+                    if let Some(old_block_data) = self.blocks.get(name) {
+                        if old_block_data.show_bar_on_change
+                            && old_block_data.value_fingerprint != block_data.value_fingerprint
+                        {
+                            show_bar = true;
+                        }
+                    }
+                    self.blocks.insert(name.into(), block_data);
                 }
                 Err(e) => {
-                    tracing::error!("Module {:?} has invalid value: {:?}", module, e);
+                    tracing::error!("Module {:?} has invalid value: {:?}", name, e);
                 }
             }
         }
-        result
+
+        show_bar
     }
 }
 
