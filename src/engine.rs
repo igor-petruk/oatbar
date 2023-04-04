@@ -31,7 +31,7 @@ impl Engine {
     pub fn new(config: Config<Placeholder>, initial_state: state::State) -> anyhow::Result<Self> {
         let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
-        let window = window::Window::create_and_show(config.clone())?;
+        let window = window::Window::create_and_show(config.bar.clone())?;
         let window_control = window.window_control();
 
         let state = Arc::new(RwLock::new(initial_state));

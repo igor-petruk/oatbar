@@ -652,14 +652,14 @@ pub struct DrawingContext {
 }
 
 pub struct Bar {
-    config: config::Config<config::Placeholder>,
+    bar: config::Bar<config::Placeholder>,
     font_cache: Arc<Mutex<FontCache>>,
 }
 
 impl Bar {
-    pub fn new(config: &config::Config<config::Placeholder>) -> anyhow::Result<Self> {
+    pub fn new(bar: &config::Bar<config::Placeholder>) -> anyhow::Result<Self> {
         Ok(Self {
-            config: config.clone(),
+            bar: bar.clone(),
             font_cache: Arc::new(Mutex::new(FontCache::new())),
         })
     }
@@ -682,44 +682,40 @@ impl Bar {
     pub fn render(&self, d_context: &DrawingContext, state: &state::State) -> anyhow::Result<()> {
         let context = &d_context.context;
 
-        let width =
-            d_context.width - (self.config.bar.margin.left + self.config.bar.margin.right) as f64;
+        let width = d_context.width - (self.bar.margin.left + self.bar.margin.right) as f64;
 
         let pango_context = pangocairo::create_context(context);
         context.save()?;
-        context_color(context, &self.config.bar.background).context("bar.background")?;
+        context_color(context, &self.bar.background).context("bar.background")?;
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
 
-        let flat_left = Self::flatten(&state.blocks, &self.config.bar.modules_left);
-        let flat_center = Self::flatten(&state.blocks, &self.config.bar.modules_center);
-        let flat_right = Self::flatten(&state.blocks, &self.config.bar.modules_right);
+        let flat_left = Self::flatten(&state.blocks, &self.bar.modules_left);
+        let flat_center = Self::flatten(&state.blocks, &self.bar.modules_center);
+        let flat_right = Self::flatten(&state.blocks, &self.bar.modules_right);
 
         let left_group = BlockGroup::new(
             &flat_left,
             &pango_context,
-            self.config.bar.clone(),
+            self.bar.clone(),
             self.font_cache.clone(),
         );
         let center_group = BlockGroup::new(
             &flat_center,
             &pango_context,
-            self.config.bar.clone(),
+            self.bar.clone(),
             self.font_cache.clone(),
         );
         let right_group = BlockGroup::new(
             &flat_right,
             &pango_context,
-            self.config.bar.clone(),
+            self.bar.clone(),
             self.font_cache.clone(),
         );
 
         context.save()?;
-        context.translate(
-            self.config.bar.margin.left.into(),
-            self.config.bar.margin.top.into(),
-        );
+        context.translate(self.bar.margin.left.into(), self.bar.margin.top.into());
 
         context.save()?;
         left_group.render(context).context("left_group")?;

@@ -63,7 +63,7 @@ impl WindowControl {
 }
 
 impl Window {
-    pub fn create_and_show(config: config::Config<config::Placeholder>) -> anyhow::Result<Self> {
+    pub fn create_and_show(bar_config: config::Bar<config::Placeholder>) -> anyhow::Result<Self> {
         let (conn, screen_num) = xcb::Connection::connect_with_xlib_display_and_extensions(
             &[xcb::Extension::Input],
             &[],
@@ -91,9 +91,9 @@ impl Window {
 
         let mut vis32 = find_32bit_visual(&screen).unwrap();
 
-        let margin = &config.bar.margin;
+        let margin = &bar_config.margin;
 
-        let height = config.bar.height;
+        let height = bar_config.height;
         let window_width = screen.width_in_pixels();
         let window_height = height + margin.top + margin.bottom;
 
@@ -109,7 +109,7 @@ impl Window {
         )?;
 
         let id: x::Window = conn.generate_id();
-        let top = config.bar.position == config::BarPosition::Top;
+        let top = bar_config.position == config::BarPosition::Top;
         let y = if top {
             0
         } else {
@@ -128,7 +128,7 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
-                x::Cw::OverrideRedirect(config.bar.autohide),
+                x::Cw::OverrideRedirect(bar_config.autohide),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS | x::EventMask::BUTTON_PRESS,
                 ),
@@ -165,7 +165,7 @@ impl Window {
             &["_NET_WM_STATE_STICKY", "_NET_WM_STATE_ABOVE"],
         )?;
 
-        if !config.bar.autohide {
+        if !bar_config.autohide {
             let sp_result = xutils::replace_property(
                 &conn,
                 id,
@@ -233,7 +233,7 @@ impl Window {
         )?;
         conn.flush()?;
 
-        if !config.bar.autohide {
+        if !bar_config.autohide {
             xutils::send(&conn, &x::MapWindow { window: id })?;
         }
         xutils::send(
@@ -245,7 +245,7 @@ impl Window {
         )?;
         conn.flush()?;
 
-        let bar = bar::Bar::new(&config)?;
+        let bar = bar::Bar::new(&bar_config)?;
 
         let (tx, rx) = crossbeam_channel::unbounded();
 
@@ -266,13 +266,13 @@ impl Window {
                         )?;
                         let edge_size: i16 = 3;
                         let screen_height: i16 = screen.height_in_pixels() as i16;
-                        let over_window = match config.bar.position {
+                        let over_window = match bar_config.position {
                             config::BarPosition::Top => pointer.root_y() < window_height as i16,
                             config::BarPosition::Bottom => {
                                 pointer.root_y() > screen_height - window_height as i16
                             }
                         };
-                        let over_edge = match config.bar.position {
+                        let over_edge = match bar_config.position {
                             config::BarPosition::Top => pointer.root_y() < edge_size,
                             config::BarPosition::Bottom => {
                                 pointer.root_y() > screen_height - edge_size
