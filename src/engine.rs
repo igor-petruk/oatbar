@@ -25,6 +25,7 @@ pub struct Engine {
     window_ids: Vec<x::Window>,
     state: Arc<RwLock<state::State>>,
     conn: Arc<xcb::Connection>,
+    screen: x::ScreenBuf,
 }
 
 impl Engine {
@@ -37,6 +38,13 @@ impl Engine {
         )
         .unwrap();
         let conn = Arc::new(conn);
+
+        let screen = {
+            let setup = conn.get_setup();
+            setup.roots().next().unwrap()
+        }
+        .to_owned();
+
         tracing::info!(
             "XInput init: {:?}",
             xutils::query(
@@ -66,6 +74,7 @@ impl Engine {
             window_ids,
             state,
             conn,
+            screen,
         })
     }
 
@@ -161,7 +170,17 @@ impl Engine {
                         window.render()?;
                     }
                 }
-                Some(xcb::Event::Input(xinput::Event::RawMotion(_))) => {}
+                Some(xcb::Event::Input(xinput::Event::RawMotion(_event))) => {
+                    let pointer = xutils::query(
+                        &self.conn,
+                        &x::QueryPointer {
+                            window: self.screen.root(),
+                        },
+                    )?;
+                    for window in self.windows.values() {
+                        window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
+                    }
+                }
                 None => {
                     return Ok(());
                 }

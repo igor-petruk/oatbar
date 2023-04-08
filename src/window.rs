@@ -36,7 +36,10 @@ pub struct Window {
     back_buffer_surface: cairo::XCBSurface,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
+    bar_config: config::Bar<config::Placeholder>,
     state: Arc<RwLock<state::State>>,
+    screen: x::ScreenBuf,
+    window_height: u16,
 }
 
 impl Window {
@@ -219,6 +222,9 @@ impl Window {
             swap_gc,
             bar,
             state,
+            screen,
+            bar_config,
+            window_height,
         })
     }
 
@@ -238,7 +244,32 @@ impl Window {
         Ok(())
     }
 
-    /*
+    pub fn handle_raw_motion(&self, _x: i16, y: i16) -> anyhow::Result<()> {
+        if !self.bar_config.autohide {
+            return Ok(());
+        }
+        let edge_size: i16 = 3;
+        let screen_height: i16 = self.screen.height_in_pixels() as i16;
+        let over_window = match self.bar_config.position {
+            config::BarPosition::Top => y < self.window_height as i16,
+            config::BarPosition::Bottom => y > screen_height - self.window_height as i16,
+        };
+        let over_edge = match self.bar_config.position {
+            config::BarPosition::Top => y < edge_size,
+            config::BarPosition::Bottom => y > screen_height - edge_size,
+        };
+
+        let mut state = self.state.write().expect("RwLock");
+        if !state.autohide_bar_visible && over_edge {
+            state.autohide_bar_visible = true;
+            self.set_visible(true)?;
+        } else if state.autohide_bar_visible && !over_window {
+            state.autohide_bar_visible = false;
+            self.set_visible(false)?;
+        }
+        Ok(())
+    }
+
     fn set_visible(&self, visible: bool) -> anyhow::Result<()> {
         if visible {
             xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
@@ -247,7 +278,6 @@ impl Window {
         }
         Ok(())
     }
-    */
 
     fn swap_buffers(&self) -> anyhow::Result<()> {
         self.back_buffer_surface.flush();
