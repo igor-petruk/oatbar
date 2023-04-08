@@ -36,7 +36,9 @@ fn get_current_layout(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Resu
         },
     )?;
     let one_value = reply
-        .value_list().first().cloned()
+        .value_list()
+        .first()
+        .cloned()
         .ok_or_else(|| anyhow::anyhow!("More than one value"))?;
     let atom_name = if let xkb::GetNamesReplyValueList::Symbols(atom) = one_value {
         let reply = xutils::query(conn, &x::GetAtomName { atom })?;

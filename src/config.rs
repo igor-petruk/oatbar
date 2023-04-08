@@ -552,8 +552,6 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub modules_right: Vec<String>,
     #[serde(default = "default_height")]
     pub height: u16,
-    #[serde(default = "default_clock_format")]
-    pub clock_format: String,
     #[serde(default = "default_bar_position")]
     pub position: BarPosition,
     #[serde(skip)]
@@ -573,7 +571,6 @@ impl Bar<Option<Placeholder>> {
             modules_right: self.modules_right.clone(),
             height: self.height,
             margin: self.margin.clone(),
-            clock_format: self.clock_format.clone(),
             position: self.position.clone(),
             phantom_data: Default::default(),
             background: self.background.clone().unwrap_or_else(|| "#191919".into()),
@@ -655,7 +652,9 @@ impl Var<Option<Placeholder>> {
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
-    pub bar: Bar<Dynamic>,
+    #[serde(default = "default_clock_format")]
+    pub clock_format: String,
+    pub bar: Vec<Bar<Dynamic>>,
     pub default_block: DefaultBlock<Dynamic>,
     #[serde(skip)]
     pub blocks: HashMap<String, Block<Dynamic>>,
@@ -675,7 +674,7 @@ impl Config<Option<Placeholder>> {
     fn with_defaults(&self) -> Config<Placeholder> {
         let default_block = self.default_block.with_default();
         Config {
-            bar: self.bar.with_default(),
+            bar: self.bar.iter().map(|b| b.with_default()).collect(),
             default_block: default_block.clone(),
             blocks: self
                 .blocks_vec
@@ -691,6 +690,7 @@ impl Config<Option<Placeholder>> {
             vars_vec: vec![],
             i3bars: self.i3bars.clone(),
             commands: self.commands.clone(),
+            clock_format: self.clock_format.clone(),
         }
     }
 }

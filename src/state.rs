@@ -73,6 +73,7 @@ pub struct State {
     pub autohide_bar_visible: bool,
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
+    config: config::Config<config::Placeholder>,
 }
 
 fn format_active_inactive(
@@ -98,6 +99,13 @@ fn format_active_inactive(
 }
 
 impl State {
+    pub fn new(config: config::Config<config::Placeholder>) -> Self {
+        Self {
+            config,
+            ..Default::default()
+        }
+    }
+
     fn text_block(&self, b: &config::TextBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
         let display = b
             .display
@@ -218,10 +226,10 @@ impl State {
         })
     }
 
-    pub fn update_blocks(&mut self, config: &config::Config<config::Placeholder>) -> bool {
+    pub fn update_blocks(&mut self) -> bool {
         let mut show_bar = false;
 
-        for (name, block) in config.blocks.iter() {
+        for (name, block) in self.config.blocks.iter() {
             let block_data = match &block {
                 config::Block::Text(text_block) => self.text_block(text_block),
                 config::Block::Enum(enum_block) => self.enum_block(enum_block),
@@ -247,6 +255,39 @@ impl State {
         }
 
         show_bar
+    }
+
+    pub fn handle_state_update(&mut self, state_update: Update) -> anyhow::Result<()> {
+        if let Some(prefix) = state_update.reset_prefix {
+            self.vars.retain(|k, _| !k.starts_with(&prefix));
+        }
+        for update in state_update.entries.into_iter() {
+            let var = match update.instance {
+                Some(instance) => format!("{}.{}.{}", update.name, instance, update.var),
+                None => format!("{}.{}", update.name, update.var),
+            };
+            self.vars.insert(var, update.value);
+        }
+
+        for var in self.config.vars.values() {
+            let var_value = var.input.resolve_placeholders(&self.vars)?;
+            let processed = if let Some(enum_separator) = &var.enum_separator {
+                let vec: Vec<_> = var_value
+                    .split(enum_separator)
+                    .map(|s| var.process(s))
+                    .collect();
+                vec.join(enum_separator)
+            } else {
+                var.process(&var_value)
+            };
+            self.vars.insert(var.name.clone(), processed);
+        }
+        let show_bar = self.update_blocks();
+        if show_bar {
+            //
+            //self.popup_bar(&mut state)?;
+        }
+        Ok(())
     }
 }
 

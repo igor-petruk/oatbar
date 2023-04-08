@@ -12,138 +12,163 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::Context;
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, SystemTime};
+use xcb::{x, xinput};
 
-use crate::config::{Config, Placeholder, PlaceholderExt};
-use crate::{state, timer, window};
+use crate::config::{Config, Placeholder};
+use crate::{state, thread, window, xutils};
 
 pub struct Engine {
     pub state_update_tx: crossbeam_channel::Sender<state::Update>,
     state_update_rx: crossbeam_channel::Receiver<state::Update>,
-    window: window::Window,
-    window_control: window::WindowControl,
+    windows: HashMap<x::Window, window::Window>,
+    window_ids: Vec<x::Window>,
     state: Arc<RwLock<state::State>>,
-    config: Config<Placeholder>,
+    conn: Arc<xcb::Connection>,
 }
 
 impl Engine {
     pub fn new(config: Config<Placeholder>, initial_state: state::State) -> anyhow::Result<Self> {
+        let state = Arc::new(RwLock::new(initial_state));
+
         let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
-        let window = window::Window::create_and_show(config.bar.clone())?;
-        let window_control = window.window_control();
+        let (conn, _) = xcb::Connection::connect_with_xlib_display_and_extensions(
+            &[xcb::Extension::Input],
+            &[],
+        )
+        .unwrap();
+        let conn = Arc::new(conn);
+        tracing::info!(
+            "XInput init: {:?}",
+            xutils::query(
+                &conn,
+                &xinput::XiQueryVersion {
+                    major_version: 2,
+                    minor_version: 0,
+                },
+            )
+            .context("init xinput 2.0 extension")?
+        );
 
-        let state = Arc::new(RwLock::new(initial_state));
+        let mut windows = HashMap::new();
+
+        let window = window::Window::create_and_show(
+            config.bar.get(0).unwrap().clone(),
+            conn.clone(),
+            state.clone(),
+        )?;
+        windows.insert(window.id, window);
+
+        let window_ids = windows.keys().cloned().collect();
+        //  let window_control = window.window_control();
+
         Ok(Self {
             state_update_tx,
             state_update_rx,
-            window,
-            window_control,
+            windows,
+            window_ids,
             state,
-            config,
+            conn,
         })
     }
 
-    fn handle_state_update(&self, state_update: state::Update) -> anyhow::Result<()> {
-        let mut state = self.state.write().unwrap();
-        if let Some(prefix) = state_update.reset_prefix {
-            state.vars.retain(|k, _| !k.starts_with(&prefix));
-        }
-        for update in state_update.entries.into_iter() {
-            let var = match update.instance {
-                Some(instance) => format!("{}.{}.{}", update.name, instance, update.var),
-                None => format!("{}.{}", update.name, update.var),
-            };
-            state.vars.insert(var, update.value);
-        }
-
-        for var in self.config.vars.values() {
-            let var_value = var.input.resolve_placeholders(&state.vars)?;
-            let processed = if let Some(enum_separator) = &var.enum_separator {
-                let vec: Vec<_> = var_value
-                    .split(enum_separator)
-                    .map(|s| var.process(s))
-                    .collect();
-                vec.join(enum_separator)
-            } else {
-                var.process(&var_value)
-            };
-            state.vars.insert(var.name.clone(), processed);
-        }
-        let show_bar = state.update_blocks(&self.config);
-        if show_bar {
-            self.popup_bar(&mut state)?;
-        }
-        Ok(())
-    }
-
-    fn popup_bar(&self, state: &mut state::State) -> anyhow::Result<()> {
-        if state.autohide_bar_visible || !self.config.bar.autohide {
-            return Ok(());
-        }
-        let reset_timer_at = SystemTime::now()
-            .checked_add(Duration::from_secs(1))
-            .unwrap();
-        match &state.show_panel_timer {
-            Some(timer) => {
-                timer.set_at(reset_timer_at);
+    /*
+        fn popup_bar(&self, state: &mut state::State) -> anyhow::Result<()> {
+            if state.autohide_bar_visible || !self.config.bar.get(0).unwrap().autohide {
+                return Ok(());
             }
-            None => {
-                let timer = {
-                    let window_control = self.window_control.clone();
-                    window_control.set_visible(true)?;
-                    let state = self.state.clone();
-                    timer::Timer::new("autohide-timer", reset_timer_at, move || {
-                        let mut state = state.write().expect("RwLock");
-                        state.show_panel_timer = None;
-                        window_control.set_visible(false).expect("autohide-hide");
-                    })?
-                };
-                state.show_panel_timer = Some(timer);
+            let reset_timer_at = SystemTime::now()
+                .checked_add(Duration::from_secs(1))
+                .unwrap();
+            match &state.show_panel_timer {
+                Some(timer) => {
+                    timer.set_at(reset_timer_at);
+                }
+                None => {
+                    /*
+                    let timer = {
+                        let window_control = self.window_control.clone();
+                        window_control.set_visible(true)?;
+                        let state = self.state.clone();
+                        timer::Timer::new("autohide-timer", reset_timer_at, move || {
+                            let mut state = state.write().expect("RwLock");
+                            state.show_panel_timer = None;
+                            window_control.set_visible(false).expect("autohide-hide");
+                        })?
+                    };
+                    state.show_panel_timer = Some(timer);
+                    */
+                }
             }
+
+            Ok(())
         }
-
-        Ok(())
-    }
-
     fn handle_mouse_motion(&self, s: &window::ScreenMouseMoved) -> anyhow::Result<()> {
-        if !self.config.bar.autohide {
+        if !self.config.bar.get(0).unwrap().autohide {
             return Ok(());
         }
         let mut state = self.state.write().expect("RwLock");
         if !state.autohide_bar_visible && s.over_edge {
             state.autohide_bar_visible = true;
-            self.window_control.set_visible(true)?;
+        //       self.window_control.set_visible(true)?;
         } else if state.autohide_bar_visible && !s.over_window {
             state.autohide_bar_visible = false;
-            self.window_control.set_visible(false)?;
+            //     self.window_control.set_visible(false)?;
         }
 
         Ok(())
     }
+    */
 
-    pub fn run(&self) -> anyhow::Result<()> {
+    pub fn spawn_state_update_thread(&self) -> anyhow::Result<()> {
+        let state_update_rx = self.state_update_rx.clone();
+        let window_ids = self.window_ids.clone();
+        let conn = self.conn.clone();
+        let state = self.state.clone();
+
+        thread::spawn("eng-state", move || loop {
+            while let Ok(state_update) = state_update_rx.recv() {
+                {
+                    let mut state = state.write().unwrap();
+                    state.handle_state_update(state_update)?;
+                }
+                for window in window_ids.iter() {
+                    xutils::send(
+                        &conn,
+                        &x::SendEvent {
+                            destination: x::SendEventDest::Window(*window),
+                            event_mask: x::EventMask::EXPOSURE,
+                            propagate: false,
+                            event: &x::ExposeEvent::new(*window, 0, 0, 1, 1, 1),
+                        },
+                    )?;
+                }
+            }
+        })
+    }
+
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        self.spawn_state_update_thread()
+            .context("engine state update")?;
+
         loop {
-            crossbeam_channel::select! {
-                recv(self.window.rx_events) -> msg => match msg {
-                    Ok(window::Event::Exposed) => {
-                        let state = self.state.read().expect("RwLock");
-                        self.window.render(&state)?;
-                    },
-                    Ok(window::Event::ScreenMouseMoved(s)) => {
-                        self.handle_mouse_motion(&s)?;
-                   }
-                    Err(e) => return Err(anyhow::anyhow!("Unexpected exit of engine incoming channel: {:?}", e)),
-                },
-                recv(self.state_update_rx) -> msg => match msg {
-                    Ok(state_update) => {
-                        self.handle_state_update(state_update)?;
-                        let state = self.state.read().expect("RwLock");
-                        self.window.render(&state)?;
-                    },
-                    Err(e) => return Err(anyhow::anyhow!("Unexpected exit of window incoming channel: {:?}", e)),
-                },
+            let event = xutils::get_event(&self.conn)?;
+            match event {
+                Some(xcb::Event::X(x::Event::Expose(ev))) => {
+                    if let Some(window) = self.windows.get(&ev.window()) {
+                        window.render()?;
+                    }
+                }
+                Some(xcb::Event::Input(xinput::Event::RawMotion(_))) => {}
+                None => {
+                    return Ok(());
+                }
+                _ => {
+                    tracing::debug!("Unhandled XCB event: {:?}", event);
+                }
             }
         }
     }

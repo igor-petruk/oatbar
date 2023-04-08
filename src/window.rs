@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use anyhow::Context;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use xcb::{x, xinput, Xid};
 
-use crate::{bar, config, state, thread, xutils};
+use crate::{bar, config, state, xutils};
 use tracing::*;
 
 #[derive(Debug)]
@@ -25,12 +25,6 @@ pub struct ScreenMouseMoved {
     pub over_edge: bool,
     pub x: i16,
     pub y: i16,
-}
-
-#[derive(Debug)]
-pub enum Event {
-    Exposed,
-    ScreenMouseMoved(ScreenMouseMoved),
 }
 
 pub struct Window {
@@ -42,50 +36,18 @@ pub struct Window {
     back_buffer_surface: cairo::XCBSurface,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
-    pub rx_events: crossbeam_channel::Receiver<Event>,
-}
-
-#[derive(Clone)]
-pub struct WindowControl {
-    pub conn: Arc<xcb::Connection>,
-    pub id: x::Window,
-}
-
-impl WindowControl {
-    pub fn set_visible(&self, visible: bool) -> anyhow::Result<()> {
-        if visible {
-            xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
-        } else {
-            xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
-        }
-        Ok(())
-    }
+    state: Arc<RwLock<state::State>>,
 }
 
 impl Window {
-    pub fn create_and_show(bar_config: config::Bar<config::Placeholder>) -> anyhow::Result<Self> {
-        let (conn, screen_num) = xcb::Connection::connect_with_xlib_display_and_extensions(
-            &[xcb::Extension::Input],
-            &[],
-        )
-        .unwrap();
-        let conn = Arc::new(conn);
-
-        tracing::info!(
-            "XInput init: {:?}",
-            xutils::query(
-                &conn,
-                &xinput::XiQueryVersion {
-                    major_version: 2,
-                    minor_version: 0,
-                },
-            )
-            .context("init xinput 2.0 extension")?
-        );
-
+    pub fn create_and_show(
+        bar_config: config::Bar<config::Placeholder>,
+        conn: Arc<xcb::Connection>,
+        state: Arc<RwLock<state::State>>,
+    ) -> anyhow::Result<Self> {
         let screen = {
             let setup = conn.get_setup();
-            setup.roots().nth(screen_num as usize).unwrap()
+            setup.roots().next().unwrap()
         }
         .to_owned();
 
@@ -247,53 +209,6 @@ impl Window {
 
         let bar = bar::Bar::new(&bar_config)?;
 
-        let (tx, rx) = crossbeam_channel::unbounded();
-
-        {
-            let conn = conn.clone();
-            thread::spawn_loop("window", move || {
-                let event = xutils::get_event(&conn)?;
-                match event {
-                    Some(xcb::Event::X(x::Event::Expose(_ev))) => {
-                        tx.send(Event::Exposed)?;
-                    }
-                    Some(xcb::Event::Input(xinput::Event::RawMotion(_))) => {
-                        let pointer = xutils::query(
-                            &conn,
-                            &x::QueryPointer {
-                                window: screen.root(),
-                            },
-                        )?;
-                        let edge_size: i16 = 3;
-                        let screen_height: i16 = screen.height_in_pixels() as i16;
-                        let over_window = match bar_config.position {
-                            config::BarPosition::Top => pointer.root_y() < window_height as i16,
-                            config::BarPosition::Bottom => {
-                                pointer.root_y() > screen_height - window_height as i16
-                            }
-                        };
-                        let over_edge = match bar_config.position {
-                            config::BarPosition::Top => pointer.root_y() < edge_size,
-                            config::BarPosition::Bottom => {
-                                pointer.root_y() > screen_height - edge_size
-                            }
-                        };
-                        tx.send(Event::ScreenMouseMoved(ScreenMouseMoved {
-                            over_window,
-                            over_edge,
-                            x: pointer.root_x(),
-                            y: pointer.root_y(),
-                        }))?;
-                    }
-                    None => return Ok(false),
-                    _ => {
-                        debug!("Unhandled XCB event: {:?}", event);
-                    }
-                }
-                Ok(true)
-            })?;
-        }
-
         Ok(Self {
             conn,
             id,
@@ -303,7 +218,7 @@ impl Window {
             back_buffer_surface,
             swap_gc,
             bar,
-            rx_events: rx,
+            state,
         })
     }
 
@@ -315,12 +230,24 @@ impl Window {
         })
     }
 
-    pub fn render(&self, state: &state::State) -> anyhow::Result<()> {
+    pub fn render(&self) -> anyhow::Result<()> {
+        let state = self.state.read().unwrap();
         let dc = self.make_drawing_context()?;
-        self.bar.render(&dc, state)?;
+        self.bar.render(&dc, &state.blocks)?;
         self.swap_buffers()?;
         Ok(())
     }
+
+    /*
+    fn set_visible(&self, visible: bool) -> anyhow::Result<()> {
+        if visible {
+            xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+        } else {
+            xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
+        }
+        Ok(())
+    }
+    */
 
     fn swap_buffers(&self) -> anyhow::Result<()> {
         self.back_buffer_surface.flush();
@@ -352,13 +279,6 @@ impl Window {
         )?;
         self.conn.flush()?;
         Ok(())
-    }
-
-    pub fn window_control(&self) -> WindowControl {
-        WindowControl {
-            conn: self.conn.clone(),
-            id: self.id,
-        }
     }
 }
 

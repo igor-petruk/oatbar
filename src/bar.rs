@@ -610,11 +610,6 @@ impl BlockGroup {
         let blocks = BlockGroup::collapse_separators(blocks);
 
         for block in blocks.iter() {
-            /*
-            if !block.is_visible() {
-                continue;
-            }
-            */
             let b_dim = block.get_dimensions();
             dim.width += b_dim.width;
             dim.height = dim.height.max(b_dim.height);
@@ -679,7 +674,11 @@ impl Bar {
         result
     }
 
-    pub fn render(&self, d_context: &DrawingContext, state: &state::State) -> anyhow::Result<()> {
+    pub fn render(
+        &self,
+        d_context: &DrawingContext,
+        blocks: &HashMap<String, state::BlockData>,
+    ) -> anyhow::Result<()> {
         let context = &d_context.context;
 
         let width = d_context.width - (self.bar.margin.left + self.bar.margin.right) as f64;
@@ -691,9 +690,9 @@ impl Bar {
         context.paint()?;
         context.restore()?;
 
-        let flat_left = Self::flatten(&state.blocks, &self.bar.modules_left);
-        let flat_center = Self::flatten(&state.blocks, &self.bar.modules_center);
-        let flat_right = Self::flatten(&state.blocks, &self.bar.modules_right);
+        let flat_left = Self::flatten(blocks, &self.bar.modules_left);
+        let flat_center = Self::flatten(blocks, &self.bar.modules_center);
+        let flat_right = Self::flatten(blocks, &self.bar.modules_right);
 
         let left_group = BlockGroup::new(
             &flat_left,
