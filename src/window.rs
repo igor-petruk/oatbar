@@ -13,18 +13,19 @@
 // limitations under the License.
 
 use anyhow::Context;
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock},
+    time::{Duration, SystemTime},
+};
 use xcb::{x, xinput, Xid};
 
-use crate::{bar, config, state, xutils};
+use crate::{bar, config, state, timer, xutils};
 use tracing::*;
 
-#[derive(Debug)]
-pub struct ScreenMouseMoved {
-    pub over_window: bool,
-    pub over_edge: bool,
-    pub x: i16,
-    pub y: i16,
+pub struct PopupControl {
+    conn: Arc<xcb::Connection>,
+    window_id: x::Window,
+    timer: Option<timer::Timer>,
 }
 
 pub struct Window {
@@ -40,6 +41,7 @@ pub struct Window {
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
     window_height: u16,
+    popup_control: Arc<RwLock<PopupControl>>,
 }
 
 impl Window {
@@ -213,7 +215,7 @@ impl Window {
         let bar = bar::Bar::new(&bar_config)?;
 
         Ok(Self {
-            conn,
+            conn: conn.clone(),
             id,
             width: window_width,
             height: window_height,
@@ -225,6 +227,11 @@ impl Window {
             screen,
             bar_config,
             window_height,
+            popup_control: Arc::new(RwLock::new(PopupControl {
+                window_id: id,
+                timer: None,
+                conn,
+            })),
         })
     }
 
@@ -236,7 +243,41 @@ impl Window {
         })
     }
 
-    pub fn render(&self) -> anyhow::Result<()> {
+    pub fn show_or_prolong_popup(&mut self) -> anyhow::Result<()> {
+        let reset_timer_at = SystemTime::now()
+            .checked_add(Duration::from_secs(1))
+            .unwrap();
+        let mut popup_control = self.popup_control.write().unwrap();
+        match &popup_control.timer {
+            Some(timer) => {
+                timer.set_at(reset_timer_at);
+            }
+            None => {
+                let timer = {
+                    Self::set_visible(&self.conn, self.id, true)?;
+                    let popup_control = self.popup_control.clone();
+                    timer::Timer::new("autohide-timer", reset_timer_at, move || {
+                        let mut popup_control = popup_control.write().unwrap();
+                        popup_control.timer = None;
+                        Self::set_visible(&popup_control.conn, popup_control.window_id, false)
+                            .expect("autohide-hide");
+                    })?
+                };
+                popup_control.timer = Some(timer);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn render(&mut self) -> anyhow::Result<()> {
+        let (important_updates, autohide_bar_visible) = {
+            let state = self.state.read().unwrap();
+            (state.important_updates, state.autohide_bar_visible)
+        };
+        if self.bar_config.autohide && important_updates && !autohide_bar_visible {
+            self.show_or_prolong_popup()?;
+        }
+
         let state = self.state.read().unwrap();
         let dc = self.make_drawing_context()?;
         self.bar.render(&dc, &state.blocks)?;
@@ -262,19 +303,19 @@ impl Window {
         let mut state = self.state.write().expect("RwLock");
         if !state.autohide_bar_visible && over_edge {
             state.autohide_bar_visible = true;
-            self.set_visible(true)?;
+            Self::set_visible(&self.conn, self.id, true)?;
         } else if state.autohide_bar_visible && !over_window {
             state.autohide_bar_visible = false;
-            self.set_visible(false)?;
+            Self::set_visible(&self.conn, self.id, false)?;
         }
         Ok(())
     }
 
-    fn set_visible(&self, visible: bool) -> anyhow::Result<()> {
+    fn set_visible(conn: &xcb::Connection, window: x::Window, visible: bool) -> anyhow::Result<()> {
         if visible {
-            xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+            xutils::send(conn, &x::MapWindow { window })?;
         } else {
-            xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
+            xutils::send(conn, &x::UnmapWindow { window })?;
         }
         Ok(())
     }

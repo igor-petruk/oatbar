@@ -78,54 +78,6 @@ impl Engine {
         })
     }
 
-    /*
-        fn popup_bar(&self, state: &mut state::State) -> anyhow::Result<()> {
-            if state.autohide_bar_visible || !self.config.bar.get(0).unwrap().autohide {
-                return Ok(());
-            }
-            let reset_timer_at = SystemTime::now()
-                .checked_add(Duration::from_secs(1))
-                .unwrap();
-            match &state.show_panel_timer {
-                Some(timer) => {
-                    timer.set_at(reset_timer_at);
-                }
-                None => {
-                    /*
-                    let timer = {
-                        let window_control = self.window_control.clone();
-                        window_control.set_visible(true)?;
-                        let state = self.state.clone();
-                        timer::Timer::new("autohide-timer", reset_timer_at, move || {
-                            let mut state = state.write().expect("RwLock");
-                            state.show_panel_timer = None;
-                            window_control.set_visible(false).expect("autohide-hide");
-                        })?
-                    };
-                    state.show_panel_timer = Some(timer);
-                    */
-                }
-            }
-
-            Ok(())
-        }
-    fn handle_mouse_motion(&self, s: &window::ScreenMouseMoved) -> anyhow::Result<()> {
-        if !self.config.bar.get(0).unwrap().autohide {
-            return Ok(());
-        }
-        let mut state = self.state.write().expect("RwLock");
-        if !state.autohide_bar_visible && s.over_edge {
-            state.autohide_bar_visible = true;
-        //       self.window_control.set_visible(true)?;
-        } else if state.autohide_bar_visible && !s.over_window {
-            state.autohide_bar_visible = false;
-            //     self.window_control.set_visible(false)?;
-        }
-
-        Ok(())
-    }
-    */
-
     pub fn spawn_state_update_thread(
         &self,
         state_update_rx: std::sync::mpsc::Receiver<state::Update>,
@@ -166,7 +118,7 @@ impl Engine {
             let event = xutils::get_event(&self.conn)?;
             match event {
                 Some(xcb::Event::X(x::Event::Expose(ev))) => {
-                    if let Some(window) = self.windows.get(&ev.window()) {
+                    if let Some(window) = self.windows.get_mut(&ev.window()) {
                         window.render()?;
                     }
                 }

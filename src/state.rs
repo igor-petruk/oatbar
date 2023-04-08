@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    config::{self, PlaceholderExt},
-    timer,
-};
+use crate::config::{self, PlaceholderExt};
 
 use anyhow::Context;
 
@@ -69,10 +66,10 @@ pub struct BlockData {
 
 #[derive(Clone, Debug, Default)]
 pub struct State {
-    pub show_panel_timer: Option<timer::Timer>,
     pub autohide_bar_visible: bool,
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
+    pub important_updates: bool,
     config: config::Config<config::Placeholder>,
 }
 
@@ -227,7 +224,7 @@ impl State {
     }
 
     pub fn update_blocks(&mut self) -> bool {
-        let mut show_bar = false;
+        let mut important_updates = false;
 
         for (name, block) in self.config.blocks.iter() {
             let block_data = match &block {
@@ -243,7 +240,7 @@ impl State {
                         if old_block_data.show_bar_on_change
                             && old_block_data.value_fingerprint != block_data.value_fingerprint
                         {
-                            show_bar = true;
+                            important_updates = true;
                         }
                     }
                     self.blocks.insert(name.into(), block_data);
@@ -254,7 +251,7 @@ impl State {
             }
         }
 
-        show_bar
+        important_updates
     }
 
     pub fn handle_state_update(&mut self, state_update: Update) -> anyhow::Result<()> {
@@ -282,11 +279,7 @@ impl State {
             };
             self.vars.insert(var.name.clone(), processed);
         }
-        let show_bar = self.update_blocks();
-        if show_bar {
-            //
-            //self.popup_bar(&mut state)?;
-        }
+        self.important_updates = self.update_blocks();
         Ok(())
     }
 }
