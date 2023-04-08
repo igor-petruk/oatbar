@@ -119,7 +119,7 @@ fn get_active_window_title(
     Ok(title)
 }
 
-fn send_title(title: String, tx: &crossbeam_channel::Sender<state::Update>) -> anyhow::Result<()> {
+fn send_title(title: String, tx: &std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
     let update = state::Update {
         entries: vec![state::UpdateEntry {
             name: "active_window".into(),
@@ -136,7 +136,7 @@ fn send_title(title: String, tx: &crossbeam_channel::Sender<state::Update>) -> a
 pub struct Source {}
 
 impl state::Source for Source {
-    fn spawn(self, tx: crossbeam_channel::Sender<state::Update>) -> anyhow::Result<()> {
+    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
         let (conn, screen_num) =
             xcb::Connection::connect_with_xlib_display_and_extensions(&[], &[]).unwrap();
 

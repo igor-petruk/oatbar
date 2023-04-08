@@ -19,7 +19,7 @@ pub struct Clock {
 }
 
 impl state::Source for Clock {
-    fn spawn(self, tx: crossbeam_channel::Sender<state::Update>) -> anyhow::Result<()> {
+    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
         thread::spawn_loop("clock", move || {
             let time = chrono::Local::now();
             let time_str = time.format(&self.format).to_string();

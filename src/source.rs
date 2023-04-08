@@ -34,7 +34,7 @@ struct Version {
 }
 
 struct RowVisitor {
-    tx: crossbeam_channel::Sender<state::Update>,
+    tx: std::sync::mpsc::Sender<state::Update>,
     name: String,
 }
 
@@ -105,7 +105,7 @@ pub struct I3Bar {
 }
 
 impl state::Source for I3Bar {
-    fn spawn(self, tx: crossbeam_channel::Sender<state::Update>) -> anyhow::Result<()> {
+    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
         let name = self
             .config
             .name
@@ -152,7 +152,7 @@ fn line_to_opt(line: Option<std::io::Result<String>>) -> Option<String> {
 }
 
 impl state::Source for Command {
-    fn spawn(self, tx: crossbeam_channel::Sender<state::Update>) -> anyhow::Result<()> {
+    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
         let name = self
             .config
             .name

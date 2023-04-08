@@ -101,7 +101,7 @@ fn layout_to_state_update(layout: LayoutState) -> state::Update {
 pub struct Layout {}
 
 impl state::Source for Layout {
-    fn spawn(self, tx: crossbeam_channel::Sender<state::Update>) -> anyhow::Result<()> {
+    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
         let (conn, _) =
             xcb::Connection::connect_with_xlib_display_and_extensions(&[xcb::Extension::Xkb], &[])?;
 

@@ -47,8 +47,9 @@ fn main() -> anyhow::Result<()> {
     wm::wait_ready().context("Unable to connect to WM")?;
 
     let state: state::State = state::State::new(config.clone());
+    let (state_update_tx, state_update_rx) = std::sync::mpsc::channel();
+
     let mut engine = engine::Engine::new(config, state)?;
-    let state_update_tx = engine.state_update_tx.clone();
     let layout = keyboard::Layout {};
     layout.spawn(state_update_tx.clone())?;
 
@@ -67,6 +68,6 @@ fn main() -> anyhow::Result<()> {
         format: clock_format,
     };
     clock.spawn(state_update_tx)?;
-    engine.run()?;
+    engine.run(state_update_rx)?;
     Ok(())
 }

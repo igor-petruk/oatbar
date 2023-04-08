@@ -21,8 +21,6 @@ use crate::config::{Config, Placeholder};
 use crate::{state, thread, window, xutils};
 
 pub struct Engine {
-    pub state_update_tx: crossbeam_channel::Sender<state::Update>,
-    state_update_rx: crossbeam_channel::Receiver<state::Update>,
     windows: HashMap<x::Window, window::Window>,
     window_ids: Vec<x::Window>,
     state: Arc<RwLock<state::State>>,
@@ -32,8 +30,6 @@ pub struct Engine {
 impl Engine {
     pub fn new(config: Config<Placeholder>, initial_state: state::State) -> anyhow::Result<Self> {
         let state = Arc::new(RwLock::new(initial_state));
-
-        let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
         let (conn, _) = xcb::Connection::connect_with_xlib_display_and_extensions(
             &[xcb::Extension::Input],
@@ -66,8 +62,6 @@ impl Engine {
         //  let window_control = window.window_control();
 
         Ok(Self {
-            state_update_tx,
-            state_update_rx,
             windows,
             window_ids,
             state,
@@ -123,8 +117,10 @@ impl Engine {
     }
     */
 
-    pub fn spawn_state_update_thread(&self) -> anyhow::Result<()> {
-        let state_update_rx = self.state_update_rx.clone();
+    pub fn spawn_state_update_thread(
+        &self,
+        state_update_rx: std::sync::mpsc::Receiver<state::Update>,
+    ) -> anyhow::Result<()> {
         let window_ids = self.window_ids.clone();
         let conn = self.conn.clone();
         let state = self.state.clone();
@@ -150,8 +146,11 @@ impl Engine {
         })
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        self.spawn_state_update_thread()
+    pub fn run(
+        &mut self,
+        state_update_rx: std::sync::mpsc::Receiver<state::Update>,
+    ) -> anyhow::Result<()> {
+        self.spawn_state_update_thread(state_update_rx)
             .context("engine state update")?;
 
         loop {

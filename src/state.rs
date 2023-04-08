@@ -306,5 +306,5 @@ pub struct UpdateEntry {
 }
 
 pub trait Source {
-    fn spawn(self, tx: crossbeam_channel::Sender<Update>) -> anyhow::Result<()>;
+    fn spawn(self, tx: std::sync::mpsc::Sender<Update>) -> anyhow::Result<()>;
 }
