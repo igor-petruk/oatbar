@@ -607,9 +607,7 @@ pub struct TextAlignment {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct Var<Dynamic: From<String> + Clone + Default + Debug> {
-    pub name: String,
-    pub input: Dynamic,
+pub struct ProcessingOptions {
     pub enum_separator: Option<String>,
     #[serde(default)]
     pub replace: Replace,
@@ -619,10 +617,19 @@ pub struct Var<Dynamic: From<String> + Clone + Default + Debug> {
     pub ellipsis: String,
 }
 
-impl Var<String> {
-    pub fn process(&self, s: &str) -> String {
-        let s = self.replace.apply(s);
-        let mut s_chars: Vec<char> = s.chars().collect();
+impl ProcessingOptions {
+    fn with_defaults(&self) -> Self {
+        Self {
+            enum_separator: self.enum_separator.clone(),
+            replace: self.replace.clone(),
+            text_alignment: self.text_alignment.clone(),
+            ellipsis: self.ellipsis.clone(),
+        }
+    }
+
+    pub fn process_single(&self, value: &str) -> String {
+        let value = self.replace.apply(value);
+        let mut s_chars: Vec<char> = value.chars().collect();
         match self.text_alignment.max_length {
             Some(max_length) if s_chars.len() > max_length => {
                 let ellipsis: Vec<char> = self.ellipsis.chars().collect();
@@ -632,9 +639,29 @@ impl Var<String> {
                 s_chars.truncate(max_length);
                 s_chars.iter().collect()
             }
-            _ => s,
+            _ => value,
         }
     }
+
+    pub fn process(&self, value: &str) -> String {
+        if let Some(enum_separator) = &self.enum_separator {
+            let vec: Vec<_> = value
+                .split(enum_separator)
+                .map(|s| self.process_single(s))
+                .collect();
+            vec.join(enum_separator)
+        } else {
+            self.process_single(&value)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct Var<Dynamic: From<String> + Clone + Default + Debug> {
+    pub name: String,
+    pub input: Dynamic,
+    #[serde(flatten)]
+    pub processing_options: ProcessingOptions,
 }
 
 impl Var<Option<Placeholder>> {
@@ -642,10 +669,7 @@ impl Var<Option<Placeholder>> {
         Var {
             name: self.name.clone(),
             input: self.input.clone().unwrap_or_default(),
-            enum_separator: self.enum_separator.clone(),
-            replace: self.replace.clone(),
-            text_alignment: self.text_alignment.clone(),
-            ellipsis: self.ellipsis.clone(),
+            processing_options: self.processing_options.with_defaults(),
         }
     }
 }

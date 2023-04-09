@@ -268,15 +268,7 @@ impl State {
 
         for var in self.config.vars.values() {
             let var_value = var.input.resolve_placeholders(&self.vars)?;
-            let processed = if let Some(enum_separator) = &var.enum_separator {
-                let vec: Vec<_> = var_value
-                    .split(enum_separator)
-                    .map(|s| var.process(s))
-                    .collect();
-                vec.join(enum_separator)
-            } else {
-                var.process(&var_value)
-            };
+            let processed = var.processing_options.process(&var_value);
             self.vars.insert(var.name.clone(), processed);
         }
         self.important_updates = self.update_blocks();
