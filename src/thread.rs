@@ -25,10 +25,15 @@ where
     std::thread::Builder::new()
         .name(name.clone())
         .spawn(move || {
-            info!("Spawned {}.", name);
+            info!("Thread started.");
             let result = f();
-            if let Err(e) = result {
-                error!("thread {} failed: {:?}", name, e);
+            match &result {
+                Ok(_) => {
+                    info!("Thread finished: {:?}.", result);
+                }
+                Err(_) => {
+                    error!("Thread finished: {:?}", result);
+                }
             }
         })
         .with_context(move || format!("failed to spawn thread: {}", context_name))?;
