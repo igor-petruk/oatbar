@@ -197,6 +197,8 @@ pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub active: Dynamic,
     pub variants: Dynamic,
     #[serde(flatten)]
+    pub processing_options: ProcessingOptions,
+    #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten, with = "prefix_active")]
     pub active_display: DisplayOptions<Dynamic>,
@@ -208,6 +210,7 @@ impl EnumBlock<Option<Placeholder>> {
             name: self.name.clone(),
             active: self.active.unwrap_or_default(),
             variants: self.variants.unwrap_or_default(),
+            processing_options: self.processing_options.with_defaults(),
             display: self.display.clone().with_default(&default_block.display),
             active_display: self
                 .active_display
@@ -227,6 +230,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
                 .variants
                 .resolve_placeholders(vars)
                 .context("variants")?,
+            processing_options: self.processing_options.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
             active_display: self
                 .active_display
@@ -242,6 +246,8 @@ pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
+    #[serde(flatten)]
+    pub processing_options: ProcessingOptions,
     pub separator_type: Option<SeparatorType>,
     pub separator_radius: Option<f64>,
 }
@@ -251,6 +257,7 @@ impl TextBlock<Option<Placeholder>> {
         TextBlock {
             name: self.name.clone(),
             display: self.display.with_default(&default_block.display),
+            processing_options: self.processing_options.with_defaults(),
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
         }
@@ -265,6 +272,7 @@ impl TextBlock<Placeholder> {
         Ok(TextBlock {
             name: self.name.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
+            processing_options: self.processing_options.clone(),
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
         })
@@ -651,7 +659,7 @@ impl ProcessingOptions {
                 .collect();
             vec.join(enum_separator)
         } else {
-            self.process_single(&value)
+            self.process_single(value)
         }
     }
 }
@@ -830,6 +838,7 @@ mod tests {
             active_display: DisplayOptions {
                 ..Default::default()
             },
+            processing_options: Default::default(),
         });
         let block = block.resolve_placeholders(&map).unwrap();
         if let Block::Enum(e) = block {

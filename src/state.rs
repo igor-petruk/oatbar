@@ -108,11 +108,12 @@ impl State {
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
+        let value = b.processing_options.process_single(&display.value);
         Ok(BlockData {
-            value_fingerprint: display.value.clone(),
+            value_fingerprint: value.clone(),
             show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
             value: BlockValue::Text(TextBlockValue {
-                display,
+                display: config::DisplayOptions { value, ..display },
                 separator_type: b.separator_type.clone(),
                 separator_radius: b.separator_radius,
             }),
@@ -199,16 +200,22 @@ impl State {
             .variants
             .resolve_placeholders(&self.vars)
             .context("cannot replace placeholders")?
-            .split(',')
+            .split(
+                b.processing_options
+                    .enum_separator
+                    .as_deref()
+                    .unwrap_or(","),
+            )
+            .map(|value| b.processing_options.process_single(value))
             .enumerate()
-            .map(|(index, value)| format_active_inactive(b, active, index, value.to_string()))
+            .map(|(index, value)| format_active_inactive(b, active, index, value))
             .partition(|r| r.is_ok());
 
         if let Some(Err(err)) = errors.into_iter().next() {
             return Err(err);
         }
 
-        let variants = variants.into_iter().map(|r| r.unwrap()).collect();
+        let variants = variants.into_iter().map(|v| v.unwrap()).collect();
 
         Ok(BlockData {
             show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),

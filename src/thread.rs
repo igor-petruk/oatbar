@@ -23,7 +23,7 @@ where
     let name: String = name.into();
     let context_name = name.clone();
     std::thread::Builder::new()
-        .name(name.clone())
+        .name(name)
         .spawn(move || {
             info!("Thread started.");
             let result = f();
