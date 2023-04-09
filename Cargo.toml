@@ -29,6 +29,10 @@ default-run="oatbar"
 name="oatbar-keyboard"
 path="src/keyboard.rs"
 
+[[bin]]
+name="oatbar-desktop"
+path="src/desktop.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

@@ -16,14 +16,13 @@ mod bar;
 #[allow(unused)]
 mod config;
 mod engine;
-mod ewmh;
 mod protocol;
 mod source;
 mod state;
 mod thread;
 mod timer;
 mod window;
-mod wm;
+mod wmready;
 mod xutils;
 
 use anyhow::Context;
@@ -42,7 +41,7 @@ fn main() -> anyhow::Result<()> {
     let i3bars = config.i3bars.clone();
     let commands = config.commands.clone();
 
-    wm::wait_ready().context("Unable to connect to WM")?;
+    wmready::wait().context("Unable to connect to WM")?;
 
     let state: state::State = state::State::new(config.clone());
     let (state_update_tx, state_update_rx) = std::sync::mpsc::channel();
@@ -57,8 +56,6 @@ fn main() -> anyhow::Result<()> {
         let command = source::Command { index, config };
         command.spawn(state_update_tx.clone())?;
     }
-    let ewmh = ewmh::Source {};
-    ewmh.spawn(state_update_tx.clone())?;
 
     engine.run(state_update_rx)?;
     Ok(())

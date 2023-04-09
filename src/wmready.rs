@@ -18,7 +18,7 @@ use xcb::x;
 use crate::xutils;
 use tracing::*;
 
-pub fn validate_wm(
+fn validate_wm(
     conn: &xcb::Connection,
     screen: &x::Screen,
     wm_support_atom: x::Atom,
@@ -42,7 +42,7 @@ pub fn validate_wm(
     Ok(wm_name.into_owned())
 }
 
-pub fn refetch_atoms(conn: &xcb::Connection) -> anyhow::Result<(x::Atom, x::Atom, x::Atom)> {
+fn refetch_atoms(conn: &xcb::Connection) -> anyhow::Result<(x::Atom, x::Atom, x::Atom)> {
     let wm_support_atom = xutils::get_atom(conn, "_NET_SUPPORTING_WM_CHECK")?;
     let wm_name = xutils::get_atom(conn, "_NET_WM_NAME")?;
     let wm_supported = xutils::get_atom(conn, "_NET_SUPPORTED")?;
@@ -53,7 +53,7 @@ pub fn refetch_atoms(conn: &xcb::Connection) -> anyhow::Result<(x::Atom, x::Atom
     Ok((wm_support_atom, wm_name, wm_supported))
 }
 
-pub fn wait_ready() -> anyhow::Result<()> {
+pub fn wait() -> anyhow::Result<()> {
     let (conn, screen_num) = xcb::Connection::connect(None)?;
     let screen = {
         let setup = conn.get_setup();

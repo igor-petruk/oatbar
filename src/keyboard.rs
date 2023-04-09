@@ -74,12 +74,11 @@ fn get_current_layout(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Resu
 }
 
 fn layout_to_blocks(layout: LayoutState) -> Vec<i3bar::Block> {
-    let name = "layout".to_string();
     let mut other = BTreeMap::new();
     other.insert("active".into(), layout.current.into());
     other.insert("variants".into(), layout.variants.join(",").into());
     vec![i3bar::Block {
-        name: Some(name.clone()),
+        name: Some("layout".into()),
         full_text: layout
             .variants
             .get(layout.current)
