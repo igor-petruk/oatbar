@@ -237,7 +237,7 @@ impl state::Source for Command {
             .clone()
             .unwrap_or_else(|| format!("cm{}", self.index));
 
-        thread::spawn(format!("i3_{}", name), move || loop {
+        thread::spawn(format!("c-{}", name), move || loop {
             let mut child = std::process::Command::new("sh")
                 .arg("-c")
                 .arg(&self.config.command)
