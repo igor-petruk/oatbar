@@ -13,7 +13,6 @@
 // limitations under the License.
 
 mod bar;
-mod clock;
 #[allow(unused)]
 mod config;
 mod engine;
@@ -42,7 +41,6 @@ fn main() -> anyhow::Result<()> {
     let config = config::load()?;
     let i3bars = config.i3bars.clone();
     let commands = config.commands.clone();
-    let clock_format = config.clock_format.clone();
 
     wm::wait_ready().context("Unable to connect to WM")?;
 
@@ -64,10 +62,6 @@ fn main() -> anyhow::Result<()> {
     let ewmh = ewmh::Source {};
     ewmh.spawn(state_update_tx.clone())?;
 
-    let clock = clock::Clock {
-        format: clock_format,
-    };
-    clock.spawn(state_update_tx)?;
     engine.run(state_update_rx)?;
     Ok(())
 }

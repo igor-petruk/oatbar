@@ -652,8 +652,6 @@ impl Var<Option<Placeholder>> {
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
-    #[serde(default = "default_clock_format")]
-    pub clock_format: String,
     pub bar: Vec<Bar<Dynamic>>,
     pub default_block: DefaultBlock<Dynamic>,
     #[serde(skip)]
@@ -690,7 +688,6 @@ impl Config<Option<Placeholder>> {
             vars_vec: vec![],
             i3bars: self.i3bars.clone(),
             commands: self.commands.clone(),
-            clock_format: self.clock_format.clone(),
         }
     }
 }
@@ -701,10 +698,6 @@ fn default_number_type() -> NumberType {
 
 fn default_bar_position() -> BarPosition {
     BarPosition::Bottom
-}
-
-fn default_clock_format() -> String {
-    "%a, %e %b %Y, %H:%M:%S".into()
 }
 
 fn default_ellipsis() -> String {

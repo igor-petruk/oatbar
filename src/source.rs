@@ -135,11 +135,24 @@ impl state::Source for I3Bar {
     }
 }
 
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Format {
+    Plain,
+    I3blocks,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct CommandConfig {
     name: Option<String>,
     command: String,
     interval: Option<u64>,
+    #[serde(default = "default_format")]
+    format: Format,
+}
+
+fn default_format() -> Format {
+    Format::Plain
 }
 
 pub struct Command {
@@ -169,45 +182,55 @@ impl state::Source for Command {
             let reader = BufReader::new(stdout);
             let mut lines = reader.lines();
 
-            let full_text = lines.next().unwrap_or_else(|| Ok("".into()));
-            if let Err(e) = &full_text {
-                tracing::warn!("Error from command {:?}: {:?}", name, e);
-            }
-            let full_text = full_text.ok().unwrap_or_default();
+            while let Some(full_text) = lines.next() {
+                if let Err(e) = &full_text {
+                    tracing::warn!("Error from command {:?}: {:?}", name, e);
+                    break;
+                }
+                let full_text = full_text.ok().unwrap_or_default();
 
-            let mut entries = vec![state::UpdateEntry {
-                name: name.clone(),
-                var: "full_text".into(),
-                value: full_text,
-                ..Default::default()
-            }];
-
-            if line_to_opt(lines.next()).is_some() {
-                // Ignore short_text.
-            }
-
-            if let Some(color) = line_to_opt(lines.next()) {
-                entries.push(state::UpdateEntry {
+                let mut entries = vec![state::UpdateEntry {
                     name: name.clone(),
-                    var: "foreground".into(),
-                    value: color,
+                    var: "full_text".into(),
+                    value: full_text,
                     ..Default::default()
-                });
-            }
+                }];
 
-            if let Some(background) = line_to_opt(lines.next()) {
-                entries.push(state::UpdateEntry {
-                    name: name.clone(),
-                    var: "background".into(),
-                    value: background,
+                if self.config.format == Format::I3blocks {
+                    if let Some(short_text) = line_to_opt(lines.next()) {
+                        entries.push(state::UpdateEntry {
+                            name: name.clone(),
+                            var: "short_text".into(),
+                            value: short_text,
+                            ..Default::default()
+                        });
+                        // Ignore short_text.
+                    }
+
+                    if let Some(color) = line_to_opt(lines.next()) {
+                        entries.push(state::UpdateEntry {
+                            name: name.clone(),
+                            var: "foreground".into(),
+                            value: color,
+                            ..Default::default()
+                        });
+                    }
+
+                    if let Some(background) = line_to_opt(lines.next()) {
+                        entries.push(state::UpdateEntry {
+                            name: name.clone(),
+                            var: "background".into(),
+                            value: background,
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                tx.send(state::Update {
+                    entries,
                     ..Default::default()
-                });
+                })?;
             }
-
-            tx.send(state::Update {
-                entries,
-                ..Default::default()
-            })?;
 
             let _ = child.wait();
 

@@ -15,6 +15,11 @@ name="disk_free"
 command="df -h / | tail -1 | awk '{print $5}'"
 interval=60
 
+[[command]]
+name="clock"
+command="date '+%a %b %e %H:%M:%S'"
+interval=1
+
 [[block]]
 name = 'workspace'
 type = 'enum'
@@ -37,7 +42,7 @@ value = '<span weight="bold" foreground="#facd5a">/</span> ${disk_free.full_text
 [[block]]
 name = 'clock'
 type = 'text'
-value = '${clock.datetime}'
+value = '${clock.full_text}'
 
 [[block]]
 name='active_window'

@@ -30,7 +30,6 @@ homepage = "https://github.com/igor-petruk/oatbar"
 anyhow = "1"
 bytesize = "1.1"
 cairo-rs = { version = "0.17", features = ["xcb", "png"], default-features=false }
-chrono = { version = "0.4", features = ["serde"] }
 derive_builder = "0.12"
 dirs = "5"
 hex_color = { version = "2", default-features = false, features = ["serde"] }
