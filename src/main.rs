@@ -38,7 +38,6 @@ fn main() -> anyhow::Result<()> {
     sub.init();
 
     let config = config::load()?;
-    let i3bars = config.i3bars.clone();
     let commands = config.commands.clone();
 
     wmready::wait().context("Unable to connect to WM")?;
@@ -48,10 +47,6 @@ fn main() -> anyhow::Result<()> {
 
     let mut engine = engine::Engine::new(config, state)?;
 
-    for (index, config) in i3bars.into_iter().enumerate() {
-        let i3bar = source::I3Bar { index, config };
-        i3bar.spawn(state_update_tx.clone())?;
-    }
     for (index, config) in commands.into_iter().enumerate() {
         let command = source::Command { index, config };
         command.spawn(state_update_tx.clone())?;

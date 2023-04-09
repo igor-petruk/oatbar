@@ -22,12 +22,6 @@ use std::time::Duration;
 
 use crate::{state, thread};
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct I3BarConfig {
-    name: Option<String>,
-    command: String,
-}
-
 struct RowVisitor {
     tx: std::sync::mpsc::Sender<state::Update>,
     name: String,
@@ -93,47 +87,13 @@ impl<'de> Visitor<'de> for RowVisitor {
     }
 }
 
-pub struct I3Bar {
-    pub index: usize,
-    pub config: I3BarConfig,
-}
-
-impl state::Source for I3Bar {
-    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
-        let name = self
-            .config
-            .name
-            .unwrap_or_else(|| format!("i{}", self.index));
-        let mut child = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(&self.config.command)
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .context("Failed spawnning")?;
-
-        let stdout = child.stdout.take().unwrap();
-        let mut stream = serde_json::Deserializer::from_reader(stdout);
-        let header = i3bar::Header::deserialize(&mut stream)?;
-
-        if header.version != 1 {
-            return Err(anyhow::anyhow!(
-                "Unexpected i3bar protocol version: {}",
-                header.version
-            ));
-        }
-        thread::spawn(format!("i3_{}", name), move || {
-            stream.deserialize_seq(RowVisitor { tx, name })?;
-            Ok(())
-        })?;
-        Ok(())
-    }
-}
-
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Format {
+    Auto,
     Plain,
     I3blocks,
+    I3bar,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -146,7 +106,7 @@ pub struct CommandConfig {
 }
 
 fn default_format() -> Format {
-    Format::Plain
+    Format::Auto
 }
 
 pub struct Command {
@@ -158,11 +118,123 @@ fn line_to_opt(line: Option<std::io::Result<String>>) -> Option<String> {
     line.and_then(|v| v.ok())
 }
 
+impl Command {
+    fn run_child(
+        &self,
+        name: String,
+        child: &mut std::process::Child,
+        tx: std::sync::mpsc::Sender<state::Update>,
+    ) -> anyhow::Result<()> {
+        let stdout = child.stdout.take().unwrap();
+        let mut reader = BufReader::new(stdout);
+
+        let mut format = self.config.format.clone();
+
+        if format == Format::Auto || format == Format::I3bar {
+            let mut first_line = String::new();
+            reader.read_line(&mut first_line)?;
+            match serde_json::from_str::<i3bar::Header>(&first_line) {
+                Ok(header) => {
+                    if header.version != 1 {
+                        return Err(anyhow::anyhow!(
+                            "Unexpected i3bar protocol version: {}",
+                            header.version
+                        ));
+                    }
+                    format = Format::I3bar;
+                }
+                Err(e) => {
+                    if format == Format::I3bar {
+                        return Err(anyhow::anyhow!("Cannot parse i3bar header: {:?}", e));
+                    }
+                    // It was Auto, falling back to Plain.
+                    if first_line.ends_with('\n') {
+                        first_line.pop();
+                        if first_line.ends_with('\r') {
+                            first_line.pop();
+                        }
+                    }
+                    tx.send(state::Update {
+                        entries: vec![state::UpdateEntry {
+                            name: name.clone(),
+                            var: "full_text".into(),
+                            value: first_line,
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    })?;
+                    format = Format::Plain;
+                }
+            }
+        }
+
+        if format == Format::I3bar {
+            let mut stream = serde_json::Deserializer::from_reader(reader);
+            stream.deserialize_seq(RowVisitor { tx, name })?;
+            return Ok(());
+        }
+
+        let mut lines = reader.lines();
+
+        while let Some(full_text) = lines.next() {
+            if let Err(e) = &full_text {
+                tracing::warn!("Error from command {:?}: {:?}", name, e);
+                break;
+            }
+            let full_text = full_text.ok().unwrap_or_default();
+
+            let mut entries = vec![state::UpdateEntry {
+                name: name.clone(),
+                var: "full_text".into(),
+                value: full_text,
+                ..Default::default()
+            }];
+
+            if self.config.format == Format::I3blocks {
+                if let Some(short_text) = line_to_opt(lines.next()) {
+                    entries.push(state::UpdateEntry {
+                        name: name.clone(),
+                        var: "short_text".into(),
+                        value: short_text,
+                        ..Default::default()
+                    });
+                    // Ignore short_text.
+                }
+
+                if let Some(color) = line_to_opt(lines.next()) {
+                    entries.push(state::UpdateEntry {
+                        name: name.clone(),
+                        var: "foreground".into(),
+                        value: color,
+                        ..Default::default()
+                    });
+                }
+
+                if let Some(background) = line_to_opt(lines.next()) {
+                    entries.push(state::UpdateEntry {
+                        name: name.clone(),
+                        var: "background".into(),
+                        value: background,
+                        ..Default::default()
+                    });
+                }
+            }
+
+            tx.send(state::Update {
+                entries,
+                ..Default::default()
+            })?;
+        }
+        Ok(())
+    }
+}
+
 impl state::Source for Command {
     fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
         let name = self
             .config
             .name
+            .clone()
             .unwrap_or_else(|| format!("cm{}", self.index));
 
         thread::spawn(format!("i3_{}", name), move || loop {
@@ -172,62 +244,10 @@ impl state::Source for Command {
                 .stdout(std::process::Stdio::piped())
                 .spawn()
                 .context("Failed spawnning")?;
-            let stdout = child.stdout.take().unwrap();
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-
-            while let Some(full_text) = lines.next() {
-                if let Err(e) = &full_text {
-                    tracing::warn!("Error from command {:?}: {:?}", name, e);
-                    break;
-                }
-                let full_text = full_text.ok().unwrap_or_default();
-
-                let mut entries = vec![state::UpdateEntry {
-                    name: name.clone(),
-                    var: "full_text".into(),
-                    value: full_text,
-                    ..Default::default()
-                }];
-
-                if self.config.format == Format::I3blocks {
-                    if let Some(short_text) = line_to_opt(lines.next()) {
-                        entries.push(state::UpdateEntry {
-                            name: name.clone(),
-                            var: "short_text".into(),
-                            value: short_text,
-                            ..Default::default()
-                        });
-                        // Ignore short_text.
-                    }
-
-                    if let Some(color) = line_to_opt(lines.next()) {
-                        entries.push(state::UpdateEntry {
-                            name: name.clone(),
-                            var: "foreground".into(),
-                            value: color,
-                            ..Default::default()
-                        });
-                    }
-
-                    if let Some(background) = line_to_opt(lines.next()) {
-                        entries.push(state::UpdateEntry {
-                            name: name.clone(),
-                            var: "background".into(),
-                            value: background,
-                            ..Default::default()
-                        });
-                    }
-                }
-
-                tx.send(state::Update {
-                    entries,
-                    ..Default::default()
-                })?;
+            if let Err(e) = self.run_child(name.clone(), &mut child, tx.clone()) {
+                tracing::warn!("Error running command {}: {:?}", name, e);
             }
-
             let _ = child.wait();
-
             let interval = Duration::from_secs(self.config.interval.unwrap_or(10));
             std::thread::sleep(interval);
         })?;

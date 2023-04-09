@@ -662,8 +662,6 @@ pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
     pub blocks_vec: Vec<Block<Dynamic>>,
     #[serde(default, rename = "var")]
     pub vars_vec: Vec<Var<Dynamic>>,
-    #[serde(default, rename = "i3bar")]
-    pub i3bars: Vec<source::I3BarConfig>,
     #[serde(default, rename = "command")]
     pub commands: Vec<source::CommandConfig>,
 }
@@ -686,7 +684,6 @@ impl Config<Option<Placeholder>> {
                 .collect(),
             blocks_vec: vec![],
             vars_vec: vec![],
-            i3bars: self.i3bars.clone(),
             commands: self.commands.clone(),
         }
     }
