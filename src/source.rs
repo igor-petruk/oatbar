@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::protocol::i3bar;
 use anyhow::Context;
 use serde::de::*;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fmt;
 use std::io::{BufRead, BufReader};
 use std::time::Duration;
@@ -28,30 +28,23 @@ pub struct I3BarConfig {
     command: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct Version {
-    version: i32,
-}
-
 struct RowVisitor {
     tx: std::sync::mpsc::Sender<state::Update>,
     name: String,
 }
 
-#[derive(Clone, Default, Debug, Deserialize)]
-pub struct Block {
-    pub name: Option<String>,
-    pub instance: Option<String>,
-    #[serde(flatten)]
-    pub other: HashMap<String, serde_json::Value>,
-}
-
-pub fn block_to_su_entry(name: &str, idx: usize, block: Block) -> Vec<state::UpdateEntry> {
+pub fn block_to_su_entry(name: &str, idx: usize, block: i3bar::Block) -> Vec<state::UpdateEntry> {
     let name = format!(
         "{}:{}",
         name,
         block.name.unwrap_or_else(|| format!("{}", idx))
     );
+    let full_text = vec![state::UpdateEntry {
+        name: name.clone(),
+        instance: block.instance.clone(),
+        var: "full_text".into(),
+        value: block.full_text,
+    }];
     block
         .other
         .into_iter()
@@ -68,6 +61,7 @@ pub fn block_to_su_entry(name: &str, idx: usize, block: Block) -> Vec<state::Upd
                 value,
             }
         })
+        .chain(full_text.into_iter())
         .collect()
 }
 
@@ -82,7 +76,7 @@ impl<'de> Visitor<'de> for RowVisitor {
     where
         A: SeqAccess<'de>,
     {
-        while let Some(row) = seq.next_element::<Vec<Block>>()? {
+        while let Some(row) = seq.next_element::<Vec<i3bar::Block>>()? {
             let entries = row
                 .into_iter()
                 .enumerate()
@@ -119,12 +113,12 @@ impl state::Source for I3Bar {
 
         let stdout = child.stdout.take().unwrap();
         let mut stream = serde_json::Deserializer::from_reader(stdout);
-        let version = Version::deserialize(&mut stream)?;
+        let header = i3bar::Header::deserialize(&mut stream)?;
 
-        if version.version != 1 {
+        if header.version != 1 {
             return Err(anyhow::anyhow!(
                 "Unexpected i3bar protocol version: {}",
-                version.version
+                header.version
             ));
         }
         thread::spawn(format!("i3_{}", name), move || {

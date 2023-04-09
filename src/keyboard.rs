@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{state, thread, xutils};
+mod protocol;
+#[allow(unused)]
+mod xutils;
+
+use anyhow::anyhow;
+use protocol::i3bar;
+use std::collections::BTreeMap;
+use tracing::*;
 use xcb::{
     x,
     xkb::{self, StatePart},
 };
-
-use anyhow::anyhow;
-use tracing::*;
 
 #[derive(Debug)]
 struct LayoutState {
@@ -69,95 +73,81 @@ fn get_current_layout(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Resu
     })
 }
 
-fn layout_to_state_update(layout: LayoutState) -> state::Update {
-    state::Update {
-        entries: vec![
-            state::UpdateEntry {
-                name: "layout".into(),
-                var: "value".into(),
-                value: layout
-                    .variants
-                    .get(layout.current)
-                    .unwrap_or(&"?".to_string())
-                    .to_string(),
-                ..Default::default()
-            },
-            state::UpdateEntry {
-                name: "layout".into(),
-                var: "active".into(),
-                value: layout.current.to_string(),
-                ..Default::default()
-            },
-            state::UpdateEntry {
-                name: "layout".into(),
-                var: "variants".into(),
-                value: layout.variants.join(","),
-                ..Default::default()
-            },
-        ],
-        ..Default::default()
-    }
+fn layout_to_blocks(layout: LayoutState) -> Vec<i3bar::Block> {
+    let name = "layout".to_string();
+    let mut other = BTreeMap::new();
+    other.insert("active".into(), layout.current.into());
+    other.insert("variants".into(), layout.variants.join(",").into());
+    vec![i3bar::Block {
+        name: Some(name.clone()),
+        full_text: layout
+            .variants
+            .get(layout.current)
+            .unwrap_or(&"?".to_string())
+            .to_string(),
+        instance: None,
+        other,
+    }]
 }
-pub struct Layout {}
 
-impl state::Source for Layout {
-    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
-        let (conn, _) =
-            xcb::Connection::connect_with_xlib_display_and_extensions(&[xcb::Extension::Xkb], &[])?;
+fn main() -> anyhow::Result<()> {
+    let (conn, _) =
+        xcb::Connection::connect_with_xlib_display_and_extensions(&[xcb::Extension::Xkb], &[])?;
 
-        let xkb_ver = xutils::query(
-            &conn,
-            &xkb::UseExtension {
-                wanted_major: 1,
-                wanted_minor: 0,
-            },
-        )?;
+    let xkb_ver = xutils::query(
+        &conn,
+        &xkb::UseExtension {
+            wanted_major: 1,
+            wanted_minor: 0,
+        },
+    )?;
 
-        if !xkb_ver.supported() {
-            return Err(anyhow!("xkb-1.0 is not supported"));
-        }
+    if !xkb_ver.supported() {
+        return Err(anyhow!("xkb-1.0 is not supported"));
+    }
 
-        let events = xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY;
-        xutils::send(
-            &conn,
-            &xkb::SelectEvents {
-                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-                affect_which: events,
-                clear: xkb::EventType::empty(),
-                select_all: events,
-                affect_map: xkb::MapPart::empty(),
-                map: xkb::MapPart::empty(),
-                details: &[],
-            },
-        )?;
+    let events = xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY;
+    xutils::send(
+        &conn,
+        &xkb::SelectEvents {
+            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+            affect_which: events,
+            clear: xkb::EventType::empty(),
+            select_all: events,
+            affect_map: xkb::MapPart::empty(),
+            map: xkb::MapPart::empty(),
+            details: &[],
+        },
+    )?;
 
-        let reply = xutils::query(
-            &conn,
-            &xkb::GetState {
-                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-            },
-        )?;
-        let layout = get_current_layout(&conn, reply.group())?;
-        tx.send(layout_to_state_update(layout))?;
+    let reply = xutils::query(
+        &conn,
+        &xkb::GetState {
+            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+        },
+    )?;
 
-        thread::spawn_loop("layout", move || {
-            let event = xutils::get_event(&conn)?;
-            match event {
-                Some(xcb::Event::Xkb(xkb::Event::StateNotify(n))) => {
-                    if n.changed().contains(StatePart::GROUP_STATE) {
-                        let layout = get_current_layout(&conn, n.group())?;
-                        debug!("Layout updated: {:?}", layout);
-                        tx.send(layout_to_state_update(layout))?;
-                    }
-                }
-                None => return Ok(false),
-                _ => {
-                    debug!("Unhandled XCB event: {:?}", event);
+    println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+    println!("[");
+
+    let layout = get_current_layout(&conn, reply.group())?;
+    debug!("Initial: {:?}", layout);
+    println!("{},", serde_json::to_string(&layout_to_blocks(layout))?);
+
+    loop {
+        let event = xutils::get_event(&conn)?;
+        match event {
+            Some(xcb::Event::Xkb(xkb::Event::StateNotify(n))) => {
+                if n.changed().contains(StatePart::GROUP_STATE) {
+                    let layout = get_current_layout(&conn, n.group())?;
+                    debug!("Layout updated: {:?}", layout);
+                    println!("{},", serde_json::to_string(&layout_to_blocks(layout))?);
                 }
             }
-            Ok(true)
-        })?;
-
-        Ok(())
+            None => return Ok(()),
+            _ => {
+                debug!("Unhandled XCB event: {:?}", event);
+            }
+        }
     }
 }

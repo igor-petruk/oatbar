@@ -23,6 +23,11 @@ license = "Apache-2.0"
 documentation = "https://github.com/igor-petruk/oatbar"
 repository = "https://github.com/igor-petruk/oatbar"
 homepage = "https://github.com/igor-petruk/oatbar"
+default-run="oatbar"
+
+[[bin]]
+name="oatbar-keyboard"
+path="src/keyboard.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

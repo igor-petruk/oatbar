@@ -17,7 +17,7 @@ mod bar;
 mod config;
 mod engine;
 mod ewmh;
-mod keyboard;
+mod protocol;
 mod source;
 mod state;
 mod thread;
@@ -48,8 +48,6 @@ fn main() -> anyhow::Result<()> {
     let (state_update_tx, state_update_rx) = std::sync::mpsc::channel();
 
     let mut engine = engine::Engine::new(config, state)?;
-    let layout = keyboard::Layout {};
-    layout.spawn(state_update_tx.clone())?;
 
     for (index, config) in i3bars.into_iter().enumerate() {
         let i3bar = source::I3Bar { index, config };
