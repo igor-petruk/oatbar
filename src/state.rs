@@ -129,11 +129,14 @@ impl State {
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
-        let value_fingerprint = display.value.clone();
+        let value = b.processing_options.process_single(&b.display.value);
+        let value_fingerprint = value.clone();
 
         Ok(BlockData {
             show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
-            value: BlockValue::Image(ImageBlockValue { display }),
+            value: BlockValue::Image(ImageBlockValue {
+                display: config::DisplayOptions { value, ..display },
+            }),
             value_fingerprint,
             config: config::Block::Image(b.clone()),
         })
@@ -148,10 +151,9 @@ impl State {
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
-        let value = number_type
-            .parse_str(display.value.as_str())
-            .context("value")?;
-        let value_fingerprint = display.value.clone();
+        let value_str = b.processing_options.process_single(&display.value);
+        let value_fingerprint = value_str.clone();
+        let value = number_type.parse_str(&value_str).context("value")?;
 
         let (min_value, max_value) = match number_type {
             config::NumberType::Percent => (Some(0.0), Some(100.0)),

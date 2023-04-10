@@ -360,6 +360,8 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(default = "default_number_type")]
+    #[serde(flatten)]
+    pub processing_options: ProcessingOptions,
     pub number_type: NumberType,
     pub progress_bar: ProgressBar<Dynamic>,
 }
@@ -378,6 +380,7 @@ impl NumberBlock<Option<Placeholder>> {
             progress_bar: match self.progress_bar {
                 ProgressBar::Text(t) => ProgressBar::Text(t.with_default()),
             },
+            processing_options: self.processing_options.with_defaults(),
         }
     }
 }
@@ -398,6 +401,7 @@ impl NumberBlock<Placeholder> {
                 .resolve_placeholders(vars)
                 .context("max_value")?,
             display: self.display.resolve_placeholders(vars).context("display")?,
+            processing_options: self.processing_options.clone(),
             number_type: self.number_type.clone(),
             progress_bar: match &self.progress_bar {
                 ProgressBar::Text(t) => {
@@ -414,6 +418,8 @@ pub struct ImageBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
+    #[serde(flatten)]
+    pub processing_options: ProcessingOptions,
 }
 
 impl ImageBlock<Option<Placeholder>> {
@@ -424,6 +430,7 @@ impl ImageBlock<Option<Placeholder>> {
         ImageBlock {
             name: self.name.clone(),
             display: self.display.with_default(&default_block.display),
+            processing_options: self.processing_options.with_defaults(),
         }
     }
 }
@@ -436,6 +443,7 @@ impl ImageBlock<Placeholder> {
         Ok(ImageBlock {
             name: self.name.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
+            processing_options: self.processing_options.clone(),
         })
     }
 }
