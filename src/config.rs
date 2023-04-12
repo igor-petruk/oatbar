@@ -505,6 +505,7 @@ impl Block<Placeholder> {
 #[serde(rename_all = "snake_case")]
 pub enum BarPosition {
     Top,
+    Center,
     #[default]
     Bottom,
 }

@@ -143,11 +143,12 @@ impl Window {
         )?;
 
         let id: x::Window = conn.generate_id();
-        let top = bar_config.position == config::BarPosition::Top;
-        let y = if top {
-            0
-        } else {
-            screen.height_in_pixels() as i16 - window_height as i16
+        let y = match bar_config.position {
+            config::BarPosition::Top => 0,
+            config::BarPosition::Center => {
+                (screen.height_in_pixels() as i16 - window_height as i16) / 2
+            }
+            config::BarPosition::Bottom => screen.height_in_pixels() as i16 - window_height as i16,
         };
         conn.send_request(&x::CreateWindow {
             depth: 32,
@@ -200,6 +201,7 @@ impl Window {
         )?;
 
         if !bar_config.autohide {
+            let top = bar_config.position == config::BarPosition::Top;
             let sp_result = xutils::replace_property(
                 &conn,
                 id,
@@ -343,10 +345,12 @@ impl Window {
         let over_window = match self.bar_config.position {
             config::BarPosition::Top => y < self.window_height as i16,
             config::BarPosition::Bottom => y > screen_height - self.window_height as i16,
+            config::BarPosition::Center => false,
         };
         let over_edge = match self.bar_config.position {
             config::BarPosition::Top => y < edge_size,
             config::BarPosition::Bottom => y > screen_height - edge_size,
+            config::BarPosition::Center => false,
         };
 
         let mut popup_control = self.popup_control.write().expect("RwLock");

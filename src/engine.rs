@@ -59,15 +59,12 @@ impl Engine {
 
         let mut windows = HashMap::new();
 
-        let window = window::Window::create_and_show(
-            config.bar.get(0).unwrap().clone(),
-            conn.clone(),
-            state.clone(),
-        )?;
-        windows.insert(window.id, window);
+        for bar in config.bar.iter() {
+            let window = window::Window::create_and_show(bar.clone(), conn.clone(), state.clone())?;
+            windows.insert(window.id, window);
+        }
 
         let window_ids = windows.keys().cloned().collect();
-        //  let window_control = window.window_control();
 
         Ok(Self {
             windows,
