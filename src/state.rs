@@ -64,6 +64,15 @@ pub struct BlockData {
     pub popup: Option<config::PopupMode>,
 }
 
+impl BlockData {
+    pub fn separator_type(&self) -> Option<config::SeparatorType> {
+        match &self.value {
+            BlockValue::Text(t) => t.separator_type.clone(),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct State {
     pub autohide_bar_visible: bool,

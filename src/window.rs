@@ -53,6 +53,10 @@ impl PopupControl {
     }
 
     fn extend_show_only(&mut self, extra_show_only: HashMap<config::PopupMode, HashSet<String>>) {
+        if extra_show_only.is_empty() {
+            return;
+        }
+
         let show_only = self.show_only.get_or_insert_with(|| Default::default());
 
         for (k, v) in extra_show_only.into_iter() {

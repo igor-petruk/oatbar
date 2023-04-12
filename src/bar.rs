@@ -661,32 +661,49 @@ impl Bar {
 }
 
 impl Bar {
+    fn visible_per_popup_mode(
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+        popup_mode: config::PopupMode,
+        block_names: &[String],
+    ) -> bool {
+        let partial_show = show_only.is_some();
+        !partial_show
+            || show_only
+                .as_ref()
+                .map(move |m| {
+                    let trigger_blocks = m.get(&popup_mode).cloned().unwrap_or_default();
+                    block_names.iter().any(|name| trigger_blocks.contains(name))
+                })
+                .unwrap_or_default()
+    }
+
     pub fn flatten(
         blocks: &HashMap<String, state::BlockData>,
-        // entire_bar_visible: bool,
-        //    important_updates: &HashMap<config::PopupMode, HashSet<String>>,
+        entire_bar_visible: bool,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
         names: &[String],
     ) -> Vec<state::BlockData> {
         let mut result = Vec::with_capacity(names.len());
-        /*
-        let partial_bar_blocks = important_updates
-            .get(&config::PopupMode::PartialBar)
-            .cloned()
-            .unwrap_or_default();
-        let single_blocks = important_updates
-            .get(&config::PopupMode::Block)
+        let single_blocks = show_only
+            .as_ref()
+            .map(|m| m.get(&config::PopupMode::Block))
+            .flatten()
             .cloned()
             .unwrap_or_default();
 
-        let entire_partial_visible = names.iter().any(|name| partial_bar_blocks.contains(name));
-        */
+        let entire_partial_visible =
+            Self::visible_per_popup_mode(show_only, config::PopupMode::PartialBar, names);
         for name in names {
-            //  let block_visible = single_blocks.contains(name);
-            //  if entire_bar_visible || entire_partial_visible || block_visible {
+            let block_visible = single_blocks.contains(name);
             if let Some(block) = blocks.get(name) {
-                result.push(block.clone());
+                if entire_bar_visible
+                    || entire_partial_visible
+                    || block_visible
+                    || block.separator_type().is_some()
+                {
+                    result.push(block.clone());
+                }
             }
-            //  }
         }
         result
     }
@@ -697,8 +714,6 @@ impl Bar {
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
         blocks: &HashMap<String, state::BlockData>,
     ) -> anyhow::Result<()> {
-        tracing::debug!("{:#?}", show_only);
-
         let context = &d_context.context;
         let bar = &self.bar;
 
@@ -710,35 +725,33 @@ impl Bar {
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
-        /*
-                let important_bar_blocks = important_updates
-                    .get(&config::PopupMode::Bar)
-                    .cloned()
-                    .unwrap_or_default();
-                let entire_bar_visible = important_bar_blocks.is_empty()
-                    || bar
-                        .modules_left
-                        .iter()
-                        .chain(bar.modules_center.iter())
-                        .chain(bar.modules_right.iter())
-                        .any(|name| important_bar_blocks.contains(name));
-        */
+
+        let all_blocks: Vec<String> = bar
+            .modules_left
+            .iter()
+            .chain(bar.modules_center.iter())
+            .chain(bar.modules_right.iter())
+            .cloned()
+            .collect();
+        let entire_bar_visible =
+            Self::visible_per_popup_mode(show_only, config::PopupMode::Bar, &all_blocks);
+
         let flat_left = Self::flatten(
             blocks,
-            //entire_bar_visible,
-            //          &important_updates,
+            entire_bar_visible,
+            show_only,
             &self.bar.modules_left,
         );
         let flat_center = Self::flatten(
             blocks,
-            // entire_bar_visible,
-            //          &important_updates,
+            entire_bar_visible,
+            show_only,
             &self.bar.modules_center,
         );
         let flat_right = Self::flatten(
             blocks,
-            // entire_bar_visible,
-            //          &important_updates,
+            entire_bar_visible,
+            show_only,
             &self.bar.modules_right,
         );
 
