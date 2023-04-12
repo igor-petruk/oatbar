@@ -1,7 +1,7 @@
 [[bar]]
 height=32
-modules_left=[ "workspace", "active_window"]
-modules_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
+blocks_left=[ "workspace", "active_window"]
+blocks_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
 clock_format="%H:%M %a %e %b %Y"
 
 [default_block]

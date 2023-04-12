@@ -726,32 +726,27 @@ impl Bar {
         context.restore()?;
 
         let all_blocks: Vec<String> = bar
-            .modules_left
+            .blocks_left
             .iter()
-            .chain(bar.modules_center.iter())
-            .chain(bar.modules_right.iter())
+            .chain(bar.blocks_center.iter())
+            .chain(bar.blocks_right.iter())
             .cloned()
             .collect();
         let entire_bar_visible =
             Self::visible_per_popup_mode(show_only, config::PopupMode::Bar, &all_blocks);
 
-        let flat_left = Self::flatten(
-            blocks,
-            entire_bar_visible,
-            show_only,
-            &self.bar.modules_left,
-        );
+        let flat_left = Self::flatten(blocks, entire_bar_visible, show_only, &self.bar.blocks_left);
         let flat_center = Self::flatten(
             blocks,
             entire_bar_visible,
             show_only,
-            &self.bar.modules_center,
+            &self.bar.blocks_center,
         );
         let flat_right = Self::flatten(
             blocks,
             entire_bar_visible,
             show_only,
-            &self.bar.modules_right,
+            &self.bar.blocks_right,
         );
 
         let left_group = BlockGroup::new(

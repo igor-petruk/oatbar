@@ -572,9 +572,9 @@ where
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
 pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
-    pub modules_left: Vec<String>,
-    pub modules_center: Vec<String>,
-    pub modules_right: Vec<String>,
+    pub blocks_left: Vec<String>,
+    pub blocks_center: Vec<String>,
+    pub blocks_right: Vec<String>,
     #[serde(default = "default_height")]
     pub height: u16,
     #[serde(default = "default_bar_position")]
@@ -591,9 +591,9 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
 impl Bar<Option<Placeholder>> {
     fn with_default(&self) -> Bar<Placeholder> {
         Bar {
-            modules_left: self.modules_left.clone(),
-            modules_center: self.modules_center.clone(),
-            modules_right: self.modules_right.clone(),
+            blocks_left: self.blocks_left.clone(),
+            blocks_center: self.blocks_center.clone(),
+            blocks_right: self.blocks_right.clone(),
             height: self.height,
             margin: self.margin.clone(),
             position: self.position.clone(),
