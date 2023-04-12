@@ -57,7 +57,7 @@ impl PopupControl {
             return;
         }
 
-        let show_only = self.show_only.get_or_insert_with(|| Default::default());
+        let show_only = self.show_only.get_or_insert_with(Default::default);
 
         for (k, v) in extra_show_only.into_iter() {
             show_only.entry(k).or_default().extend(v.into_iter());

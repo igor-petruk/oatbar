@@ -686,8 +686,7 @@ impl Bar {
         let mut result = Vec::with_capacity(names.len());
         let single_blocks = show_only
             .as_ref()
-            .map(|m| m.get(&config::PopupMode::Block))
-            .flatten()
+            .and_then(|m| m.get(&config::PopupMode::Block))
             .cloned()
             .unwrap_or_default();
 
