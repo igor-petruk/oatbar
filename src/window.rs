@@ -14,6 +14,7 @@
 
 use anyhow::Context;
 use std::{
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
     time::{Duration, SystemTime},
 };
@@ -26,6 +27,68 @@ pub struct PopupControl {
     conn: Arc<xcb::Connection>,
     window_id: x::Window,
     timer: Option<timer::Timer>,
+    show_only: Option<HashMap<config::PopupMode, HashSet<String>>>,
+    visible: bool,
+}
+
+impl PopupControl {
+    fn set_visible(&mut self, visible: bool) -> anyhow::Result<()> {
+        if visible {
+            xutils::send(
+                &self.conn,
+                &x::MapWindow {
+                    window: self.window_id,
+                },
+            )?;
+        } else {
+            xutils::send(
+                &self.conn,
+                &x::UnmapWindow {
+                    window: self.window_id,
+                },
+            )?;
+        }
+        self.visible = visible;
+        Ok(())
+    }
+
+    fn extend_show_only(&mut self, extra_show_only: HashMap<config::PopupMode, HashSet<String>>) {
+        let show_only = self.show_only.get_or_insert_with(|| Default::default());
+
+        for (k, v) in extra_show_only.into_iter() {
+            show_only.entry(k).or_default().extend(v.into_iter());
+        }
+    }
+
+    fn reset_show_only(&mut self) {
+        self.show_only = None
+    }
+
+    fn show_or_prolong_popup(popup_control_lock: &Arc<RwLock<PopupControl>>) -> anyhow::Result<()> {
+        let reset_timer_at = SystemTime::now()
+            .checked_add(Duration::from_secs(1))
+            .unwrap();
+        let mut popup_control = popup_control_lock.write().unwrap();
+        match &popup_control.timer {
+            Some(timer) => {
+                timer.set_at(reset_timer_at);
+            }
+            None => {
+                let timer = {
+                    popup_control.set_visible(true)?;
+                    let popup_control_lock = popup_control_lock.clone();
+                    timer::Timer::new("autohide-timer", reset_timer_at, move || {
+                        let mut popup_control = popup_control_lock.write().unwrap();
+                        popup_control.timer = None;
+                        popup_control.reset_show_only();
+                        popup_control.set_visible(false).expect("autohide-hide");
+                    })?
+                };
+                popup_control.timer = Some(timer);
+            }
+        }
+        Ok(())
+    }
 }
 
 pub struct Window {
@@ -231,6 +294,8 @@ impl Window {
                 window_id: id,
                 timer: None,
                 conn,
+                show_only: None,
+                visible: false,
             })),
         })
     }
@@ -243,44 +308,24 @@ impl Window {
         })
     }
 
-    pub fn show_or_prolong_popup(&mut self) -> anyhow::Result<()> {
-        let reset_timer_at = SystemTime::now()
-            .checked_add(Duration::from_secs(1))
-            .unwrap();
-        let mut popup_control = self.popup_control.write().unwrap();
-        match &popup_control.timer {
-            Some(timer) => {
-                timer.set_at(reset_timer_at);
-            }
-            None => {
-                let timer = {
-                    Self::set_visible(&self.conn, self.id, true)?;
-                    let popup_control = self.popup_control.clone();
-                    timer::Timer::new("autohide-timer", reset_timer_at, move || {
-                        let mut popup_control = popup_control.write().unwrap();
-                        popup_control.timer = None;
-                        Self::set_visible(&popup_control.conn, popup_control.window_id, false)
-                            .expect("autohide-hide");
-                    })?
-                };
-                popup_control.timer = Some(timer);
-            }
-        }
-        Ok(())
-    }
-
     pub fn render(&mut self) -> anyhow::Result<()> {
         let (important_updates, autohide_bar_visible) = {
             let state = self.state.read().unwrap();
             (state.important_updates.clone(), state.autohide_bar_visible)
         };
         if self.bar_config.autohide && !important_updates.is_empty() && !autohide_bar_visible {
-            self.show_or_prolong_popup()?;
+            PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
+
+        let show_only = {
+            let mut popup_control = self.popup_control.write().unwrap();
+            popup_control.extend_show_only(important_updates);
+            popup_control.show_only.clone()
+        };
 
         let state = self.state.read().unwrap();
         let dc = self.make_drawing_context()?;
-        self.bar.render(&dc, &important_updates, &state.blocks)?;
+        self.bar.render(&dc, &show_only, &state.blocks)?;
         self.swap_buffers()?;
         Ok(())
     }
@@ -300,22 +345,12 @@ impl Window {
             config::BarPosition::Bottom => y > screen_height - edge_size,
         };
 
-        let mut state = self.state.write().expect("RwLock");
-        if !state.autohide_bar_visible && over_edge {
-            state.autohide_bar_visible = true;
-            Self::set_visible(&self.conn, self.id, true)?;
-        } else if state.autohide_bar_visible && !over_window {
-            state.autohide_bar_visible = false;
-            Self::set_visible(&self.conn, self.id, false)?;
-        }
-        Ok(())
-    }
-
-    fn set_visible(conn: &xcb::Connection, window: x::Window, visible: bool) -> anyhow::Result<()> {
-        if visible {
-            xutils::send(conn, &x::MapWindow { window })?;
-        } else {
-            xutils::send(conn, &x::UnmapWindow { window })?;
+        let mut popup_control = self.popup_control.write().expect("RwLock");
+        if !popup_control.visible && over_edge {
+            popup_control.set_visible(true)?;
+        } else if popup_control.visible && !over_window {
+            popup_control.set_visible(false)?;
+            popup_control.reset_show_only();
         }
         Ok(())
     }

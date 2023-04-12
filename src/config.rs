@@ -98,7 +98,6 @@ pub enum PopupMode {
     Bar,
     PartialBar,
     Block,
-    BlockCenter,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

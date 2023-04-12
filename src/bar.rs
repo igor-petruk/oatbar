@@ -663,11 +663,12 @@ impl Bar {
 impl Bar {
     pub fn flatten(
         blocks: &HashMap<String, state::BlockData>,
-        entire_bar_visible: bool,
-        important_updates: &HashMap<config::PopupMode, HashSet<String>>,
+        // entire_bar_visible: bool,
+        //    important_updates: &HashMap<config::PopupMode, HashSet<String>>,
         names: &[String],
     ) -> Vec<state::BlockData> {
         let mut result = Vec::with_capacity(names.len());
+        /*
         let partial_bar_blocks = important_updates
             .get(&config::PopupMode::PartialBar)
             .cloned()
@@ -678,14 +679,14 @@ impl Bar {
             .unwrap_or_default();
 
         let entire_partial_visible = names.iter().any(|name| partial_bar_blocks.contains(name));
-
+        */
         for name in names {
-            let block_visible = single_blocks.contains(name);
-            if entire_bar_visible || entire_partial_visible || block_visible {
-                if let Some(block) = blocks.get(name) {
-                    result.push(block.clone());
-                }
+            //  let block_visible = single_blocks.contains(name);
+            //  if entire_bar_visible || entire_partial_visible || block_visible {
+            if let Some(block) = blocks.get(name) {
+                result.push(block.clone());
             }
+            //  }
         }
         result
     }
@@ -693,9 +694,11 @@ impl Bar {
     pub fn render(
         &self,
         d_context: &DrawingContext,
-        important_updates: &HashMap<config::PopupMode, HashSet<String>>,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
         blocks: &HashMap<String, state::BlockData>,
     ) -> anyhow::Result<()> {
+        tracing::debug!("{:#?}", show_only);
+
         let context = &d_context.context;
         let bar = &self.bar;
 
@@ -707,34 +710,35 @@ impl Bar {
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
-
-        let important_bar_blocks = important_updates
-            .get(&config::PopupMode::Bar)
-            .cloned()
-            .unwrap_or_default();
-        let entire_bar_visible = bar
-            .modules_left
-            .iter()
-            .chain(bar.modules_center.iter())
-            .chain(bar.modules_right.iter())
-            .any(|name| important_bar_blocks.contains(name));
-
+        /*
+                let important_bar_blocks = important_updates
+                    .get(&config::PopupMode::Bar)
+                    .cloned()
+                    .unwrap_or_default();
+                let entire_bar_visible = important_bar_blocks.is_empty()
+                    || bar
+                        .modules_left
+                        .iter()
+                        .chain(bar.modules_center.iter())
+                        .chain(bar.modules_right.iter())
+                        .any(|name| important_bar_blocks.contains(name));
+        */
         let flat_left = Self::flatten(
             blocks,
-            entire_bar_visible,
-            &important_updates,
+            //entire_bar_visible,
+            //          &important_updates,
             &self.bar.modules_left,
         );
         let flat_center = Self::flatten(
             blocks,
-            entire_bar_visible,
-            &important_updates,
+            // entire_bar_visible,
+            //          &important_updates,
             &self.bar.modules_center,
         );
         let flat_right = Self::flatten(
             blocks,
-            entire_bar_visible,
-            &important_updates,
+            // entire_bar_visible,
+            //          &important_updates,
             &self.bar.modules_right,
         );
 
