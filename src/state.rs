@@ -16,7 +16,7 @@ use crate::config::{self, PlaceholderExt};
 
 use anyhow::Context;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug)]
 pub struct TextBlockValue {
@@ -61,7 +61,7 @@ pub struct BlockData {
     pub config: config::Block<String>,
     pub value: BlockValue,
     pub value_fingerprint: String,
-    pub show_bar_on_change: bool,
+    pub popup: Option<config::PopupMode>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -69,7 +69,7 @@ pub struct State {
     pub autohide_bar_visible: bool,
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
-    pub important_updates: bool,
+    pub important_updates: HashMap<config::PopupMode, HashSet<String>>,
     config: config::Config<config::Placeholder>,
 }
 
@@ -111,7 +111,7 @@ impl State {
         let value = b.processing_options.process_single(&display.value);
         Ok(BlockData {
             value_fingerprint: value.clone(),
-            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
+            popup: display.popup,
             value: BlockValue::Text(TextBlockValue {
                 display: config::DisplayOptions { value, ..display },
                 separator_type: b.separator_type.clone(),
@@ -133,7 +133,7 @@ impl State {
         let value_fingerprint = value.clone();
 
         Ok(BlockData {
-            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
+            popup: display.popup,
             value: BlockValue::Image(ImageBlockValue {
                 display: config::DisplayOptions { value, ..display },
             }),
@@ -164,7 +164,7 @@ impl State {
         };
 
         Ok(BlockData {
-            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
+            popup: display.popup,
             value: BlockValue::Number(NumberBlockValue {
                 value,
                 min_value,
@@ -220,7 +220,7 @@ impl State {
         let variants = variants.into_iter().map(|v| v.unwrap()).collect();
 
         Ok(BlockData {
-            show_bar_on_change: display.show_bar_on_change.unwrap_or_default(),
+            popup: display.popup,
             value: BlockValue::Enum(EnumBlockValue {
                 active,
                 variants,
@@ -232,8 +232,8 @@ impl State {
         })
     }
 
-    pub fn update_blocks(&mut self) -> bool {
-        let mut important_updates = false;
+    pub fn update_blocks(&mut self) -> HashMap<config::PopupMode, HashSet<String>> {
+        let mut important_updates: HashMap<config::PopupMode, HashSet<String>> = HashMap::new();
 
         for (name, block) in self.config.blocks.iter() {
             let block_data = match &block {
@@ -246,10 +246,13 @@ impl State {
             match block_data {
                 Ok(block_data) => {
                     if let Some(old_block_data) = self.blocks.get(name) {
-                        if old_block_data.show_bar_on_change
-                            && old_block_data.value_fingerprint != block_data.value_fingerprint
-                        {
-                            important_updates = true;
+                        if let Some(popup) = block_data.popup {
+                            if old_block_data.value_fingerprint != block_data.value_fingerprint {
+                                important_updates
+                                    .entry(popup)
+                                    .or_default()
+                                    .insert(name.clone());
+                            }
                         }
                     }
                     self.blocks.insert(name.into(), block_data);

@@ -16,7 +16,7 @@
 
 use std::{
     cmp::Ordering,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Debug,
     sync::{Arc, Mutex},
 };
@@ -663,12 +663,28 @@ impl Bar {
 impl Bar {
     pub fn flatten(
         blocks: &HashMap<String, state::BlockData>,
+        entire_bar_visible: bool,
+        important_updates: &HashMap<config::PopupMode, HashSet<String>>,
         names: &[String],
     ) -> Vec<state::BlockData> {
         let mut result = Vec::with_capacity(names.len());
+        let partial_bar_blocks = important_updates
+            .get(&config::PopupMode::PartialBar)
+            .cloned()
+            .unwrap_or_default();
+        let single_blocks = important_updates
+            .get(&config::PopupMode::Block)
+            .cloned()
+            .unwrap_or_default();
+
+        let entire_partial_visible = names.iter().any(|name| partial_bar_blocks.contains(name));
+
         for name in names {
-            if let Some(block) = blocks.get(name) {
-                result.push(block.clone());
+            let block_visible = single_blocks.contains(name);
+            if entire_bar_visible || entire_partial_visible || block_visible {
+                if let Some(block) = blocks.get(name) {
+                    result.push(block.clone());
+                }
             }
         }
         result
@@ -677,11 +693,13 @@ impl Bar {
     pub fn render(
         &self,
         d_context: &DrawingContext,
+        important_updates: &HashMap<config::PopupMode, HashSet<String>>,
         blocks: &HashMap<String, state::BlockData>,
     ) -> anyhow::Result<()> {
         let context = &d_context.context;
+        let bar = &self.bar;
 
-        let width = d_context.width - (self.bar.margin.left + self.bar.margin.right) as f64;
+        let width = d_context.width - (bar.margin.left + bar.margin.right) as f64;
 
         let pango_context = pangocairo::create_context(context);
         context.save()?;
@@ -690,31 +708,57 @@ impl Bar {
         context.paint()?;
         context.restore()?;
 
-        let flat_left = Self::flatten(blocks, &self.bar.modules_left);
-        let flat_center = Self::flatten(blocks, &self.bar.modules_center);
-        let flat_right = Self::flatten(blocks, &self.bar.modules_right);
+        let important_bar_blocks = important_updates
+            .get(&config::PopupMode::Bar)
+            .cloned()
+            .unwrap_or_default();
+        let entire_bar_visible = bar
+            .modules_left
+            .iter()
+            .chain(bar.modules_center.iter())
+            .chain(bar.modules_right.iter())
+            .any(|name| important_bar_blocks.contains(name));
+
+        let flat_left = Self::flatten(
+            blocks,
+            entire_bar_visible,
+            &important_updates,
+            &self.bar.modules_left,
+        );
+        let flat_center = Self::flatten(
+            blocks,
+            entire_bar_visible,
+            &important_updates,
+            &self.bar.modules_center,
+        );
+        let flat_right = Self::flatten(
+            blocks,
+            entire_bar_visible,
+            &important_updates,
+            &self.bar.modules_right,
+        );
 
         let left_group = BlockGroup::new(
             &flat_left,
             &pango_context,
-            self.bar.clone(),
+            bar.clone(),
             self.font_cache.clone(),
         );
         let center_group = BlockGroup::new(
             &flat_center,
             &pango_context,
-            self.bar.clone(),
+            bar.clone(),
             self.font_cache.clone(),
         );
         let right_group = BlockGroup::new(
             &flat_right,
             &pango_context,
-            self.bar.clone(),
+            bar.clone(),
             self.font_cache.clone(),
         );
 
         context.save()?;
-        context.translate(self.bar.margin.left.into(), self.bar.margin.top.into());
+        context.translate(bar.margin.left.into(), bar.margin.top.into());
 
         context.save()?;
         left_group.render(context).context("left_group")?;

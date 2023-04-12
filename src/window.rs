@@ -272,15 +272,15 @@ impl Window {
     pub fn render(&mut self) -> anyhow::Result<()> {
         let (important_updates, autohide_bar_visible) = {
             let state = self.state.read().unwrap();
-            (state.important_updates, state.autohide_bar_visible)
+            (state.important_updates.clone(), state.autohide_bar_visible)
         };
-        if self.bar_config.autohide && important_updates && !autohide_bar_visible {
+        if self.bar_config.autohide && !important_updates.is_empty() && !autohide_bar_visible {
             self.show_or_prolong_popup()?;
         }
 
         let state = self.state.read().unwrap();
         let dc = self.make_drawing_context()?;
-        self.bar.render(&dc, &state.blocks)?;
+        self.bar.render(&dc, &important_updates, &state.blocks)?;
         self.swap_buffers()?;
         Ok(())
     }
