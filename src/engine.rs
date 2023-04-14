@@ -33,7 +33,7 @@ impl Engine {
         let state = Arc::new(RwLock::new(initial_state));
 
         let (conn, _) = xcb::Connection::connect_with_xlib_display_and_extensions(
-            &[xcb::Extension::Input],
+            &[xcb::Extension::Input, xcb::Extension::Shape],
             &[],
         )
         .unwrap();

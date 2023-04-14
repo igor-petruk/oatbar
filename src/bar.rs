@@ -54,7 +54,7 @@ struct Dimensions {
 trait Block {
     fn get_dimensions(&self) -> Dimensions;
     fn is_visible(&self) -> bool;
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()>;
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()>;
     fn separator_type(&self) -> Option<config::SeparatorType> {
         None
     }
@@ -125,14 +125,17 @@ impl Block for BaseBlock {
         self.separator_type.clone()
     }
 
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
         context.set_operator(cairo::Operator::Source);
 
         let background_color = &self.display_options.background;
         if !background_color.is_empty() {
-            context_color(context, background_color).context("background")?;
+            drawing_context
+                .set_source_rgba_background(background_color)
+                .context("background")?;
             // TODO: figure out how to prevent a gap between neighbour blocks.
             let deg = std::f64::consts::PI / 180.0;
             let radius = self.separator_radius.unwrap_or_default();
@@ -175,7 +178,7 @@ impl Block for BaseBlock {
 
         let overline_color = &self.display_options.overline_color;
         if !overline_color.is_empty() {
-            context_color(context, overline_color)?;
+            drawing_context.set_source_rgba(overline_color)?;
             context.move_to(0.0, line_width / 2.0);
             context.line_to(inner_dim.width + 2.0 * self.padding, line_width / 2.0);
             context.stroke()?;
@@ -183,7 +186,7 @@ impl Block for BaseBlock {
 
         let underline_color = &self.display_options.underline_color;
         if !underline_color.is_empty() {
-            context_color(context, underline_color)?;
+            drawing_context.set_source_rgba(underline_color)?;
             context.move_to(0.0, self.height - line_width / 2.0);
             context.line_to(
                 inner_dim.width + 2.0 * self.padding,
@@ -195,7 +198,7 @@ impl Block for BaseBlock {
             self.margin + self.padding,
             (self.height - inner_dim.height) / 2.0,
         );
-        self.inner_block.render(context)?;
+        self.inner_block.render(drawing_context)?;
         context.restore()?;
         Ok(())
     }
@@ -257,11 +260,12 @@ impl Block for TextBlock {
             height: ps.1.into(),
         }
     }
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
         context.save()?;
         let color = &self.display_options.foreground;
         if !color.is_empty() {
-            context_color(context, color)?;
+            drawing_context.set_source_rgba(color)?;
         }
         pangocairo::show_layout(context, &self.pango_layout);
         context.restore()?;
@@ -339,8 +343,8 @@ impl Block for TextProgressBarNumberBlock {
         self.text_block.get_dimensions()
     }
 
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
-        self.text_block.render(context)
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+        self.text_block.render(drawing_context)
     }
     fn is_visible(&self) -> bool {
         self.text_block.is_visible()
@@ -396,12 +400,13 @@ impl Block for EnumBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.dim.clone()
     }
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
         let mut x_offset: f64 = 0.0;
         for variant_block in self.variant_blocks.iter() {
             context.save()?;
             context.translate(x_offset, 0.0);
-            variant_block.render(context)?;
+            variant_block.render(drawing_context)?;
             context.restore()?;
             x_offset += variant_block.get_dimensions().width;
         }
@@ -460,7 +465,8 @@ impl Block for ImageBlock {
             },
         }
     }
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
         if let Ok(image_buf) = &self.image_buf {
             context.save()?;
             let dim = self.get_dimensions();
@@ -621,7 +627,8 @@ impl BlockGroup {
         }
     }
 
-    fn render(&self, context: &cairo::Context) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
         let mut pos: f64 = 0.0;
         for block in self.blocks.iter() {
             if !block.is_visible() {
@@ -631,7 +638,7 @@ impl BlockGroup {
             context.save()?;
             context.translate(pos, 0.0);
             block
-                .render(context)
+                .render(drawing_context)
                 .with_context(|| format!("block: {:?}", block))?;
             context.restore()?;
             pos += b_dim.width;
@@ -640,10 +647,71 @@ impl BlockGroup {
     }
 }
 
+#[derive(PartialEq, Eq)]
+pub enum DrawingMode {
+    Full,
+    Shape,
+}
+
 pub struct DrawingContext {
     pub width: f64,
     pub height: f64,
     pub context: cairo::Context,
+    pub drawing_mode: DrawingMode,
+}
+
+impl DrawingContext {
+    fn set_source_hexcolor(&self, color: hex_color::HexColor) {
+        self.context.set_source_rgba(
+            color.r as f64 / 256.,
+            color.g as f64 / 256.,
+            color.b as f64 / 256.,
+            color.a as f64 / 256.,
+        );
+    }
+
+    fn set_source_rgba(&self, color: &str) -> anyhow::Result<()> {
+        if color.is_empty() {
+            return Ok(());
+        }
+        match hex_color::HexColor::parse(color) {
+            Ok(color) => {
+                self.set_source_hexcolor(color);
+                Ok(())
+            }
+            Err(e) => Err(anyhow::anyhow!(
+                "failed to parse color: {:?}, err={:?}",
+                color,
+                e
+            )),
+        }
+    }
+
+    fn set_source_rgba_background(&self, color: &str) -> anyhow::Result<()> {
+        if color.is_empty() {
+            return Ok(());
+        }
+        match hex_color::HexColor::parse(color) {
+            Ok(color) if self.drawing_mode == DrawingMode::Shape => {
+                self.set_source_hexcolor(hex_color::HexColor {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: if color.a == 0 { 0 } else { 255 },
+                });
+                Ok(())
+            }
+            Ok(color) => {
+                self.set_source_hexcolor(color);
+                Ok(())
+            }
+            Err(e) => Err(anyhow::anyhow!(
+                "failed to parse color: {:?}, err={:?}",
+                color,
+                e
+            )),
+        }
+    }
 }
 
 pub struct Bar {
@@ -709,18 +777,20 @@ impl Bar {
 
     pub fn render(
         &self,
-        d_context: &DrawingContext,
+        drawing_context: &DrawingContext,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
         blocks: &HashMap<String, state::BlockData>,
     ) -> anyhow::Result<()> {
-        let context = &d_context.context;
+        let context = &drawing_context.context;
         let bar = &self.bar;
 
-        let width = d_context.width - (bar.margin.left + bar.margin.right) as f64;
+        let width = drawing_context.width - (bar.margin.left + bar.margin.right) as f64;
 
         let pango_context = pangocairo::create_context(context);
         context.save()?;
-        context_color(context, &self.bar.background).context("bar.background")?;
+        drawing_context
+            .set_source_rgba_background(&self.bar.background)
+            .context("bar.background")?;
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
@@ -772,42 +842,22 @@ impl Bar {
         context.translate(bar.margin.left.into(), bar.margin.top.into());
 
         context.save()?;
-        left_group.render(context).context("left_group")?;
+        left_group.render(drawing_context).context("left_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate((width - center_group.dimensions.width) / 2.0, 0.0);
-        center_group.render(context).context("center_group")?;
+        center_group
+            .render(drawing_context)
+            .context("center_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate(width - right_group.dimensions.width, 0.0);
-        right_group.render(context).context("right_group")?;
+        right_group.render(drawing_context).context("right_group")?;
         context.restore()?;
 
         context.restore()?;
         Ok(())
-    }
-}
-
-fn context_color(context: &cairo::Context, color: &str) -> anyhow::Result<()> {
-    if color.is_empty() {
-        return Ok(());
-    }
-    match hex_color::HexColor::parse(color) {
-        Ok(color) => {
-            context.set_source_rgba(
-                color.r as f64 / 256.,
-                color.g as f64 / 256.,
-                color.b as f64 / 256.,
-                color.a as f64 / 256.,
-            );
-            Ok(())
-        }
-        Err(e) => Err(anyhow::anyhow!(
-            "failed to parse color: {:?}, err={:?}",
-            color,
-            e
-        )),
     }
 }

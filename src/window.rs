@@ -102,6 +102,8 @@ pub struct Window {
     pub height: u16,
     back_buffer: x::Pixmap,
     back_buffer_surface: cairo::XCBSurface,
+    shape_buffer: x::Pixmap,
+    shape_buffer_surface: cairo::XCBSurface,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
     bar_config: config::Bar<config::Placeholder>,
@@ -123,7 +125,7 @@ impl Window {
         }
         .to_owned();
 
-        let mut vis32 = find_32bit_visual(&screen).unwrap();
+        let mut vis32 = match_visual(&screen, 32).unwrap();
 
         let margin = &bar_config.margin;
 
@@ -258,6 +260,25 @@ impl Window {
         let back_buffer_surface =
             make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
 
+        let shape_buffer: x::Pixmap = conn.generate_id();
+        xutils::send(
+            &conn,
+            &x::CreatePixmap {
+                depth: 1,
+                pid: shape_buffer,
+                drawable: xcb::x::Drawable::Window(id),
+                width: window_width,
+                height: window_height,
+            },
+        )?;
+        let shape_buffer_surface = make_pixmap_surface_for_bitmap(
+            &conn,
+            &shape_buffer,
+            &screen,
+            window_width,
+            window_height,
+        )?;
+
         let swap_gc: x::Gcontext = conn.generate_id();
         xutils::send(
             &conn,
@@ -290,6 +311,8 @@ impl Window {
             height: window_height,
             back_buffer,
             back_buffer_surface,
+            shape_buffer,
+            shape_buffer_surface,
             swap_gc,
             bar,
             state,
@@ -306,11 +329,18 @@ impl Window {
         })
     }
 
-    fn make_drawing_context(&self) -> anyhow::Result<bar::DrawingContext> {
+    fn make_drawing_context(
+        &self,
+        drawing_mode: bar::DrawingMode,
+    ) -> anyhow::Result<bar::DrawingContext> {
         Ok(bar::DrawingContext {
             width: self.width.into(),
             height: self.height.into(),
-            context: cairo::Context::new(&self.back_buffer_surface)?,
+            context: cairo::Context::new(match drawing_mode {
+                bar::DrawingMode::Full => &self.back_buffer_surface,
+                bar::DrawingMode::Shape => &self.shape_buffer_surface,
+            })?,
+            drawing_mode,
         })
     }
 
@@ -330,8 +360,14 @@ impl Window {
         };
 
         let state = self.state.read().unwrap();
-        let dc = self.make_drawing_context()?;
+
+        let dc = self.make_drawing_context(bar::DrawingMode::Full)?;
         self.bar.render(&dc, &show_only, &state.blocks)?;
+
+        let dc = self.make_drawing_context(bar::DrawingMode::Shape)?;
+        self.bar.render(&dc, &show_only, &state.blocks)?;
+
+        self.apply_shape()?;
         self.swap_buffers()?;
         Ok(())
     }
@@ -360,6 +396,21 @@ impl Window {
             popup_control.set_visible(false)?;
             popup_control.reset_show_only();
         }
+        Ok(())
+    }
+
+    fn apply_shape(&self) -> anyhow::Result<()> {
+        xutils::send(
+            &self.conn,
+            &xcb::shape::Mask {
+                operation: xcb::shape::So::Set,
+                destination_kind: xcb::shape::Sk::Bounding, // Verify
+                destination_window: self.id,
+                x_offset: 0,
+                y_offset: 0,
+                source_bitmap: self.shape_buffer,
+            },
+        )?;
         Ok(())
     }
 
@@ -396,13 +447,13 @@ impl Window {
     }
 }
 
-fn find_32bit_visual(screen: &xcb::x::Screen) -> Option<xcb::x::Visualtype> {
+fn match_visual(screen: &xcb::x::Screen, depth: u8) -> Option<xcb::x::Visualtype> {
     let d_iter: xcb::x::DepthIterator = screen.allowed_depths();
-    for depth in d_iter {
-        if depth.depth() != 32 {
+    for allowed_depth in d_iter {
+        if allowed_depth.depth() != depth {
             continue;
         }
-        for vis in depth.visuals() {
+        for vis in allowed_depth.visuals() {
             if vis.class() == xcb::x::VisualClass::TrueColor {
                 return Some(*vis);
             }
@@ -427,6 +478,35 @@ fn make_pixmap_surface(
         &cairo_xcb_connection,
         &cairo::XCBDrawable(pixmap.resource_id()),
         &cairo_xcb_visual,
+        width.into(),
+        height.into(),
+    )?;
+
+    conn.flush()?;
+
+    Ok(pixmap_surface)
+}
+
+fn make_pixmap_surface_for_bitmap(
+    conn: &xcb::Connection,
+    pixmap: &x::Pixmap,
+    screen: &x::Screen,
+    width: u16,
+    height: u16,
+) -> anyhow::Result<cairo::XCBSurface> {
+    let cairo_xcb_connection =
+        unsafe { cairo::XCBConnection::from_raw_none(std::mem::transmute(conn.get_raw_conn())) };
+    let cairo_xcb_screen = unsafe {
+        cairo::XCBScreen::from_raw_none(
+            screen as *const _ as *mut x::Screen as *mut cairo::ffi::xcb_screen_t,
+        )
+    };
+    let cairo_xcb_pixmap = cairo::XCBPixmap(pixmap.resource_id());
+
+    let pixmap_surface = cairo::XCBSurface::create_for_bitmap(
+        &cairo_xcb_connection,
+        &cairo_xcb_screen,
+        &cairo_xcb_pixmap,
         width.into(),
         height.into(),
     )?;
