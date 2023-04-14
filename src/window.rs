@@ -353,10 +353,12 @@ impl Window {
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 
-        let show_only = {
+        let show_only = if self.bar_config.autohide {
             let mut popup_control = self.popup_control.write().unwrap();
             popup_control.extend_show_only(important_updates);
             popup_control.show_only.clone()
+        } else {
+            None
         };
 
         let state = self.state.read().unwrap();
