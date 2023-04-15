@@ -381,8 +381,8 @@ impl Window {
         let dc = self.make_drawing_context(bar::DrawingMode::Shape)?;
         self.bar.render(&dc, &show_only, &state.blocks)?;
 
-        self.apply_shape()?;
         self.swap_buffers()?;
+        self.apply_shape()?;
         self.conn.flush()?;
         Ok(())
     }
@@ -422,7 +422,7 @@ impl Window {
             &self.conn,
             &xcb::shape::Mask {
                 operation: xcb::shape::So::Set,
-                destination_kind: xcb::shape::Sk::Bounding, // Verify
+                destination_kind: xcb::shape::Sk::Bounding,
                 destination_window: self.id,
                 x_offset: 0,
                 y_offset: 0,
