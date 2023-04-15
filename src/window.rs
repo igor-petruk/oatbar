@@ -37,7 +37,6 @@ impl PopupControl {
         if self.visible == visible {
             return Ok(());
         }
-        tracing::debug!("{}, visible={}", self.name, visible);
         if visible {
             xutils::send(
                 &self.conn,
@@ -362,7 +361,6 @@ impl Window {
             (state.important_updates.clone(), state.autohide_bar_visible)
         };
         if self.bar_config.autohide && !important_updates.is_empty() && !autohide_bar_visible {
-            tracing::debug!("{:?}", important_updates);
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 
@@ -406,11 +404,13 @@ impl Window {
         };
 
         let mut popup_control = self.popup_control.write().expect("RwLock");
-        if !popup_control.visible && over_edge {
-            popup_control.set_visible(true)?;
-        } else if popup_control.visible && !over_window {
-            popup_control.set_visible(false)?;
-            popup_control.reset_show_only();
+        if popup_control.timer.is_none() {
+            if !popup_control.visible && over_edge {
+                popup_control.set_visible(true)?;
+            } else if popup_control.visible && !over_window {
+                popup_control.set_visible(false)?;
+                popup_control.reset_show_only();
+            }
         }
         Ok(())
     }
