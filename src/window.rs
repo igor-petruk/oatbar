@@ -33,6 +33,10 @@ pub struct PopupControl {
 }
 
 impl PopupControl {
+    fn is_poping_up(&self) -> bool {
+        self.timer.is_some()
+    }
+
     fn set_visible(&mut self, visible: bool) -> anyhow::Result<()> {
         if self.visible == visible {
             return Ok(());
@@ -356,11 +360,8 @@ impl Window {
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
-        let (important_updates, autohide_bar_visible) = {
-            let state = self.state.read().unwrap();
-            (state.important_updates.clone(), state.autohide_bar_visible)
-        };
-        if self.bar_config.autohide && !important_updates.is_empty() && !autohide_bar_visible {
+        let important_updates = { self.state.read().unwrap().important_updates.clone() };
+        if self.bar_config.autohide && !important_updates.is_empty() {
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 
@@ -404,7 +405,7 @@ impl Window {
         };
 
         let mut popup_control = self.popup_control.write().expect("RwLock");
-        if popup_control.timer.is_none() {
+        if !popup_control.is_poping_up() {
             if !popup_control.visible && over_edge {
                 popup_control.set_visible(true)?;
             } else if popup_control.visible && !over_window {

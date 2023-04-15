@@ -75,7 +75,6 @@ impl BlockData {
 
 #[derive(Clone, Debug, Default)]
 pub struct State {
-    pub autohide_bar_visible: bool,
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
     pub value_fingerprints: HashMap<String, String>,
