@@ -384,6 +384,7 @@ impl Window {
 
         self.apply_shape()?;
         self.swap_buffers()?;
+        self.conn.flush()?;
         Ok(())
     }
 
@@ -415,6 +416,7 @@ impl Window {
     }
 
     fn apply_shape(&self) -> anyhow::Result<()> {
+        self.shape_buffer_surface.flush();
         xutils::send(
             &self.conn,
             &xcb::shape::Mask {
@@ -457,7 +459,6 @@ impl Window {
                 gc: self.swap_gc,
             },
         )?;
-        self.conn.flush()?;
         Ok(())
     }
 }
