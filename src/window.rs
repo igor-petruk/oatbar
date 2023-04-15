@@ -48,6 +48,7 @@ impl PopupControl {
                 },
             )?;
         }
+        self.conn.flush()?;
         self.visible = visible;
         Ok(())
     }
