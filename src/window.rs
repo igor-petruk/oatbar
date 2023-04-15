@@ -24,6 +24,7 @@ use crate::{bar, config, state, timer, xutils};
 use tracing::*;
 
 pub struct PopupControl {
+    name: String,
     conn: Arc<xcb::Connection>,
     window_id: x::Window,
     timer: Option<timer::Timer>,
@@ -33,6 +34,10 @@ pub struct PopupControl {
 
 impl PopupControl {
     fn set_visible(&mut self, visible: bool) -> anyhow::Result<()> {
+        if self.visible == visible {
+            return Ok(());
+        }
+        tracing::debug!("{}, visible={}", self.name, visible);
         if visible {
             xutils::send(
                 &self.conn,
@@ -82,12 +87,16 @@ impl PopupControl {
                 let timer = {
                     popup_control.set_visible(true)?;
                     let popup_control_lock = popup_control_lock.clone();
-                    timer::Timer::new("autohide-timer", reset_timer_at, move || {
-                        let mut popup_control = popup_control_lock.write().unwrap();
-                        popup_control.timer = None;
-                        popup_control.reset_show_only();
-                        popup_control.set_visible(false).expect("autohide-hide");
-                    })?
+                    timer::Timer::new(
+                        &format!("autohide-timer-{}", popup_control.name),
+                        reset_timer_at,
+                        move || {
+                            let mut popup_control = popup_control_lock.write().unwrap();
+                            popup_control.timer = None;
+                            popup_control.reset_show_only();
+                            popup_control.set_visible(false).expect("autohide-hide");
+                        },
+                    )?
                 };
                 popup_control.timer = Some(timer);
             }
@@ -116,6 +125,7 @@ pub struct Window {
 
 impl Window {
     pub fn create_and_show(
+        name: String,
         bar_config: config::Bar<config::Placeholder>,
         conn: Arc<xcb::Connection>,
         state: Arc<RwLock<state::State>>,
@@ -321,6 +331,7 @@ impl Window {
             bar_config,
             window_height,
             popup_control: Arc::new(RwLock::new(PopupControl {
+                name,
                 window_id: id,
                 timer: None,
                 conn,
@@ -351,6 +362,7 @@ impl Window {
             (state.important_updates.clone(), state.autohide_bar_visible)
         };
         if self.bar_config.autohide && !important_updates.is_empty() && !autohide_bar_visible {
+            tracing::debug!("{:?}", important_updates);
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 

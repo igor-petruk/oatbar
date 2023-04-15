@@ -59,8 +59,13 @@ impl Engine {
 
         let mut windows = HashMap::new();
 
-        for bar in config.bar.iter() {
-            let window = window::Window::create_and_show(bar.clone(), conn.clone(), state.clone())?;
+        for (index, bar) in config.bar.iter().enumerate() {
+            let window = window::Window::create_and_show(
+                format!("bar{}", index),
+                bar.clone(),
+                conn.clone(),
+                state.clone(),
+            )?;
             windows.insert(window.id, window);
         }
 
