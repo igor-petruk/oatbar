@@ -16,7 +16,7 @@ use crate::config::{self, PlaceholderExt};
 
 use anyhow::Context;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 #[derive(Clone, Debug)]
 pub struct TextBlockValue {
@@ -78,6 +78,7 @@ pub struct State {
     pub autohide_bar_visible: bool,
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
+    pub value_fingerprints: HashMap<String, String>,
     pub important_updates: HashMap<config::PopupMode, HashSet<String>>,
     config: config::Config<config::Placeholder>,
 }
@@ -254,14 +255,25 @@ impl State {
 
             match block_data {
                 Ok(block_data) => {
-                    if let Some(old_block_data) = self.blocks.get(name) {
+                    if let Some(old_fingerprint) = self.value_fingerprints.get(name) {
                         if let Some(popup) = block_data.popup {
-                            if old_block_data.value_fingerprint != block_data.value_fingerprint {
+                            if *old_fingerprint != block_data.value_fingerprint {
                                 important_updates
                                     .entry(popup)
                                     .or_default()
                                     .insert(name.clone());
                             }
+                        }
+                    }
+                    let value_fingerprint_entry = self.value_fingerprints.entry(name.into());
+                    match value_fingerprint_entry {
+                        Entry::Vacant(v) => {
+                            if !block_data.value_fingerprint.is_empty() {
+                                v.insert(block_data.value_fingerprint.clone());
+                            }
+                        }
+                        Entry::Occupied(mut o) => {
+                            o.insert(block_data.value_fingerprint.clone());
                         }
                     }
                     self.blocks.insert(name.into(), block_data);
