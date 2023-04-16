@@ -327,7 +327,7 @@ impl TextProgressBarDisplay<Option<Placeholder>> {
             empty: self.empty.unwrap_or_else(|| " ".into()),
             fill: self.fill.unwrap_or_else(|| "━".into()),
             indicator: self.indicator.unwrap_or_else(|| "雷".into()),
-            bar_format: self.bar_format.unwrap_or_else(|| "BAR".into()),
+            bar_format: self.bar_format.unwrap_or_else(|| "{}".into()),
         }
     }
 }
@@ -369,7 +369,7 @@ impl NumberTextDisplay<Option<Placeholder>> {
                 _ => 0,
             })),
             number_type: Some(number_type),
-            output_format: self.output_format.unwrap_or("VALUE".into()),
+            output_format: self.output_format.unwrap_or("{}".into()),
         }
     }
 }
@@ -800,7 +800,7 @@ fn default_margin() -> Margin {
 
 fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        value: "${value}".into(),
+        value: "".into(),
         font: "monospace 12".into(),
         foreground: "#dddddd".into(),
         background: "#191919".into(),

@@ -330,7 +330,7 @@ impl TextProgressBarNumberBlock {
     ) -> Self {
         let progress_bar = Self::progress_bar_string(&value, &text_progress_bar, 10);
         let format = text_progress_bar.bar_format;
-        let markup = format.replace("BAR", &progress_bar);
+        let markup = format.replace("{}", &progress_bar);
         let display = config::DisplayOptions {
             value: markup,
             pango_markup: Some(true), // TODO: fix
@@ -408,7 +408,7 @@ impl TextNumberBlock {
         height: f64,
     ) -> Self {
         let text = Self::text(&value, &number_text_display);
-        let text = number_text_display.output_format.replace("VALUE", &text);
+        let text = number_text_display.output_format.replace("{}", &text);
         let display = config::DisplayOptions {
             value: text,
             pango_markup: Some(true), // TODO: fix

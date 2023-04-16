@@ -88,18 +88,20 @@ fn format_active_inactive(
     index: usize,
     value: String,
 ) -> anyhow::Result<String> {
-    let value_placeholder = &config.display.value;
-    let active_value_placeholder = &config.active_display.value;
-    let mut value_map = HashMap::with_capacity(1);
-    value_map.insert("value".to_string(), value);
-    let result = if index == active {
-        active_value_placeholder
-            .resolve_placeholders(&value_map)
-            .context("failed to replace active placeholder")?
+    let value_placeholder = if config.display.value.is_empty() {
+        "{}"
     } else {
+        &config.display.value
+    };
+    let active_value_placeholder = if config.active_display.value.is_empty() {
         value_placeholder
-            .resolve_placeholders(&value_map)
-            .context("failed to replace placeholder")?
+    } else {
+        &config.active_display.value
+    };
+    let result = if index == active {
+        active_value_placeholder.replace("{}", &value)
+    } else {
+        value_placeholder.replace("{}", &value)
     };
     Ok(result)
 }
