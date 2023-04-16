@@ -295,17 +295,24 @@ impl TextProgressBarNumberBlock {
             return empty_result.collect();
         }
         let min_value = number_value.min_value.unwrap();
+
         let max_value = number_value.max_value.unwrap();
-        let value = number_value.value.unwrap();
-        if value < min_value || value > max_value || min_value >= max_value {
-            return empty_result.collect();
+        if min_value >= max_value {
+            return empty_result.collect(); // error
+        }
+        let mut value = number_value.value.unwrap();
+        if value < min_value {
+            value = min_value;
+        } 
+        if value > max_value {
+            value = max_value;
         }
         let fill = &text_progress_bar.fill;
         let empty = &text_progress_bar.empty;
         let indicator = &text_progress_bar.indicator;
         let indicator_pos =
-            ((value - min_value) / (max_value - min_value) * width as f64) as i32 - 1;
-        let segments: Vec<_> = (0..width as i32)
+            ((value - min_value) / (max_value - min_value) * width as f64) as i32;
+        let segments: Vec<_> = (0..(width+1) as i32)
             .map(|i| match i.cmp(&indicator_pos) {
                 Ordering::Less => fill.as_str(),
                 Ordering::Equal => indicator.as_str(),

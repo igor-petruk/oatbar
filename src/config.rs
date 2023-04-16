@@ -324,10 +324,10 @@ pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debu
 impl TextProgressBarDisplay<Option<Placeholder>> {
     pub fn with_default(self) -> TextProgressBarDisplay<Placeholder> {
         TextProgressBarDisplay {
-            empty: " ".into(),
-            fill: "絛".into(),
-            indicator: "絛".into(),
-            bar_format: "BAR".into(),
+            empty: self.empty.unwrap_or_else(|| " ".into()),
+            fill: self.fill.unwrap_or_else(||"━".into()),
+            indicator: self.indicator.unwrap_or_else(|| "雷".into()),
+            bar_format: self.bar_format.unwrap_or_else(|| "BAR".into()),
         }
     }
 }
