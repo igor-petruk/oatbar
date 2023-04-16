@@ -303,16 +303,15 @@ impl TextProgressBarNumberBlock {
         let mut value = number_value.value.unwrap();
         if value < min_value {
             value = min_value;
-        } 
+        }
         if value > max_value {
             value = max_value;
         }
         let fill = &text_progress_bar.fill;
         let empty = &text_progress_bar.empty;
         let indicator = &text_progress_bar.indicator;
-        let indicator_pos =
-            ((value - min_value) / (max_value - min_value) * width as f64) as i32;
-        let segments: Vec<_> = (0..(width+1) as i32)
+        let indicator_pos = ((value - min_value) / (max_value - min_value) * width as f64) as i32;
+        let segments: Vec<_> = (0..(width + 1) as i32)
             .map(|i| match i.cmp(&indicator_pos) {
                 Ordering::Less => fill.as_str(),
                 Ordering::Equal => indicator.as_str(),
@@ -346,6 +345,75 @@ impl TextProgressBarNumberBlock {
 impl DebugBlock for TextProgressBarNumberBlock {}
 
 impl Block for TextProgressBarNumberBlock {
+    fn get_dimensions(&self) -> Dimensions {
+        self.text_block.get_dimensions()
+    }
+
+    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+        self.text_block.render(drawing_context)
+    }
+    fn is_visible(&self) -> bool {
+        self.text_block.is_visible()
+    }
+}
+
+#[derive(Debug)]
+struct TextNumberBlock {
+    text_block: Box<dyn DebugBlock>,
+}
+
+impl TextNumberBlock {
+    fn text(
+        number_value: &state::NumberBlockValue,
+        number_text_display: &config::NumberTextDisplay,
+    ) -> String {
+        if number_value.value.is_none() {
+            return "".into();
+        }
+        let value = number_value.value.unwrap();
+        match number_text_display.number_type.unwrap() {
+            config::NumberType::Percent => {
+                let min_value = number_value.min_value.unwrap();
+                let max_value = number_value.max_value.unwrap();
+                let mut value = value;
+                if min_value >= max_value {
+                    return "".into(); // error
+                }
+                if value < min_value {
+                    value = min_value;
+                }
+                if value > max_value {
+                    value = max_value;
+                }
+                format!("{}%", value)
+            }
+            config::NumberType::Number => format!("{}", value),
+            config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
+        }
+    }
+
+    fn new(
+        pango_context: &pango::Context,
+        font_cache: Arc<Mutex<FontCache>>,
+        value: state::NumberBlockValue,
+        number_text_display: config::NumberTextDisplay,
+        height: f64,
+    ) -> Self {
+        let text = Self::text(&value, &number_text_display);
+        let display = config::DisplayOptions {
+            value: text,
+            pango_markup: Some(true), // TODO: fix
+            ..value.display
+        };
+        let text_block =
+            TextBlock::new_in_base_block(pango_context, font_cache, display, height, None, None);
+        Self { text_block }
+    }
+}
+
+impl DebugBlock for TextNumberBlock {}
+
+impl Block for TextNumberBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
     }
@@ -593,6 +661,16 @@ impl BlockGroup {
                                 font_cache.clone(),
                                 number.clone(),
                                 text_progress_bar.clone(),
+                                bar_config.height as f64,
+                            ));
+                            b
+                        }
+                        config::NumberDisplay::Text(number_text_display) => {
+                            let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
+                                pango_context,
+                                font_cache.clone(),
+                                number.clone(),
+                                number_text_display.clone(),
                                 bar_config.height as f64,
                             ));
                             b

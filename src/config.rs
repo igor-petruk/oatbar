@@ -287,7 +287,7 @@ impl TextBlock<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NumberType {
     Number,
@@ -325,7 +325,7 @@ impl TextProgressBarDisplay<Option<Placeholder>> {
     pub fn with_default(self) -> TextProgressBarDisplay<Placeholder> {
         TextProgressBarDisplay {
             empty: self.empty.unwrap_or_else(|| " ".into()),
-            fill: self.fill.unwrap_or_else(||"━".into()),
+            fill: self.fill.unwrap_or_else(|| "━".into()),
             indicator: self.indicator.unwrap_or_else(|| "雷".into()),
             bar_format: self.bar_format.unwrap_or_else(|| "BAR".into()),
         }
@@ -354,8 +354,23 @@ impl TextProgressBarDisplay<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub struct NumberTextDisplay {
+    pub number_type: Option<NumberType>,
+}
+
+impl NumberTextDisplay {
+    pub fn with_default(self, input_number_type: NumberType) -> NumberTextDisplay {
+        NumberTextDisplay {
+            number_type: Some(self.number_type.unwrap_or(input_number_type)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
+    Text(NumberTextDisplay),
     TextProgressBar(TextProgressBarDisplay<Dynamic>),
 }
 
@@ -371,7 +386,7 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     #[serde(flatten)]
     pub processing_options: ProcessingOptions,
     pub number_type: NumberType,
-    pub number_display: NumberDisplay<Dynamic>,
+    pub number_display: Option<NumberDisplay<Dynamic>>,
 }
 
 impl NumberBlock<Option<Placeholder>> {
@@ -384,10 +399,18 @@ impl NumberBlock<Option<Placeholder>> {
             min_value: self.min_value.clone().unwrap_or_else(|| "0".into()),
             max_value: self.max_value.clone().unwrap_or_else(|| "".into()),
             display: self.display.clone().with_default(&default_block.display),
-            number_type: self.number_type.clone(),
-            number_display: match self.number_display {
-                NumberDisplay::TextProgressBar(t) => NumberDisplay::TextProgressBar(t.with_default()),
-            },
+            number_type: self.number_type,
+            number_display: Some(match self.number_display {
+                Some(NumberDisplay::TextProgressBar(t)) => {
+                    NumberDisplay::TextProgressBar(t.with_default())
+                }
+                Some(NumberDisplay::Text(t)) => {
+                    NumberDisplay::Text(t.with_default(self.number_type))
+                }
+                None => NumberDisplay::Text(NumberTextDisplay {
+                    number_type: Some(self.number_type),
+                }),
+            }),
             processing_options: self.processing_options.with_defaults(),
         }
     }
@@ -410,11 +433,13 @@ impl NumberBlock<Placeholder> {
                 .context("max_value")?,
             display: self.display.resolve_placeholders(vars).context("display")?,
             processing_options: self.processing_options.clone(),
-            number_type: self.number_type.clone(),
+            number_type: self.number_type,
             number_display: match &self.number_display {
-                NumberDisplay::TextProgressBar(t) => {
-                    NumberDisplay::TextProgressBar(t.resolve_placeholders(vars).context("progress_bar")?)
-                }
+                Some(NumberDisplay::TextProgressBar(t)) => Some(NumberDisplay::TextProgressBar(
+                    t.resolve_placeholders(vars).context("progress_bar")?,
+                )),
+                Some(NumberDisplay::Text(t)) => Some(NumberDisplay::Text(t.clone())),
+                None => None,
             },
         })
     }

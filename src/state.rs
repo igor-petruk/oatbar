@@ -155,7 +155,7 @@ impl State {
         &self,
         b: &config::NumberBlock<config::Placeholder>,
     ) -> anyhow::Result<BlockData> {
-        let number_type = b.number_type.clone();
+        let number_type = b.number_type;
         let display = b
             .display
             .resolve_placeholders(&self.vars)
@@ -180,7 +180,7 @@ impl State {
                 max_value,
                 number_type,
                 display,
-                number_display: b.number_display.clone(),
+                number_display: b.number_display.clone().expect("number_display"),
             }),
             value_fingerprint,
             config: config::Block::Number(b.clone()),
