@@ -352,15 +352,17 @@ impl TextProgressBarDisplay<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct NumberTextDisplay {
     pub number_type: Option<NumberType>,
+    pub padded_width: usize,
 }
 
 impl NumberTextDisplay {
     pub fn with_default(self, input_number_type: NumberType) -> NumberTextDisplay {
         NumberTextDisplay {
+            padded_width: self.padded_width,
             number_type: Some(self.number_type.unwrap_or(input_number_type)),
         }
     }
@@ -408,6 +410,10 @@ impl NumberBlock<Option<Placeholder>> {
                     NumberDisplay::Text(t.with_default(self.number_type))
                 }
                 None => NumberDisplay::Text(NumberTextDisplay {
+                    padded_width: match self.number_type {
+                        NumberType::Percent => 4,
+                        _ => 0,
+                    },
                     number_type: Some(self.number_type),
                 }),
             }),

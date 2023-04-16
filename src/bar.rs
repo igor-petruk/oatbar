@@ -371,7 +371,7 @@ impl TextNumberBlock {
             return "".into();
         }
         let value = number_value.value.unwrap();
-        match number_text_display.number_type.unwrap() {
+        let value_str = match number_text_display.number_type.unwrap() {
             config::NumberType::Percent => {
                 let min_value = number_value.min_value.unwrap();
                 let max_value = number_value.max_value.unwrap();
@@ -389,7 +389,11 @@ impl TextNumberBlock {
             }
             config::NumberType::Number => format!("{}", value),
             config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
-        }
+        };
+
+        let chars_to_pad = (number_text_display.padded_width - value_str.len()).max(0);
+        let pad_string: String = (0..chars_to_pad).map(|_| ' ').collect();
+        format!("{}{}", pad_string, value_str)
     }
 
     fn new(
