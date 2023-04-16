@@ -32,7 +32,7 @@ pub struct NumberBlockValue {
     pub max_value: Option<f64>,
     pub number_type: config::NumberType,
     pub display: config::DisplayOptions<String>,
-    pub progress_bar: config::ProgressBar<String>,
+    pub number_display: config::NumberDisplay<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -180,7 +180,7 @@ impl State {
                 max_value,
                 number_type,
                 display,
-                progress_bar: b.progress_bar.clone(),
+                number_display: b.number_display.clone(),
             }),
             value_fingerprint,
             config: config::Block::Number(b.clone()),

@@ -586,8 +586,8 @@ impl BlockGroup {
                         text.separator_type.clone(),
                         text.separator_radius,
                     ),
-                    state::BlockValue::Number(number) => match &number.progress_bar {
-                        config::ProgressBar::Text(text_progress_bar) => {
+                    state::BlockValue::Number(number) => match &number.number_display {
+                        config::NumberDisplay::TextProgressBar(text_progress_bar) => {
                             let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
                                 pango_context,
                                 font_cache.clone(),

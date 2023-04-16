@@ -355,8 +355,8 @@ impl TextProgressBarDisplay<Placeholder> {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
-pub enum ProgressBar<Dynamic: From<String> + Clone + Default + Debug> {
-    Text(TextProgressBarDisplay<Dynamic>),
+pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
+    TextProgressBar(TextProgressBarDisplay<Dynamic>),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -371,7 +371,7 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     #[serde(flatten)]
     pub processing_options: ProcessingOptions,
     pub number_type: NumberType,
-    pub progress_bar: ProgressBar<Dynamic>,
+    pub number_display: NumberDisplay<Dynamic>,
 }
 
 impl NumberBlock<Option<Placeholder>> {
@@ -385,8 +385,8 @@ impl NumberBlock<Option<Placeholder>> {
             max_value: self.max_value.clone().unwrap_or_else(|| "".into()),
             display: self.display.clone().with_default(&default_block.display),
             number_type: self.number_type.clone(),
-            progress_bar: match self.progress_bar {
-                ProgressBar::Text(t) => ProgressBar::Text(t.with_default()),
+            number_display: match self.number_display {
+                NumberDisplay::TextProgressBar(t) => NumberDisplay::TextProgressBar(t.with_default()),
             },
             processing_options: self.processing_options.with_defaults(),
         }
@@ -411,9 +411,9 @@ impl NumberBlock<Placeholder> {
             display: self.display.resolve_placeholders(vars).context("display")?,
             processing_options: self.processing_options.clone(),
             number_type: self.number_type.clone(),
-            progress_bar: match &self.progress_bar {
-                ProgressBar::Text(t) => {
-                    ProgressBar::Text(t.resolve_placeholders(vars).context("progress_bar")?)
+            number_display: match &self.number_display {
+                NumberDisplay::TextProgressBar(t) => {
+                    NumberDisplay::TextProgressBar(t.resolve_placeholders(vars).context("progress_bar")?)
                 }
             },
         })
