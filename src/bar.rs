@@ -365,7 +365,7 @@ struct TextNumberBlock {
 impl TextNumberBlock {
     fn text(
         number_value: &state::NumberBlockValue,
-        number_text_display: &config::NumberTextDisplay,
+        number_text_display: &config::NumberTextDisplay<String>,
     ) -> String {
         if number_value.value.is_none() {
             return "".into();
@@ -391,7 +391,11 @@ impl TextNumberBlock {
             config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
         };
 
-        let chars_to_pad = (number_text_display.padded_width - value_str.len()).max(0);
+        let chars_to_pad = number_text_display
+            .padded_width
+            .unwrap_or_default()
+            .checked_sub(value_str.len())
+            .unwrap_or_default();
         let pad_string: String = (0..chars_to_pad).map(|_| ' ').collect();
         format!("{}{}", pad_string, value_str)
     }
@@ -400,10 +404,11 @@ impl TextNumberBlock {
         pango_context: &pango::Context,
         font_cache: Arc<Mutex<FontCache>>,
         value: state::NumberBlockValue,
-        number_text_display: config::NumberTextDisplay,
+        number_text_display: config::NumberTextDisplay<String>,
         height: f64,
     ) -> Self {
         let text = Self::text(&value, &number_text_display);
+        let text = number_text_display.output_format.replace("VALUE", &text);
         let display = config::DisplayOptions {
             value: text,
             pango_markup: Some(true), // TODO: fix

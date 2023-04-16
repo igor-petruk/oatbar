@@ -354,16 +354,22 @@ impl TextProgressBarDisplay<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
-pub struct NumberTextDisplay {
+pub struct NumberTextDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     pub number_type: Option<NumberType>,
-    pub padded_width: usize,
+    pub padded_width: Option<usize>,
+    pub output_format: Dynamic,
 }
 
-impl NumberTextDisplay {
-    pub fn with_default(self, input_number_type: NumberType) -> NumberTextDisplay {
+impl NumberTextDisplay<Option<Placeholder>> {
+    pub fn with_default(self, input_number_type: NumberType) -> NumberTextDisplay<Placeholder> {
+        let number_type = self.number_type.unwrap_or(input_number_type);
         NumberTextDisplay {
-            padded_width: self.padded_width,
-            number_type: Some(self.number_type.unwrap_or(input_number_type)),
+            padded_width: Some(self.padded_width.unwrap_or(match number_type {
+                NumberType::Percent => 4,
+                _ => 0,
+            })),
+            number_type: Some(number_type),
+            output_format: self.output_format.unwrap_or("VALUE".into()),
         }
     }
 }
@@ -372,7 +378,7 @@ impl NumberTextDisplay {
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
-    Text(NumberTextDisplay),
+    Text(NumberTextDisplay<Dynamic>),
     TextProgressBar(TextProgressBarDisplay<Dynamic>),
 }
 
@@ -409,13 +415,12 @@ impl NumberBlock<Option<Placeholder>> {
                 Some(NumberDisplay::Text(t)) => {
                     NumberDisplay::Text(t.with_default(self.number_type))
                 }
-                None => NumberDisplay::Text(NumberTextDisplay {
-                    padded_width: match self.number_type {
-                        NumberType::Percent => 4,
-                        _ => 0,
-                    },
-                    number_type: Some(self.number_type),
-                }),
+                None => NumberDisplay::Text(
+                    NumberTextDisplay {
+                        ..Default::default()
+                    }
+                    .with_default(self.number_type),
+                ),
             }),
             processing_options: self.processing_options.with_defaults(),
         }
