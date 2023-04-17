@@ -282,6 +282,17 @@ struct TextProgressBarNumberBlock {
 }
 
 impl TextProgressBarNumberBlock {
+    fn color_ramp_pass(normalized_position: f64, color_ramp: &[String], text: &str) -> String {
+        if color_ramp.is_empty() {
+            return text.into();
+        }
+        let color_position = (normalized_position * (color_ramp.len() - 1) as f64).ceil() as usize;
+        let color = color_ramp
+            .get(color_position)
+            .expect("out of index color_ramp_pass");
+        format!("<span color='{}'>{}</span>", color, text)
+    }
+
     fn progress_bar_string(
         number_value: &state::NumberBlockValue,
         text_progress_bar: &config::TextProgressBarDisplay<String>,
@@ -310,12 +321,24 @@ impl TextProgressBarNumberBlock {
         let fill = &text_progress_bar.fill;
         let empty = &text_progress_bar.empty;
         let indicator = &text_progress_bar.indicator;
-        let indicator_pos = ((value - min_value) / (max_value - min_value) * width as f64) as i32;
+        let indicator_position =
+            ((value - min_value) / (max_value - min_value) * width as f64) as i32;
         let segments: Vec<_> = (0..(width + 1) as i32)
-            .map(|i| match i.cmp(&indicator_pos) {
-                Ordering::Less => fill.as_str(),
-                Ordering::Equal => indicator.as_str(),
-                Ordering::Greater => empty.as_str(),
+            .map(|i| {
+                let normalized_position = i as f64 / width as f64;
+                match i.cmp(&indicator_position) {
+                    Ordering::Less => Self::color_ramp_pass(
+                        normalized_position,
+                        &text_progress_bar.color_ramp,
+                        fill,
+                    ),
+                    Ordering::Equal => Self::color_ramp_pass(
+                        normalized_position,
+                        &text_progress_bar.color_ramp,
+                        indicator,
+                    ),
+                    Ordering::Greater => empty.into(),
+                }
             })
             .collect();
         segments.join("")
@@ -664,7 +687,7 @@ impl BlockGroup {
                         text.separator_radius,
                     ),
                     state::BlockValue::Number(number) => match &number.number_display {
-                        config::NumberDisplay::TextProgressBar(text_progress_bar) => {
+                        config::NumberDisplay::ProgressBar(text_progress_bar) => {
                             let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
                                 pango_context,
                                 font_cache.clone(),

@@ -320,14 +320,22 @@ pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debu
     pub fill: Dynamic,
     pub indicator: Dynamic,
     pub bar_format: Dynamic,
+    #[serde(default)]
+    pub color_ramp: Vec<String>,
 }
 impl TextProgressBarDisplay<Option<Placeholder>> {
     pub fn with_default(self) -> TextProgressBarDisplay<Placeholder> {
+        // Known issue: RTL characters reverse the bar direction.
+        // Calling PangoContext::set_base_dir does nothing.
+        // Use \u202D (Left-To-Right Override) before your Unicode character.
         TextProgressBarDisplay {
             empty: self.empty.unwrap_or_else(|| " ".into()),
+            // fill: self.fill.unwrap_or_else(|| "\u{202D}ﭳ".into()),
+            // indicator: self.indicator.unwrap_or_else(|| "\u{202D}ﭳ".into()),
             fill: self.fill.unwrap_or_else(|| "━".into()),
             indicator: self.indicator.unwrap_or_else(|| "雷".into()),
             bar_format: self.bar_format.unwrap_or_else(|| "{}".into()),
+            color_ramp: self.color_ramp,
         }
     }
 }
@@ -348,6 +356,11 @@ impl TextProgressBarDisplay<Placeholder> {
                 .bar_format
                 .resolve_placeholders(vars)
                 .context("bar_format")?,
+            color_ramp: self
+                .color_ramp
+                .iter()
+                .map(|color| color.resolve_placeholders(vars).expect("color_ramp"))
+                .collect(),
         })
     }
 }
@@ -379,7 +392,7 @@ impl NumberTextDisplay<Option<Placeholder>> {
 #[serde(tag = "type")]
 pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     Text(NumberTextDisplay<Dynamic>),
-    TextProgressBar(TextProgressBarDisplay<Dynamic>),
+    ProgressBar(TextProgressBarDisplay<Dynamic>),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -409,9 +422,7 @@ impl NumberBlock<Option<Placeholder>> {
             display: self.display.clone().with_default(&default_block.display),
             number_type: self.number_type,
             number_display: Some(match self.number_display {
-                Some(NumberDisplay::TextProgressBar(t)) => {
-                    NumberDisplay::TextProgressBar(t.with_default())
-                }
+                Some(NumberDisplay::ProgressBar(t)) => NumberDisplay::ProgressBar(t.with_default()),
                 Some(NumberDisplay::Text(t)) => {
                     NumberDisplay::Text(t.with_default(self.number_type))
                 }
@@ -446,7 +457,7 @@ impl NumberBlock<Placeholder> {
             processing_options: self.processing_options.clone(),
             number_type: self.number_type,
             number_display: match &self.number_display {
-                Some(NumberDisplay::TextProgressBar(t)) => Some(NumberDisplay::TextProgressBar(
+                Some(NumberDisplay::ProgressBar(t)) => Some(NumberDisplay::ProgressBar(
                     t.resolve_placeholders(vars).context("progress_bar")?,
                 )),
                 Some(NumberDisplay::Text(t)) => Some(NumberDisplay::Text(t.clone())),
