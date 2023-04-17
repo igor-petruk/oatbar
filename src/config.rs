@@ -371,6 +371,8 @@ pub struct NumberTextDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     pub number_type: Option<NumberType>,
     pub padded_width: Option<usize>,
     pub output_format: Dynamic,
+    #[serde(default)]
+    pub ramp: Vec<String>,
 }
 
 impl NumberTextDisplay<Option<Placeholder>> {
@@ -383,7 +385,29 @@ impl NumberTextDisplay<Option<Placeholder>> {
             })),
             number_type: Some(number_type),
             output_format: self.output_format.unwrap_or("{}".into()),
+            ramp: self.ramp,
         }
+    }
+}
+
+impl NumberTextDisplay<Placeholder> {
+    pub fn resolve_placeholders(
+        &self,
+        vars: &PlaceholderVars,
+    ) -> anyhow::Result<NumberTextDisplay<String>> {
+        Ok(NumberTextDisplay {
+            number_type: self.number_type,
+            padded_width: self.padded_width,
+            output_format: self
+                .output_format
+                .resolve_placeholders(vars)
+                .context("output_format")?,
+            ramp: self
+                .ramp
+                .iter()
+                .map(|ramp| ramp.resolve_placeholders(vars).expect("ramp"))
+                .collect(),
+        })
     }
 }
 
@@ -460,7 +484,9 @@ impl NumberBlock<Placeholder> {
                 Some(NumberDisplay::ProgressBar(t)) => Some(NumberDisplay::ProgressBar(
                     t.resolve_placeholders(vars).context("progress_bar")?,
                 )),
-                Some(NumberDisplay::Text(t)) => Some(NumberDisplay::Text(t.clone())),
+                Some(NumberDisplay::Text(t)) => Some(NumberDisplay::Text(
+                    t.resolve_placeholders(vars).context("text_number")?,
+                )),
                 None => None,
             },
         })

@@ -286,7 +286,7 @@ impl TextProgressBarNumberBlock {
         if color_ramp.is_empty() {
             return text.into();
         }
-        let color_position = (normalized_position * (color_ramp.len() - 1) as f64).ceil() as usize;
+        let color_position = (normalized_position * (color_ramp.len() - 1) as f64).floor() as usize;
         let color = color_ramp
             .get(color_position)
             .expect("out of index color_ramp_pass");
@@ -386,6 +386,11 @@ struct TextNumberBlock {
 }
 
 impl TextNumberBlock {
+    fn ramp_pass(normalized_position: f64, ramp: &[String]) -> String {
+        let position = (normalized_position * (ramp.len() - 1) as f64).floor() as usize;
+        ramp.get(position).expect("out of index ramp pass").into()
+    }
+
     fn text(
         number_value: &state::NumberBlockValue,
         number_text_display: &config::NumberTextDisplay<String>,
@@ -393,34 +398,51 @@ impl TextNumberBlock {
         if number_value.value.is_none() {
             return "".into();
         }
-        let value = number_value.value.unwrap();
-        let value_str = match number_text_display.number_type.unwrap() {
-            config::NumberType::Percent => {
-                let min_value = number_value.min_value.unwrap();
-                let max_value = number_value.max_value.unwrap();
-                let mut value = value;
-                if min_value >= max_value {
-                    return "".into(); // error
+        let mut value = number_value.value.unwrap();
+
+        if let Some(min_value) = number_value.min_value {
+            if let Some(max_value) = number_value.max_value {
+                if min_value > max_value {
+                    return "MIN>MAX".into();
                 }
-                if value < min_value {
-                    value = min_value;
-                }
-                if value > max_value {
-                    value = max_value;
-                }
-                format!("{}%", value)
             }
+            if value < min_value {
+                value = min_value;
+            }
+        }
+        if let Some(max_value) = number_value.max_value {
+            if value > max_value {
+                value = max_value;
+            }
+        }
+
+        if !number_text_display.ramp.is_empty() {
+            match (number_value.min_value, number_value.max_value) {
+                (Some(min), Some(max)) => {
+                    let normalized_position = (value - min) / (max - min);
+                    return Self::ramp_pass(normalized_position, &number_text_display.ramp);
+                }
+                _ => {
+                    return "ramp with no MIN/MAX".into();
+                }
+            }
+        }
+
+        match number_text_display.number_type.unwrap() {
+            config::NumberType::Percent => format!("{}%", value),
             config::NumberType::Number => format!("{}", value),
             config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
-        };
+        }
+    }
 
+    fn pad(text: &str, number_text_display: &config::NumberTextDisplay<String>) -> String {
         let chars_to_pad = number_text_display
             .padded_width
             .unwrap_or_default()
-            .checked_sub(value_str.len())
+            .checked_sub(text.len())
             .unwrap_or_default();
         let pad_string: String = (0..chars_to_pad).map(|_| ' ').collect();
-        format!("{}{}", pad_string, value_str)
+        format!("{}{}", pad_string, text)
     }
 
     fn new(
@@ -431,6 +453,7 @@ impl TextNumberBlock {
         height: f64,
     ) -> Self {
         let text = Self::text(&value, &number_text_display);
+        let text = Self::pad(&text, &number_text_display);
         let text = number_text_display.output_format.replace("{}", &text);
         let display = config::DisplayOptions {
             value: text,
