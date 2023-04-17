@@ -267,7 +267,9 @@ impl Block for TextBlock {
         if !color.is_empty() {
             drawing_context.set_source_rgba(color)?;
         }
-        pangocairo::show_layout(context, &self.pango_layout);
+        if drawing_context.drawing_mode == DrawingMode::Full {
+            pangocairo::show_layout(context, &self.pango_layout);
+        }
         context.restore()?;
         Ok(())
     }
