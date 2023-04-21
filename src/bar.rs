@@ -25,7 +25,7 @@ use anyhow::Context;
 use pangocairo::pango;
 use tracing::error;
 
-use crate::{config, state};
+use crate::{config, drawing, state};
 
 pub struct FontCache {
     cache: HashMap<String, pango::FontDescription>,
@@ -54,7 +54,7 @@ struct Dimensions {
 trait Block {
     fn get_dimensions(&self) -> Dimensions;
     fn is_visible(&self) -> bool;
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()>;
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()>;
     fn separator_type(&self) -> Option<config::SeparatorType> {
         None
     }
@@ -125,7 +125,7 @@ impl Block for BaseBlock {
         self.separator_type.clone()
     }
 
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
@@ -214,11 +214,11 @@ impl DebugBlock for TextBlock {}
 
 impl TextBlock {
     fn new(
-        pango_context: &pango::Context,
+        drawing_context: &drawing::Context,
         font_cache: Arc<Mutex<FontCache>>,
         display_options: config::DisplayOptions<String>,
     ) -> Self {
-        let pango_layout = pango::Layout::new(pango_context);
+        let pango_layout = pango::Layout::new(&drawing_context.pango_context);
         if display_options.pango_markup == Some(true) {
             // TODO: fix this.
             pango_layout.set_markup(display_options.value.as_str());
@@ -235,7 +235,7 @@ impl TextBlock {
     }
 
     fn new_in_base_block(
-        pango_context: &pango::Context,
+        drawing_context: &drawing::Context,
         font_cache: Arc<Mutex<FontCache>>,
         display_options: config::DisplayOptions<String>,
         height: f64,
@@ -244,7 +244,7 @@ impl TextBlock {
     ) -> Box<dyn DebugBlock> {
         Box::new(BaseBlock::new(
             display_options.clone(),
-            Box::new(Self::new(pango_context, font_cache, display_options)),
+            Box::new(Self::new(drawing_context, font_cache, display_options)),
             height,
             separator_type,
             separator_radius,
@@ -260,14 +260,14 @@ impl Block for TextBlock {
             height: ps.1.into(),
         }
     }
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         context.save()?;
         let color = &self.display_options.foreground;
         if !color.is_empty() {
             drawing_context.set_source_rgba(color)?;
         }
-        if drawing_context.drawing_mode == DrawingMode::Full {
+        if drawing_context.mode == drawing::Mode::Full {
             pangocairo::show_layout(context, &self.pango_layout);
         }
         context.restore()?;
@@ -347,7 +347,7 @@ impl TextProgressBarNumberBlock {
     }
 
     fn new(
-        pango_context: &pango::Context,
+        drawing_context: &drawing::Context,
         font_cache: Arc<Mutex<FontCache>>,
         value: state::NumberBlockValue,
         text_progress_bar: config::TextProgressBarDisplay<String>,
@@ -362,7 +362,7 @@ impl TextProgressBarNumberBlock {
             ..value.display
         };
         let text_block =
-            TextBlock::new_in_base_block(pango_context, font_cache, display, height, None, None);
+            TextBlock::new_in_base_block(drawing_context, font_cache, display, height, None, None);
         Self { text_block }
     }
 }
@@ -374,7 +374,7 @@ impl Block for TextProgressBarNumberBlock {
         self.text_block.get_dimensions()
     }
 
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         self.text_block.render(drawing_context)
     }
     fn is_visible(&self) -> bool {
@@ -448,7 +448,7 @@ impl TextNumberBlock {
     }
 
     fn new(
-        pango_context: &pango::Context,
+        drawing_context: &drawing::Context,
         font_cache: Arc<Mutex<FontCache>>,
         value: state::NumberBlockValue,
         number_text_display: config::NumberTextDisplay<String>,
@@ -463,7 +463,7 @@ impl TextNumberBlock {
             ..value.display
         };
         let text_block =
-            TextBlock::new_in_base_block(pango_context, font_cache, display, height, None, None);
+            TextBlock::new_in_base_block(drawing_context, font_cache, display, height, None, None);
         Self { text_block }
     }
 }
@@ -475,7 +475,7 @@ impl Block for TextNumberBlock {
         self.text_block.get_dimensions()
     }
 
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         self.text_block.render(drawing_context)
     }
     fn is_visible(&self) -> bool {
@@ -492,7 +492,7 @@ struct EnumBlock {
 
 impl EnumBlock {
     fn new(
-        pango_context: &pango::Context,
+        drawing_context: &drawing::Context,
         font_cache: Arc<Mutex<FontCache>>,
         value: state::EnumBlockValue,
         height: f64,
@@ -507,7 +507,7 @@ impl EnumBlock {
             };
             display_options.value = item.clone();
             let variant_block = TextBlock::new_in_base_block(
-                pango_context,
+                drawing_context,
                 font_cache.clone(),
                 display_options.clone(),
                 height,
@@ -532,7 +532,7 @@ impl Block for EnumBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.dim.clone()
     }
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let mut x_offset: f64 = 0.0;
         for variant_block in self.variant_blocks.iter() {
@@ -597,7 +597,7 @@ impl Block for ImageBlock {
             },
         }
     }
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         if let Ok(image_buf) = &self.image_buf {
             context.save()?;
@@ -695,7 +695,7 @@ impl BlockGroup {
 
     fn new(
         state: &[state::BlockData],
-        pango_context: &pango::Context,
+        drawing_context: &drawing::Context,
         bar_config: config::Bar<String>,
         font_cache: Arc<Mutex<FontCache>>,
     ) -> Self {
@@ -704,7 +704,7 @@ impl BlockGroup {
             .map(|bd| {
                 let b: Box<dyn DebugBlock> = match &bd.value {
                     state::BlockValue::Text(text) => TextBlock::new_in_base_block(
-                        pango_context,
+                        drawing_context,
                         font_cache.clone(),
                         text.display.clone(),
                         bar_config.height as f64,
@@ -714,7 +714,7 @@ impl BlockGroup {
                     state::BlockValue::Number(number) => match &number.number_display {
                         config::NumberDisplay::ProgressBar(text_progress_bar) => {
                             let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
-                                pango_context,
+                                drawing_context,
                                 font_cache.clone(),
                                 number.clone(),
                                 text_progress_bar.clone(),
@@ -724,7 +724,7 @@ impl BlockGroup {
                         }
                         config::NumberDisplay::Text(number_text_display) => {
                             let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
-                                pango_context,
+                                drawing_context,
                                 font_cache.clone(),
                                 number.clone(),
                                 number_text_display.clone(),
@@ -735,7 +735,7 @@ impl BlockGroup {
                     },
                     state::BlockValue::Enum(enum_block_value) => {
                         let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
-                            pango_context,
+                            drawing_context,
                             font_cache.clone(),
                             enum_block_value.clone(),
                             bar_config.height as f64,
@@ -769,7 +769,7 @@ impl BlockGroup {
         }
     }
 
-    fn render(&self, drawing_context: &DrawingContext) -> anyhow::Result<()> {
+    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let mut pos: f64 = 0.0;
         for block in self.blocks.iter() {
@@ -786,73 +786,6 @@ impl BlockGroup {
             pos += b_dim.width;
         }
         Ok(())
-    }
-}
-
-#[derive(PartialEq, Eq)]
-pub enum DrawingMode {
-    Full,
-    Shape,
-}
-
-pub struct DrawingContext {
-    pub width: f64,
-    pub height: f64,
-    pub context: cairo::Context,
-    pub drawing_mode: DrawingMode,
-}
-
-impl DrawingContext {
-    fn set_source_hexcolor(&self, color: hex_color::HexColor) {
-        self.context.set_source_rgba(
-            color.r as f64 / 256.,
-            color.g as f64 / 256.,
-            color.b as f64 / 256.,
-            color.a as f64 / 256.,
-        );
-    }
-
-    fn set_source_rgba(&self, color: &str) -> anyhow::Result<()> {
-        if color.is_empty() {
-            return Ok(());
-        }
-        match hex_color::HexColor::parse(color) {
-            Ok(color) => {
-                self.set_source_hexcolor(color);
-                Ok(())
-            }
-            Err(e) => Err(anyhow::anyhow!(
-                "failed to parse color: {:?}, err={:?}",
-                color,
-                e
-            )),
-        }
-    }
-
-    fn set_source_rgba_background(&self, color: &str) -> anyhow::Result<()> {
-        if color.is_empty() {
-            return Ok(());
-        }
-        match hex_color::HexColor::parse(color) {
-            Ok(color) if self.drawing_mode == DrawingMode::Shape => {
-                self.set_source_hexcolor(hex_color::HexColor {
-                    r: 0,
-                    g: 0,
-                    b: 0,
-                    a: if color.a == 0 { 0 } else { 255 },
-                });
-                Ok(())
-            }
-            Ok(color) => {
-                self.set_source_hexcolor(color);
-                Ok(())
-            }
-            Err(e) => Err(anyhow::anyhow!(
-                "failed to parse color: {:?}, err={:?}",
-                color,
-                e
-            )),
-        }
     }
 }
 
@@ -919,7 +852,7 @@ impl Bar {
 
     pub fn render(
         &self,
-        drawing_context: &DrawingContext,
+        drawing_context: &drawing::Context,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
         blocks: &HashMap<String, state::BlockData>,
     ) -> anyhow::Result<()> {
@@ -928,7 +861,6 @@ impl Bar {
 
         let width = drawing_context.width - (bar.margin.left + bar.margin.right) as f64;
 
-        let pango_context = pangocairo::create_context(context);
         context.save()?;
         drawing_context
             .set_source_rgba_background(&self.bar.background)
@@ -963,19 +895,19 @@ impl Bar {
 
         let left_group = BlockGroup::new(
             &flat_left,
-            &pango_context,
+            drawing_context,
             bar.clone(),
             self.font_cache.clone(),
         );
         let center_group = BlockGroup::new(
             &flat_center,
-            &pango_context,
+            drawing_context,
             bar.clone(),
             self.font_cache.clone(),
         );
         let right_group = BlockGroup::new(
             &flat_right,
-            &pango_context,
+            drawing_context,
             bar.clone(),
             self.font_cache.clone(),
         );

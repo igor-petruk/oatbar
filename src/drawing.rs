@@ -38,7 +38,7 @@ impl Context {
         })
     }
 
-    fn set_source_hexcolor(&self, color: hex_color::HexColor) {
+    pub fn set_source_hexcolor(&self, color: hex_color::HexColor) {
         self.context.set_source_rgba(
             color.r as f64 / 256.,
             color.g as f64 / 256.,
@@ -47,7 +47,7 @@ impl Context {
         );
     }
 
-    fn set_source_rgba(&self, color: &str) -> anyhow::Result<()> {
+    pub fn set_source_rgba(&self, color: &str) -> anyhow::Result<()> {
         if color.is_empty() {
             return Ok(());
         }
@@ -64,7 +64,7 @@ impl Context {
         }
     }
 
-    fn set_source_rgba_background(&self, color: &str) -> anyhow::Result<()> {
+    pub fn set_source_rgba_background(&self, color: &str) -> anyhow::Result<()> {
         if color.is_empty() {
             return Ok(());
         }

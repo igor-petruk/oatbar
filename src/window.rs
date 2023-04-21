@@ -354,22 +354,6 @@ impl Window {
         })
     }
 
-    fn make_drawing_context(
-        &self,
-        drawing_mode: bar::DrawingMode,
-    ) -> anyhow::Result<bar::DrawingContext> {
-        Ok(bar::DrawingContext {
-            width: self.width.into(),
-            height: self.height.into(),
-            context: match drawing_mode {
-                bar::DrawingMode::Full => &self.back_buffer_context.context,
-                bar::DrawingMode::Shape => &self.shape_buffer_context.context,
-            }
-            .clone(),
-            drawing_mode,
-        })
-    }
-
     pub fn render(&mut self) -> anyhow::Result<()> {
         let important_updates = { self.state.read().unwrap().important_updates.clone() };
         if self.bar_config.autohide && !important_updates.is_empty() {
@@ -386,11 +370,10 @@ impl Window {
 
         let state = self.state.read().unwrap();
 
-        let dc = self.make_drawing_context(bar::DrawingMode::Full)?;
-        self.bar.render(&dc, &show_only, &state.blocks)?;
-
-        let dc = self.make_drawing_context(bar::DrawingMode::Shape)?;
-        self.bar.render(&dc, &show_only, &state.blocks)?;
+        self.bar
+            .render(&self.back_buffer_context, &show_only, &state.blocks)?;
+        self.bar
+            .render(&self.shape_buffer_context, &show_only, &state.blocks)?;
 
         self.swap_buffers()?;
         self.apply_shape()?;
