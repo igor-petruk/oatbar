@@ -15,7 +15,7 @@
 use anyhow::Context;
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
     time::{Duration, SystemTime},
 };
 use xcb::{x, xinput, Xid};
@@ -269,9 +269,12 @@ impl Window {
             },
         )?;
 
+        let font_cache = Arc::new(Mutex::new(drawing::FontCache::new()));
+
         let back_buffer_surface =
             make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
         let back_buffer_context = drawing::Context::new(
+            font_cache.clone(),
             back_buffer,
             back_buffer_surface,
             window_width.into(),
@@ -298,6 +301,7 @@ impl Window {
             window_height,
         )?;
         let shape_buffer_context = drawing::Context::new(
+            font_cache,
             shape_buffer,
             shape_buffer_surface,
             window_width.into(),

@@ -18,7 +18,6 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     fmt::Debug,
-    sync::{Arc, Mutex},
 };
 
 use anyhow::Context;
@@ -26,24 +25,6 @@ use pangocairo::pango;
 use tracing::error;
 
 use crate::{config, drawing, state};
-
-pub struct FontCache {
-    cache: HashMap<String, pango::FontDescription>,
-}
-
-impl FontCache {
-    fn new() -> Self {
-        Self {
-            cache: HashMap::new(),
-        }
-    }
-
-    fn get(&mut self, font_str: &str) -> &pango::FontDescription {
-        self.cache
-            .entry(font_str.into())
-            .or_insert_with(|| pango::FontDescription::from_string(font_str))
-    }
-}
 
 #[derive(Debug, Clone)]
 struct Dimensions {
@@ -55,6 +36,7 @@ trait Block {
     fn get_dimensions(&self) -> Dimensions;
     fn is_visible(&self) -> bool;
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()>;
+    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()>;
     fn separator_type(&self) -> Option<config::SeparatorType> {
         None
     }
@@ -104,6 +86,10 @@ impl DebugBlock for BaseBlock {}
 impl Block for BaseBlock {
     fn is_visible(&self) -> bool {
         self.inner_block.is_visible()
+    }
+
+    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
+        self.inner_block.set_data(block_data)
     }
 
     fn get_dimensions(&self) -> Dimensions {
@@ -215,7 +201,6 @@ impl DebugBlock for TextBlock {}
 impl TextBlock {
     fn new(
         drawing_context: &drawing::Context,
-        font_cache: Arc<Mutex<FontCache>>,
         display_options: config::DisplayOptions<String>,
     ) -> Self {
         let pango_layout = pango::Layout::new(&drawing_context.pango_context);
@@ -225,7 +210,7 @@ impl TextBlock {
         } else {
             pango_layout.set_text(display_options.value.as_str());
         }
-        let mut font_cache = font_cache.lock().unwrap();
+        let mut font_cache = drawing_context.font_cache.lock().unwrap();
         let fd = font_cache.get(display_options.font.as_str());
         pango_layout.set_font_description(Some(fd));
         Self {
@@ -236,7 +221,6 @@ impl TextBlock {
 
     fn new_in_base_block(
         drawing_context: &drawing::Context,
-        font_cache: Arc<Mutex<FontCache>>,
         display_options: config::DisplayOptions<String>,
         height: f64,
         separator_type: Option<config::SeparatorType>,
@@ -244,7 +228,7 @@ impl TextBlock {
     ) -> Box<dyn DebugBlock> {
         Box::new(BaseBlock::new(
             display_options.clone(),
-            Box::new(Self::new(drawing_context, font_cache, display_options)),
+            Box::new(Self::new(drawing_context, display_options)),
             height,
             separator_type,
             separator_radius,
@@ -260,6 +244,11 @@ impl Block for TextBlock {
             height: ps.1.into(),
         }
     }
+
+    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         context.save()?;
@@ -348,7 +337,6 @@ impl TextProgressBarNumberBlock {
 
     fn new(
         drawing_context: &drawing::Context,
-        font_cache: Arc<Mutex<FontCache>>,
         value: state::NumberBlockValue,
         text_progress_bar: config::TextProgressBarDisplay<String>,
         height: f64,
@@ -361,8 +349,7 @@ impl TextProgressBarNumberBlock {
             pango_markup: Some(true), // TODO: fix
             ..value.display
         };
-        let text_block =
-            TextBlock::new_in_base_block(drawing_context, font_cache, display, height, None, None);
+        let text_block = TextBlock::new_in_base_block(drawing_context, display, height, None, None);
         Self { text_block }
     }
 }
@@ -372,6 +359,10 @@ impl DebugBlock for TextProgressBarNumberBlock {}
 impl Block for TextProgressBarNumberBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
+    }
+
+    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
+        Ok(())
     }
 
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
@@ -449,7 +440,6 @@ impl TextNumberBlock {
 
     fn new(
         drawing_context: &drawing::Context,
-        font_cache: Arc<Mutex<FontCache>>,
         value: state::NumberBlockValue,
         number_text_display: config::NumberTextDisplay<String>,
         height: f64,
@@ -462,8 +452,7 @@ impl TextNumberBlock {
             pango_markup: Some(true), // TODO: fix
             ..value.display
         };
-        let text_block =
-            TextBlock::new_in_base_block(drawing_context, font_cache, display, height, None, None);
+        let text_block = TextBlock::new_in_base_block(drawing_context, display, height, None, None);
         Self { text_block }
     }
 }
@@ -473,6 +462,10 @@ impl DebugBlock for TextNumberBlock {}
 impl Block for TextNumberBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
+    }
+
+    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
+        Ok(())
     }
 
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
@@ -491,12 +484,7 @@ struct EnumBlock {
 }
 
 impl EnumBlock {
-    fn new(
-        drawing_context: &drawing::Context,
-        font_cache: Arc<Mutex<FontCache>>,
-        value: state::EnumBlockValue,
-        height: f64,
-    ) -> Self {
+    fn new(drawing_context: &drawing::Context, value: state::EnumBlockValue, height: f64) -> Self {
         let mut variant_blocks = vec![];
         let mut width: f64 = 0.0;
         for (index, item) in value.variants.iter().enumerate() {
@@ -508,7 +496,6 @@ impl EnumBlock {
             display_options.value = item.clone();
             let variant_block = TextBlock::new_in_base_block(
                 drawing_context,
-                font_cache.clone(),
                 display_options.clone(),
                 height,
                 None,
@@ -532,6 +519,10 @@ impl Block for EnumBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.dim.clone()
     }
+    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let mut x_offset: f64 = 0.0;
@@ -597,6 +588,10 @@ impl Block for ImageBlock {
             },
         }
     }
+    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         if let Ok(image_buf) = &self.image_buf {
@@ -697,7 +692,6 @@ impl BlockGroup {
         state: &[state::BlockData],
         drawing_context: &drawing::Context,
         bar_config: config::Bar<String>,
-        font_cache: Arc<Mutex<FontCache>>,
     ) -> Self {
         let blocks: Vec<Box<dyn DebugBlock>> = state
             .iter()
@@ -705,7 +699,6 @@ impl BlockGroup {
                 let b: Box<dyn DebugBlock> = match &bd.value {
                     state::BlockValue::Text(text) => TextBlock::new_in_base_block(
                         drawing_context,
-                        font_cache.clone(),
                         text.display.clone(),
                         bar_config.height as f64,
                         text.separator_type.clone(),
@@ -715,7 +708,6 @@ impl BlockGroup {
                         config::NumberDisplay::ProgressBar(text_progress_bar) => {
                             let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
                                 drawing_context,
-                                font_cache.clone(),
                                 number.clone(),
                                 text_progress_bar.clone(),
                                 bar_config.height as f64,
@@ -725,7 +717,6 @@ impl BlockGroup {
                         config::NumberDisplay::Text(number_text_display) => {
                             let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
                                 drawing_context,
-                                font_cache.clone(),
                                 number.clone(),
                                 number_text_display.clone(),
                                 bar_config.height as f64,
@@ -736,7 +727,6 @@ impl BlockGroup {
                     state::BlockValue::Enum(enum_block_value) => {
                         let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
                             drawing_context,
-                            font_cache.clone(),
                             enum_block_value.clone(),
                             bar_config.height as f64,
                         ));
@@ -791,15 +781,11 @@ impl BlockGroup {
 
 pub struct Bar {
     bar: config::Bar<config::Placeholder>,
-    font_cache: Arc<Mutex<FontCache>>,
 }
 
 impl Bar {
     pub fn new(bar: &config::Bar<config::Placeholder>) -> anyhow::Result<Self> {
-        Ok(Self {
-            bar: bar.clone(),
-            font_cache: Arc::new(Mutex::new(FontCache::new())),
-        })
+        Ok(Self { bar: bar.clone() })
     }
 }
 
@@ -893,24 +879,9 @@ impl Bar {
             &self.bar.blocks_right,
         );
 
-        let left_group = BlockGroup::new(
-            &flat_left,
-            drawing_context,
-            bar.clone(),
-            self.font_cache.clone(),
-        );
-        let center_group = BlockGroup::new(
-            &flat_center,
-            drawing_context,
-            bar.clone(),
-            self.font_cache.clone(),
-        );
-        let right_group = BlockGroup::new(
-            &flat_right,
-            drawing_context,
-            bar.clone(),
-            self.font_cache.clone(),
-        );
+        let left_group = BlockGroup::new(&flat_left, drawing_context, bar.clone());
+        let center_group = BlockGroup::new(&flat_center, drawing_context, bar.clone());
+        let right_group = BlockGroup::new(&flat_right, drawing_context, bar.clone());
 
         context.save()?;
         context.translate(bar.margin.left.into(), bar.margin.top.into());

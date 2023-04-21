@@ -1,5 +1,28 @@
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
 use pangocairo::pango;
 use xcb::x;
+
+pub struct FontCache {
+    cache: HashMap<String, pango::FontDescription>,
+}
+
+impl FontCache {
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
+
+    pub fn get(&mut self, font_str: &str) -> &pango::FontDescription {
+        self.cache
+            .entry(font_str.into())
+            .or_insert_with(|| pango::FontDescription::from_string(font_str))
+    }
+}
 
 #[derive(PartialEq, Eq)]
 pub enum Mode {
@@ -15,10 +38,12 @@ pub struct Context {
     pub width: f64,
     pub height: f64,
     pub mode: Mode,
+    pub font_cache: Arc<Mutex<FontCache>>,
 }
 
 impl Context {
     pub fn new(
+        font_cache: Arc<Mutex<FontCache>>,
         buffer: x::Pixmap,
         buffer_surface: cairo::XCBSurface,
         width: f64,
@@ -28,6 +53,7 @@ impl Context {
         let context = cairo::Context::new(buffer_surface.clone())?;
         let pango_context = pangocairo::create_context(&context);
         Ok(Self {
+            font_cache,
             buffer,
             buffer_surface,
             context,
