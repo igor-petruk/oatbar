@@ -15,6 +15,7 @@
 mod bar;
 #[allow(unused)]
 mod config;
+mod drawing;
 mod engine;
 mod protocol;
 mod source;

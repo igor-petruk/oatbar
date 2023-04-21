@@ -20,7 +20,7 @@ use std::{
 };
 use xcb::{x, xinput, Xid};
 
-use crate::{bar, config, state, timer, xutils};
+use crate::{bar, config, drawing, state, timer, xutils};
 use tracing::*;
 
 pub struct PopupControl {
@@ -113,10 +113,8 @@ pub struct Window {
     pub id: x::Window,
     pub width: u16,
     pub height: u16,
-    back_buffer: x::Pixmap,
-    back_buffer_surface: cairo::XCBSurface,
-    shape_buffer: x::Pixmap,
-    shape_buffer_surface: cairo::XCBSurface,
+    back_buffer_context: drawing::Context,
+    shape_buffer_context: drawing::Context,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
     bar_config: config::Bar<config::Placeholder>,
@@ -273,6 +271,13 @@ impl Window {
 
         let back_buffer_surface =
             make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
+        let back_buffer_context = drawing::Context::new(
+            back_buffer,
+            back_buffer_surface,
+            window_width.into(),
+            window_height.into(),
+            drawing::Mode::Full,
+        )?;
 
         let shape_buffer: x::Pixmap = conn.generate_id();
         xutils::send(
@@ -291,6 +296,13 @@ impl Window {
             &screen,
             window_width,
             window_height,
+        )?;
+        let shape_buffer_context = drawing::Context::new(
+            shape_buffer,
+            shape_buffer_surface,
+            window_width.into(),
+            window_height.into(),
+            drawing::Mode::Shape,
         )?;
 
         let swap_gc: x::Gcontext = conn.generate_id();
@@ -323,10 +335,8 @@ impl Window {
             id,
             width: window_width,
             height: window_height,
-            back_buffer,
-            back_buffer_surface,
-            shape_buffer,
-            shape_buffer_surface,
+            back_buffer_context,
+            shape_buffer_context,
             swap_gc,
             bar,
             state,
@@ -351,10 +361,11 @@ impl Window {
         Ok(bar::DrawingContext {
             width: self.width.into(),
             height: self.height.into(),
-            context: cairo::Context::new(match drawing_mode {
-                bar::DrawingMode::Full => &self.back_buffer_surface,
-                bar::DrawingMode::Shape => &self.shape_buffer_surface,
-            })?,
+            context: match drawing_mode {
+                bar::DrawingMode::Full => &self.back_buffer_context.context,
+                bar::DrawingMode::Shape => &self.shape_buffer_context.context,
+            }
+            .clone(),
             drawing_mode,
         })
     }
@@ -417,7 +428,7 @@ impl Window {
     }
 
     fn apply_shape(&self) -> anyhow::Result<()> {
-        self.shape_buffer_surface.flush();
+        self.shape_buffer_context.buffer_surface.flush();
         xutils::send(
             &self.conn,
             &xcb::shape::Mask {
@@ -426,14 +437,14 @@ impl Window {
                 destination_window: self.id,
                 x_offset: 0,
                 y_offset: 0,
-                source_bitmap: self.shape_buffer,
+                source_bitmap: self.shape_buffer_context.buffer,
             },
         )?;
         Ok(())
     }
 
     fn swap_buffers(&self) -> anyhow::Result<()> {
-        self.back_buffer_surface.flush();
+        self.back_buffer_context.buffer_surface.flush();
         xutils::send(
             &self.conn,
             &xcb::x::ClearArea {
@@ -449,7 +460,7 @@ impl Window {
         xutils::send(
             &self.conn,
             &xcb::x::CopyArea {
-                src_drawable: xcb::x::Drawable::Pixmap(self.back_buffer),
+                src_drawable: xcb::x::Drawable::Pixmap(self.back_buffer_context.buffer),
                 dst_drawable: xcb::x::Drawable::Window(self.id),
                 src_x: 0,
                 src_y: 0,
