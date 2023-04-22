@@ -25,13 +25,6 @@ pub struct BlockData {
 }
 
 impl BlockData {
-    // pub fn separator_type(&self) -> Option<config::SeparatorType> {
-    //     match &self.config {
-    //         config::Block::Text(t) => t.separator_type.clone(),
-    //         _ => None,
-    //     }
-    // }
-
     pub fn popup(&self) -> Option<config::PopupMode> {
         match &self.config {
             config::Block::Text(b) => b.display.popup,
@@ -91,16 +84,8 @@ impl State {
         let value = b.processing_options.process_single(&display.value);
         Ok(BlockData {
             value_fingerprint: value.clone(),
-            // value: BlockValue::Text(TextBlockValue {
-            //     display: config::DisplayOptions { value, ..display },
-            //     separator_type: b.separator_type.clone(),
-            //     separator_radius: b.separator_radius,
-            // }),
             config: config::Block::Text(config::TextBlock {
-                display: config::DisplayOptions {
-                    value: value.clone(),
-                    ..display.clone()
-                },
+                display: config::DisplayOptions { value, ..display },
                 ..b.clone()
             }),
         })
@@ -118,15 +103,9 @@ impl State {
         let value_fingerprint = value.clone();
 
         Ok(BlockData {
-            // value: BlockValue::Image(ImageBlockValue {
-            //     display: config::DisplayOptions { value, ..display },
-            // }),
             value_fingerprint,
             config: config::Block::Image(config::ImageBlock {
-                display: config::DisplayOptions {
-                    value: value.clone(),
-                    ..display
-                },
+                display: config::DisplayOptions { value, ..display },
                 ..b.clone()
             }),
         })
@@ -142,31 +121,11 @@ impl State {
             .context("display")?;
         let value = b.processing_options.process_single(&display.value);
         let value_fingerprint = value.clone();
-        // let value = number_type.parse_str(&value_str).context("value")?;
-
-        // let (min_value, max_value) = match number_type {
-        //     config::NumberType::Percent => (Some(0.0), Some(100.0)),
-        //     _ => (
-        //         number_type.parse_str(&b.min_value).context("min_value")?,
-        //         number_type.parse_str(&b.max_value).context("max_value")?,
-        //     ),
-        // };
 
         Ok(BlockData {
-            // value: BlockValue::Number(NumberBlockValue {
-            //     value,
-            //     min_value,
-            //     max_value,
-            //     number_type,
-            //     display,
-            //     number_display: b.number_display.clone().expect("number_display"),
-            // }),
             value_fingerprint,
             config: config::Block::Number(config::NumberBlock {
-                display: config::DisplayOptions {
-                    value: value.clone(),
-                    ..display.clone()
-                },
+                display: config::DisplayOptions { value, ..display },
                 ..b.clone()
             }),
         })
@@ -215,12 +174,6 @@ impl State {
         let variants = variants_vec.join(enum_separator);
 
         Ok(BlockData {
-            // value: BlockValue::Enum(EnumBlockValue {
-            //     active,
-            //     variants,
-            //     display,
-            //     active_display,
-            // }),
             value_fingerprint: active_str.into(),
             config: config::Block::Enum(config::EnumBlock {
                 variants,
@@ -230,10 +183,8 @@ impl State {
                     enum_separator: Some(enum_separator.into()),
                     ..b.processing_options.clone()
                 },
-                display: config::DisplayOptions { ..display.clone() },
-                active_display: config::DisplayOptions {
-                    ..active_display.clone()
-                },
+                display,
+                active_display,
                 ..b.clone()
             }),
         })

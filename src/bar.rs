@@ -217,7 +217,7 @@ impl TextBlock {
         };
         Self {
             pango_layout,
-            display_options: display_options.clone(),
+            display_options,
         }
     }
 
@@ -361,7 +361,7 @@ impl TextProgressBarNumberBlock {
         height: f64,
     ) -> Self {
         let progress_bar =
-            Self::progress_bar_string(&number_block, &text_progress_bar, 10).unwrap_or_default();
+            Self::progress_bar_string(number_block, &text_progress_bar, 10).unwrap_or_default();
         let format = text_progress_bar.bar_format;
         let markup = format.replace("{}", &progress_bar);
         let display = config::DisplayOptions {
@@ -478,7 +478,7 @@ impl TextNumberBlock {
         number_text_display: config::NumberTextDisplay<String>,
         height: f64,
     ) -> Self {
-        let text = Self::text(&number_block, &number_text_display).unwrap_or_default(); // Fix
+        let text = Self::text(number_block, &number_text_display).unwrap_or_default(); // Fix
         let text = Self::pad(&text, &number_text_display);
         let text = number_text_display.output_format.replace("{}", &text);
         let display = config::DisplayOptions {
@@ -652,7 +652,7 @@ impl BlockGroup {
         let mut eat_separators = false;
         let mut last_edge = None;
 
-        for b in input.into_iter() {
+        for b in input.iter() {
             if !b.is_visible() {
                 continue;
             }
@@ -717,11 +717,7 @@ impl BlockGroup {
         output
     }
 
-    fn new(
-        blocks: &[Arc<dyn DebugBlock>],
-        drawing_context: &drawing::Context,
-        bar_config: config::Bar<String>,
-    ) -> Self {
+    fn new(blocks: &[Arc<dyn DebugBlock>]) -> Self {
         let mut dim = Dimensions {
             width: 0.0,
             height: 0.0,
@@ -850,7 +846,7 @@ impl Bar {
                 config::NumberDisplay::ProgressBar(text_progress_bar) => {
                     let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
                         drawing_context,
-                        &number,
+                        number,
                         text_progress_bar.clone(),
                         self.bar.height as f64,
                     ));
@@ -859,7 +855,7 @@ impl Bar {
                 config::NumberDisplay::Text(number_text_display) => {
                     let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
                         drawing_context,
-                        &number,
+                        number,
                         number_text_display.clone(),
                         self.bar.height as f64,
                     ));
@@ -869,7 +865,7 @@ impl Bar {
             config::Block::Enum(enum_block) => {
                 let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
                     drawing_context,
-                    &enum_block,
+                    enum_block,
                     self.bar.height as f64,
                 ));
                 b
@@ -890,7 +886,7 @@ impl Bar {
             if !self.all_blocks.contains(name) {
                 continue;
             }
-            let mut entry = self.block_data.entry(name.clone());
+            let entry = self.block_data.entry(name.clone());
             use std::collections::hash_map::Entry;
 
             let updated = match entry {
@@ -909,7 +905,7 @@ impl Bar {
             };
             if updated {
                 // For now recreating, but it can be updated.
-                if let Ok(w) = self.build_widget(&drawing_context, data) {
+                if let Ok(w) = self.build_widget(drawing_context, data) {
                     self.blocks.insert(name.into(), w.into());
                 }
             }
@@ -964,9 +960,9 @@ impl Bar {
             &self.bar.blocks_right,
         );
 
-        let left_group = BlockGroup::new(&flat_left, drawing_context, bar.clone());
-        let center_group = BlockGroup::new(&flat_center, drawing_context, bar.clone());
-        let right_group = BlockGroup::new(&flat_right, drawing_context, bar.clone());
+        let left_group = BlockGroup::new(&flat_left);
+        let center_group = BlockGroup::new(&flat_center);
+        let right_group = BlockGroup::new(&flat_right);
 
         context.save()?;
         context.translate(bar.margin.left.into(), bar.margin.top.into());
