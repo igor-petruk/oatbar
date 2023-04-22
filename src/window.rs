@@ -374,10 +374,9 @@ impl Window {
 
         let state = self.state.read().unwrap();
 
-        self.bar
-            .render(&self.back_buffer_context, &show_only, &state.blocks)?;
-        self.bar
-            .render(&self.shape_buffer_context, &show_only, &state.blocks)?;
+        self.bar.update(&self.back_buffer_context, &state.blocks)?;
+        self.bar.render(&self.back_buffer_context, &show_only)?;
+        self.bar.render(&self.shape_buffer_context, &show_only)?;
 
         self.swap_buffers()?;
         self.apply_shape()?;

@@ -34,7 +34,7 @@ pub struct Context {
     pub buffer: x::Pixmap,
     pub buffer_surface: cairo::XCBSurface,
     pub context: cairo::Context,
-    pub pango_context: pango::Context,
+    pub pango_context: Option<pango::Context>,
     pub width: f64,
     pub height: f64,
     pub mode: Mode,
@@ -51,7 +51,10 @@ impl Context {
         mode: Mode,
     ) -> anyhow::Result<Self> {
         let context = cairo::Context::new(buffer_surface.clone())?;
-        let pango_context = pangocairo::create_context(&context);
+        let pango_context = match mode {
+            Mode::Full => Some(pangocairo::create_context(&context)),
+            Mode::Shape => None,
+        };
         Ok(Self {
             font_cache,
             buffer,

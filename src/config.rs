@@ -100,7 +100,7 @@ pub enum PopupMode {
     Block,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
     pub font: Dynamic,
     pub foreground: Dynamic,
@@ -181,7 +181,7 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 pub struct Replace(Vec<Vec<String>>);
 
 impl Replace {
@@ -198,12 +198,14 @@ impl Replace {
 
 serde_with::with_prefix!(prefix_active "active_");
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
     pub active: Dynamic,
     pub variants: Dynamic,
+    #[serde(skip)]
+    pub variants_vec: Vec<String>,
     #[serde(flatten)]
     pub processing_options: ProcessingOptions,
     #[serde(flatten)]
@@ -218,6 +220,7 @@ impl EnumBlock<Option<Placeholder>> {
             name: self.name.clone(),
             active: self.active.unwrap_or_default(),
             variants: self.variants.unwrap_or_default(),
+            variants_vec: vec![],
             processing_options: self.processing_options.with_defaults(),
             display: self.display.clone().with_default(&default_block.display),
             active_display: self
@@ -238,6 +241,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
                 .variants
                 .resolve_placeholders(vars)
                 .context("variants")?,
+            variants_vec: self.variants_vec.clone(),
             processing_options: self.processing_options.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
             active_display: self
@@ -248,7 +252,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
@@ -287,7 +291,7 @@ impl TextBlock<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum NumberType {
     Number,
@@ -313,7 +317,7 @@ impl NumberType {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     pub empty: Dynamic,
@@ -365,7 +369,7 @@ impl TextProgressBarDisplay<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct NumberTextDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     pub number_type: Option<NumberType>,
@@ -411,7 +415,7 @@ impl NumberTextDisplay<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
@@ -419,7 +423,7 @@ pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     ProgressBar(TextProgressBarDisplay<Dynamic>),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
@@ -493,7 +497,7 @@ impl NumberBlock<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct ImageBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
@@ -529,7 +533,7 @@ impl ImageBlock<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SeparatorType {
     Left,
@@ -537,7 +541,7 @@ pub enum SeparatorType {
     Gap,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
@@ -574,7 +578,7 @@ impl Block<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum BarPosition {
     Top,
@@ -698,13 +702,13 @@ impl DefaultBlock<Option<Placeholder>> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(default)]
 pub struct TextAlignment {
     max_length: Option<usize>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 pub struct ProcessingOptions {
     pub enum_separator: Option<String>,
     #[serde(default)]

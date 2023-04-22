@@ -18,6 +18,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     fmt::Debug,
+    sync::Arc,
 };
 
 use anyhow::Context;
@@ -36,7 +37,6 @@ trait Block {
     fn get_dimensions(&self) -> Dimensions;
     fn is_visible(&self) -> bool;
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()>;
-    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()>;
     fn separator_type(&self) -> Option<config::SeparatorType> {
         None
     }
@@ -86,10 +86,6 @@ impl DebugBlock for BaseBlock {}
 impl Block for BaseBlock {
     fn is_visible(&self) -> bool {
         self.inner_block.is_visible()
-    }
-
-    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
-        self.inner_block.set_data(block_data)
     }
 
     fn get_dimensions(&self) -> Dimensions {
@@ -192,7 +188,7 @@ impl Block for BaseBlock {
 
 #[derive(Debug)]
 struct TextBlock {
-    pango_layout: pango::Layout,
+    pango_layout: Option<pango::Layout>,
     display_options: config::DisplayOptions<String>,
 }
 
@@ -203,16 +199,22 @@ impl TextBlock {
         drawing_context: &drawing::Context,
         display_options: config::DisplayOptions<String>,
     ) -> Self {
-        let pango_layout = pango::Layout::new(&drawing_context.pango_context);
-        if display_options.pango_markup == Some(true) {
-            // TODO: fix this.
-            pango_layout.set_markup(display_options.value.as_str());
-        } else {
-            pango_layout.set_text(display_options.value.as_str());
-        }
-        let mut font_cache = drawing_context.font_cache.lock().unwrap();
-        let fd = font_cache.get(display_options.font.as_str());
-        pango_layout.set_font_description(Some(fd));
+        let pango_layout = match &drawing_context.pango_context {
+            Some(pango_context) => {
+                let pango_layout = pango::Layout::new(pango_context);
+                if display_options.pango_markup == Some(true) {
+                    // TODO: fix this.
+                    pango_layout.set_markup(display_options.value.as_str());
+                } else {
+                    pango_layout.set_text(display_options.value.as_str());
+                }
+                let mut font_cache = drawing_context.font_cache.lock().unwrap();
+                let fd = font_cache.get(display_options.font.as_str());
+                pango_layout.set_font_description(Some(fd));
+                Some(pango_layout)
+            }
+            None => None,
+        };
         Self {
             pango_layout,
             display_options: display_options.clone(),
@@ -238,15 +240,18 @@ impl TextBlock {
 
 impl Block for TextBlock {
     fn get_dimensions(&self) -> Dimensions {
-        let ps = self.pango_layout.pixel_size();
-        Dimensions {
-            width: ps.0 as f64,
-            height: ps.1.into(),
+        if let Some(pango_layout) = &self.pango_layout {
+            let ps = pango_layout.pixel_size();
+            Dimensions {
+                width: ps.0 as f64,
+                height: ps.1.into(),
+            }
+        } else {
+            Dimensions {
+                width: 0.0,
+                height: 0.0,
+            }
         }
-    }
-
-    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
-        Ok(())
     }
 
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
@@ -256,8 +261,8 @@ impl Block for TextBlock {
         if !color.is_empty() {
             drawing_context.set_source_rgba(color)?;
         }
-        if drawing_context.mode == drawing::Mode::Full {
-            pangocairo::show_layout(context, &self.pango_layout);
+        if let Some(pango_layout) = &self.pango_layout {
+            pangocairo::show_layout(context, pango_layout);
         }
         context.restore()?;
         Ok(())
@@ -285,24 +290,38 @@ impl TextProgressBarNumberBlock {
     }
 
     fn progress_bar_string(
-        number_value: &state::NumberBlockValue,
+        number_block: &config::NumberBlock<String>,
         text_progress_bar: &config::TextProgressBarDisplay<String>,
         width: usize,
-    ) -> String {
-        let empty_result = (0..width).map(|_| ' ');
-        if number_value.max_value.is_none()
-            || number_value.min_value.is_none()
-            || number_value.value.is_none()
-        {
-            return empty_result.collect();
-        }
-        let min_value = number_value.min_value.unwrap();
+    ) -> anyhow::Result<String> {
+        let number_type = number_block.number_type;
+        let value = number_type
+            .parse_str(&number_block.display.value)
+            .context("value")?;
 
-        let max_value = number_value.max_value.unwrap();
-        if min_value >= max_value {
-            return empty_result.collect(); // error
+        let (min_value, max_value) = match number_type {
+            config::NumberType::Percent => (Some(0.0), Some(100.0)),
+            _ => (
+                number_type
+                    .parse_str(&number_block.min_value)
+                    .context("min_value")?,
+                number_type
+                    .parse_str(&number_block.max_value)
+                    .context("max_value")?,
+            ),
+        };
+
+        let empty_result = (0..width).map(|_| ' ');
+        if max_value.is_none() || min_value.is_none() || value.is_none() {
+            return Ok(empty_result.collect());
         }
-        let mut value = number_value.value.unwrap();
+        let min_value = min_value.unwrap();
+
+        let max_value = max_value.unwrap();
+        if min_value >= max_value {
+            return Ok(empty_result.collect()); // error
+        }
+        let mut value = value.unwrap();
         if value < min_value {
             value = min_value;
         }
@@ -332,22 +351,23 @@ impl TextProgressBarNumberBlock {
                 }
             })
             .collect();
-        segments.join("")
+        Ok(segments.join(""))
     }
 
     fn new(
         drawing_context: &drawing::Context,
-        value: state::NumberBlockValue,
+        number_block: &config::NumberBlock<String>,
         text_progress_bar: config::TextProgressBarDisplay<String>,
         height: f64,
     ) -> Self {
-        let progress_bar = Self::progress_bar_string(&value, &text_progress_bar, 10);
+        let progress_bar =
+            Self::progress_bar_string(&number_block, &text_progress_bar, 10).unwrap_or_default();
         let format = text_progress_bar.bar_format;
         let markup = format.replace("{}", &progress_bar);
         let display = config::DisplayOptions {
             value: markup,
             pango_markup: Some(true), // TODO: fix
-            ..value.display
+            ..number_block.display.clone()
         };
         let text_block = TextBlock::new_in_base_block(drawing_context, display, height, None, None);
         Self { text_block }
@@ -359,10 +379,6 @@ impl DebugBlock for TextProgressBarNumberBlock {}
 impl Block for TextProgressBarNumberBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
-    }
-
-    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
-        Ok(())
     }
 
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
@@ -385,47 +401,65 @@ impl TextNumberBlock {
     }
 
     fn text(
-        number_value: &state::NumberBlockValue,
+        number_block: &config::NumberBlock<String>,
         number_text_display: &config::NumberTextDisplay<String>,
-    ) -> String {
-        if number_value.value.is_none() {
-            return "".into();
+    ) -> anyhow::Result<String> {
+        if number_block.display.value.is_empty() {
+            return Ok("".into());
         }
-        let mut value = number_value.value.unwrap();
+        let number_type = number_block.number_type;
+        let (min_value, max_value) = match number_type {
+            config::NumberType::Percent => (Some(0.0), Some(100.0)),
+            _ => (
+                number_type
+                    .parse_str(&number_block.min_value)
+                    .context("min_value")?,
+                number_type
+                    .parse_str(&number_block.max_value)
+                    .context("max_value")?,
+            ),
+        };
+        let mut value = number_type
+            .parse_str(&number_block.display.value)
+            .context("value")?
+            .unwrap();
 
-        if let Some(min_value) = number_value.min_value {
-            if let Some(max_value) = number_value.max_value {
+        if let Some(min_value) = min_value {
+            if let Some(max_value) = max_value {
                 if min_value > max_value {
-                    return "MIN>MAX".into();
+                    return Ok("MIN>MAX".into()); // Fix
                 }
             }
             if value < min_value {
                 value = min_value;
             }
         }
-        if let Some(max_value) = number_value.max_value {
+        if let Some(max_value) = max_value {
             if value > max_value {
                 value = max_value;
             }
         }
 
         if !number_text_display.ramp.is_empty() {
-            match (number_value.min_value, number_value.max_value) {
+            match (min_value, max_value) {
                 (Some(min), Some(max)) => {
                     let normalized_position = (value - min) / (max - min);
-                    return Self::ramp_pass(normalized_position, &number_text_display.ramp);
+                    return Ok(Self::ramp_pass(
+                        normalized_position,
+                        &number_text_display.ramp,
+                    ));
                 }
                 _ => {
-                    return "ramp with no MIN/MAX".into();
+                    return Ok("ramp with no MIN/MAX".into()); // fix
                 }
             }
         }
 
-        match number_text_display.number_type.unwrap() {
+        Ok(match number_text_display.number_type.unwrap() {
             config::NumberType::Percent => format!("{}%", value),
             config::NumberType::Number => format!("{}", value),
             config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
-        }
+        })
     }
 
     fn pad(text: &str, number_text_display: &config::NumberTextDisplay<String>) -> String {
@@ -440,17 +474,17 @@ impl TextNumberBlock {
 
     fn new(
         drawing_context: &drawing::Context,
-        value: state::NumberBlockValue,
+        number_block: &config::NumberBlock<String>,
         number_text_display: config::NumberTextDisplay<String>,
         height: f64,
     ) -> Self {
-        let text = Self::text(&value, &number_text_display);
+        let text = Self::text(&number_block, &number_text_display).unwrap_or_default(); // Fix
         let text = Self::pad(&text, &number_text_display);
         let text = number_text_display.output_format.replace("{}", &text);
         let display = config::DisplayOptions {
             value: text,
             pango_markup: Some(true), // TODO: fix
-            ..value.display
+            ..number_block.display.clone()
         };
         let text_block = TextBlock::new_in_base_block(drawing_context, display, height, None, None);
         Self { text_block }
@@ -462,10 +496,6 @@ impl DebugBlock for TextNumberBlock {}
 impl Block for TextNumberBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
-    }
-
-    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
-        Ok(())
     }
 
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
@@ -480,18 +510,23 @@ impl Block for TextNumberBlock {
 struct EnumBlock {
     variant_blocks: Vec<Box<dyn DebugBlock>>,
     dim: Dimensions,
-    value: state::EnumBlockValue,
+    block: config::EnumBlock<String>,
 }
 
 impl EnumBlock {
-    fn new(drawing_context: &drawing::Context, value: state::EnumBlockValue, height: f64) -> Self {
+    fn new(
+        drawing_context: &drawing::Context,
+        block: &config::EnumBlock<String>,
+        height: f64,
+    ) -> Self {
         let mut variant_blocks = vec![];
         let mut width: f64 = 0.0;
-        for (index, item) in value.variants.iter().enumerate() {
-            let mut display_options = if index == value.active {
-                value.active_display.clone()
+        let active: usize = block.active.parse().expect("enum active");
+        for (index, item) in block.variants_vec.iter().enumerate() {
+            let mut display_options = if index == active {
+                block.active_display.clone()
             } else {
-                value.display.clone()
+                block.display.clone()
             };
             display_options.value = item.clone();
             let variant_block = TextBlock::new_in_base_block(
@@ -508,7 +543,7 @@ impl EnumBlock {
         EnumBlock {
             variant_blocks,
             dim,
-            value,
+            block: block.clone(),
         }
     }
 }
@@ -518,9 +553,6 @@ impl DebugBlock for EnumBlock {}
 impl Block for EnumBlock {
     fn get_dimensions(&self) -> Dimensions {
         self.dim.clone()
-    }
-    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
-        Ok(())
     }
 
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
@@ -537,7 +569,7 @@ impl Block for EnumBlock {
     }
 
     fn is_visible(&self) -> bool {
-        !self.value.display.show_if_set.is_empty()
+        !self.block.display.show_if_set.is_empty()
     }
 }
 
@@ -588,9 +620,6 @@ impl Block for ImageBlock {
             },
         }
     }
-    fn set_data(&mut self, block_data: state::BlockValue) -> anyhow::Result<()> {
-        Ok(())
-    }
 
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
@@ -611,12 +640,12 @@ impl Block for ImageBlock {
 }
 
 struct BlockGroup {
-    blocks: Vec<Box<dyn DebugBlock>>,
+    blocks: Vec<Arc<dyn DebugBlock>>,
     dimensions: Dimensions,
 }
 
 impl BlockGroup {
-    fn collapse_separators(input: Vec<Box<dyn DebugBlock>>) -> Vec<Box<dyn DebugBlock>> {
+    fn collapse_separators(input: &[Arc<dyn DebugBlock>]) -> Vec<Arc<dyn DebugBlock>> {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(input.len());
 
@@ -682,64 +711,17 @@ impl BlockGroup {
                 }
             }
 
-            output.push(b);
+            output.push(b.clone());
         }
 
         output
     }
 
     fn new(
-        state: &[state::BlockData],
+        blocks: &[Arc<dyn DebugBlock>],
         drawing_context: &drawing::Context,
         bar_config: config::Bar<String>,
     ) -> Self {
-        let blocks: Vec<Box<dyn DebugBlock>> = state
-            .iter()
-            .map(|bd| {
-                let b: Box<dyn DebugBlock> = match &bd.value {
-                    state::BlockValue::Text(text) => TextBlock::new_in_base_block(
-                        drawing_context,
-                        text.display.clone(),
-                        bar_config.height as f64,
-                        text.separator_type.clone(),
-                        text.separator_radius,
-                    ),
-                    state::BlockValue::Number(number) => match &number.number_display {
-                        config::NumberDisplay::ProgressBar(text_progress_bar) => {
-                            let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
-                                drawing_context,
-                                number.clone(),
-                                text_progress_bar.clone(),
-                                bar_config.height as f64,
-                            ));
-                            b
-                        }
-                        config::NumberDisplay::Text(number_text_display) => {
-                            let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
-                                drawing_context,
-                                number.clone(),
-                                number_text_display.clone(),
-                                bar_config.height as f64,
-                            ));
-                            b
-                        }
-                    },
-                    state::BlockValue::Enum(enum_block_value) => {
-                        let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
-                            drawing_context,
-                            enum_block_value.clone(),
-                            bar_config.height as f64,
-                        ));
-                        b
-                    }
-                    state::BlockValue::Image(image) => {
-                        ImageBlock::new(image.display.clone(), bar_config.height as f64)
-                    }
-                };
-                b
-            })
-            .collect();
-
         let mut dim = Dimensions {
             width: 0.0,
             height: 0.0,
@@ -781,11 +763,26 @@ impl BlockGroup {
 
 pub struct Bar {
     bar: config::Bar<config::Placeholder>,
+    block_data: HashMap<String, state::BlockData>,
+    blocks: HashMap<String, Arc<dyn DebugBlock>>,
+    all_blocks: HashSet<String>,
 }
 
 impl Bar {
     pub fn new(bar: &config::Bar<config::Placeholder>) -> anyhow::Result<Self> {
-        Ok(Self { bar: bar.clone() })
+        let all_blocks: HashSet<String> = bar
+            .blocks_left
+            .iter()
+            .chain(bar.blocks_center.iter())
+            .chain(bar.blocks_right.iter())
+            .cloned()
+            .collect();
+        Ok(Self {
+            all_blocks,
+            bar: bar.clone(),
+            block_data: HashMap::new(),
+            blocks: HashMap::new(),
+        })
     }
 }
 
@@ -806,12 +803,12 @@ impl Bar {
                 .unwrap_or_default()
     }
 
-    pub fn flatten(
-        blocks: &HashMap<String, state::BlockData>,
+    fn flatten(
+        blocks: &HashMap<String, Arc<dyn DebugBlock>>,
         entire_bar_visible: bool,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
         names: &[String],
-    ) -> Vec<state::BlockData> {
+    ) -> Vec<Arc<dyn DebugBlock>> {
         let mut result = Vec::with_capacity(names.len());
         let single_blocks = show_only
             .as_ref()
@@ -836,11 +833,94 @@ impl Bar {
         result
     }
 
+    fn build_widget(
+        &self,
+        drawing_context: &drawing::Context,
+        block_data: &state::BlockData,
+    ) -> anyhow::Result<Box<dyn DebugBlock>> {
+        let b: Box<dyn DebugBlock> = match &block_data.config {
+            config::Block::Text(text) => TextBlock::new_in_base_block(
+                drawing_context,
+                text.display.clone(),
+                self.bar.height as f64,
+                text.separator_type.clone(),
+                text.separator_radius,
+            ),
+            config::Block::Number(number) => match &number.number_display.as_ref().unwrap() {
+                config::NumberDisplay::ProgressBar(text_progress_bar) => {
+                    let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
+                        drawing_context,
+                        &number,
+                        text_progress_bar.clone(),
+                        self.bar.height as f64,
+                    ));
+                    b
+                }
+                config::NumberDisplay::Text(number_text_display) => {
+                    let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
+                        drawing_context,
+                        &number,
+                        number_text_display.clone(),
+                        self.bar.height as f64,
+                    ));
+                    b
+                }
+            },
+            config::Block::Enum(enum_block) => {
+                let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
+                    drawing_context,
+                    &enum_block,
+                    self.bar.height as f64,
+                ));
+                b
+            }
+            config::Block::Image(image) => {
+                ImageBlock::new(image.display.clone(), self.bar.height as f64)
+            }
+        };
+        Ok(b)
+    }
+
+    pub fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        block_data: &HashMap<String, state::BlockData>,
+    ) -> anyhow::Result<()> {
+        for (name, data) in block_data.iter() {
+            if !self.all_blocks.contains(name) {
+                continue;
+            }
+            let mut entry = self.block_data.entry(name.clone());
+            use std::collections::hash_map::Entry;
+
+            let updated = match entry {
+                Entry::Occupied(mut o) => {
+                    if data != o.get() {
+                        o.insert(data.clone());
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Entry::Vacant(v) => {
+                    v.insert(data.clone());
+                    true
+                }
+            };
+            if updated {
+                // For now recreating, but it can be updated.
+                if let Ok(w) = self.build_widget(&drawing_context, data) {
+                    self.blocks.insert(name.into(), w.into());
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn render(
         &self,
         drawing_context: &drawing::Context,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-        blocks: &HashMap<String, state::BlockData>,
     ) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let bar = &self.bar;
@@ -865,15 +945,20 @@ impl Bar {
         let entire_bar_visible =
             Self::visible_per_popup_mode(show_only, config::PopupMode::Bar, &all_blocks);
 
-        let flat_left = Self::flatten(blocks, entire_bar_visible, show_only, &self.bar.blocks_left);
+        let flat_left = Self::flatten(
+            &self.blocks,
+            entire_bar_visible,
+            show_only,
+            &self.bar.blocks_left,
+        );
         let flat_center = Self::flatten(
-            blocks,
+            &self.blocks,
             entire_bar_visible,
             show_only,
             &self.bar.blocks_center,
         );
         let flat_right = Self::flatten(
-            blocks,
+            &self.blocks,
             entire_bar_visible,
             show_only,
             &self.bar.blocks_right,

@@ -18,57 +18,26 @@ use anyhow::Context;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
-#[derive(Clone, Debug)]
-pub struct TextBlockValue {
-    pub display: config::DisplayOptions<String>,
-    pub separator_type: Option<config::SeparatorType>,
-    pub separator_radius: Option<f64>,
-}
-
-#[derive(Clone, Debug)]
-pub struct NumberBlockValue {
-    pub value: Option<f64>,
-    pub min_value: Option<f64>,
-    pub max_value: Option<f64>,
-    pub number_type: config::NumberType,
-    pub display: config::DisplayOptions<String>,
-    pub number_display: config::NumberDisplay<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct EnumBlockValue {
-    pub active: usize,
-    pub variants: Vec<String>,
-    pub display: config::DisplayOptions<String>,
-    pub active_display: config::DisplayOptions<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct ImageBlockValue {
-    pub display: config::DisplayOptions<String>,
-}
-
-#[derive(Clone, Debug)]
-pub enum BlockValue {
-    Text(TextBlockValue),
-    Number(NumberBlockValue),
-    Enum(EnumBlockValue),
-    Image(ImageBlockValue),
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BlockData {
     pub config: config::Block<String>,
-    pub value: BlockValue,
     pub value_fingerprint: String,
-    pub popup: Option<config::PopupMode>,
 }
 
 impl BlockData {
-    pub fn separator_type(&self) -> Option<config::SeparatorType> {
-        match &self.value {
-            BlockValue::Text(t) => t.separator_type.clone(),
-            _ => None,
+    // pub fn separator_type(&self) -> Option<config::SeparatorType> {
+    //     match &self.config {
+    //         config::Block::Text(t) => t.separator_type.clone(),
+    //         _ => None,
+    //     }
+    // }
+
+    pub fn popup(&self) -> Option<config::PopupMode> {
+        match &self.config {
+            config::Block::Text(b) => b.display.popup,
+            config::Block::Enum(b) => b.display.popup,
+            config::Block::Number(b) => b.display.popup,
+            config::Block::Image(b) => b.display.popup,
         }
     }
 }
@@ -122,13 +91,18 @@ impl State {
         let value = b.processing_options.process_single(&display.value);
         Ok(BlockData {
             value_fingerprint: value.clone(),
-            popup: display.popup,
-            value: BlockValue::Text(TextBlockValue {
-                display: config::DisplayOptions { value, ..display },
-                separator_type: b.separator_type.clone(),
-                separator_radius: b.separator_radius,
+            // value: BlockValue::Text(TextBlockValue {
+            //     display: config::DisplayOptions { value, ..display },
+            //     separator_type: b.separator_type.clone(),
+            //     separator_radius: b.separator_radius,
+            // }),
+            config: config::Block::Text(config::TextBlock {
+                display: config::DisplayOptions {
+                    value: value.clone(),
+                    ..display.clone()
+                },
+                ..b.clone()
             }),
-            config: config::Block::Text(b.clone()),
         })
     }
 
@@ -144,12 +118,17 @@ impl State {
         let value_fingerprint = value.clone();
 
         Ok(BlockData {
-            popup: display.popup,
-            value: BlockValue::Image(ImageBlockValue {
-                display: config::DisplayOptions { value, ..display },
-            }),
+            // value: BlockValue::Image(ImageBlockValue {
+            //     display: config::DisplayOptions { value, ..display },
+            // }),
             value_fingerprint,
-            config: config::Block::Image(b.clone()),
+            config: config::Block::Image(config::ImageBlock {
+                display: config::DisplayOptions {
+                    value: value.clone(),
+                    ..display
+                },
+                ..b.clone()
+            }),
         })
     }
 
@@ -157,35 +136,39 @@ impl State {
         &self,
         b: &config::NumberBlock<config::Placeholder>,
     ) -> anyhow::Result<BlockData> {
-        let number_type = b.number_type;
         let display = b
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
-        let value_str = b.processing_options.process_single(&display.value);
-        let value_fingerprint = value_str.clone();
-        let value = number_type.parse_str(&value_str).context("value")?;
+        let value = b.processing_options.process_single(&display.value);
+        let value_fingerprint = value.clone();
+        // let value = number_type.parse_str(&value_str).context("value")?;
 
-        let (min_value, max_value) = match number_type {
-            config::NumberType::Percent => (Some(0.0), Some(100.0)),
-            _ => (
-                number_type.parse_str(&b.min_value).context("min_value")?,
-                number_type.parse_str(&b.max_value).context("max_value")?,
-            ),
-        };
+        // let (min_value, max_value) = match number_type {
+        //     config::NumberType::Percent => (Some(0.0), Some(100.0)),
+        //     _ => (
+        //         number_type.parse_str(&b.min_value).context("min_value")?,
+        //         number_type.parse_str(&b.max_value).context("max_value")?,
+        //     ),
+        // };
 
         Ok(BlockData {
-            popup: display.popup,
-            value: BlockValue::Number(NumberBlockValue {
-                value,
-                min_value,
-                max_value,
-                number_type,
-                display,
-                number_display: b.number_display.clone().expect("number_display"),
-            }),
+            // value: BlockValue::Number(NumberBlockValue {
+            //     value,
+            //     min_value,
+            //     max_value,
+            //     number_type,
+            //     display,
+            //     number_display: b.number_display.clone().expect("number_display"),
+            // }),
             value_fingerprint,
-            config: config::Block::Number(b.clone()),
+            config: config::Block::Number(config::NumberBlock {
+                display: config::DisplayOptions {
+                    value: value.clone(),
+                    ..display.clone()
+                },
+                ..b.clone()
+            }),
         })
     }
 
@@ -209,16 +192,16 @@ impl State {
         } else {
             active_str.parse().unwrap()
         };
+        let enum_separator = b
+            .processing_options
+            .enum_separator
+            .as_deref()
+            .unwrap_or(",");
         let (variants, errors): (Vec<_>, Vec<_>) = b
             .variants
             .resolve_placeholders(&self.vars)
             .context("cannot replace placeholders")?
-            .split(
-                b.processing_options
-                    .enum_separator
-                    .as_deref()
-                    .unwrap_or(","),
-            )
+            .split(enum_separator)
             .map(|value| b.processing_options.process_single(value))
             .enumerate()
             .map(|(index, value)| format_active_inactive(b, active, index, value))
@@ -228,18 +211,31 @@ impl State {
             return Err(err);
         }
 
-        let variants = variants.into_iter().map(|v| v.unwrap()).collect();
+        let variants_vec: Vec<_> = variants.into_iter().map(|v| v.unwrap()).collect();
+        let variants = variants_vec.join(enum_separator);
 
         Ok(BlockData {
-            popup: display.popup,
-            value: BlockValue::Enum(EnumBlockValue {
-                active,
-                variants,
-                display,
-                active_display,
-            }),
+            // value: BlockValue::Enum(EnumBlockValue {
+            //     active,
+            //     variants,
+            //     display,
+            //     active_display,
+            // }),
             value_fingerprint: active_str.into(),
-            config: config::Block::Enum(b.clone()),
+            config: config::Block::Enum(config::EnumBlock {
+                variants,
+                variants_vec,
+                active: active.to_string(),
+                processing_options: config::ProcessingOptions {
+                    enum_separator: Some(enum_separator.into()),
+                    ..b.processing_options.clone()
+                },
+                display: config::DisplayOptions { ..display.clone() },
+                active_display: config::DisplayOptions {
+                    ..active_display.clone()
+                },
+                ..b.clone()
+            }),
         })
     }
 
@@ -257,7 +253,7 @@ impl State {
             match block_data {
                 Ok(block_data) => {
                     if let Some(old_fingerprint) = self.value_fingerprints.get(name) {
-                        if let Some(popup) = block_data.popup {
+                        if let Some(popup) = block_data.popup() {
                             if *old_fingerprint != block_data.value_fingerprint {
                                 important_updates
                                     .entry(popup)
