@@ -91,13 +91,13 @@ impl PopupControl {
                     popup_control.set_visible(true)?;
                     let popup_control_lock = popup_control_lock.clone();
                     timer::Timer::new(
-                        &format!("autohide-timer-{}", popup_control.name),
+                        &format!("hidden-timer-{}", popup_control.name),
                         reset_timer_at,
                         move || {
                             let mut popup_control = popup_control_lock.write().unwrap();
                             popup_control.timer = None;
                             popup_control.reset_show_only();
-                            popup_control.set_visible(false).expect("autohide-hide");
+                            popup_control.set_visible(false).expect("hidden-hide");
                         },
                     )?
                 };
@@ -177,7 +177,7 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
-                x::Cw::OverrideRedirect(bar_config.autohide),
+                x::Cw::OverrideRedirect(bar_config.hidden),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS | x::EventMask::BUTTON_PRESS,
                 ),
@@ -214,7 +214,7 @@ impl Window {
             &["_NET_WM_STATE_STICKY", "_NET_WM_STATE_ABOVE"],
         )?;
 
-        if !bar_config.autohide {
+        if !bar_config.hidden {
             let top = bar_config.position == config::BarPosition::Top;
             let sp_result = xutils::replace_property(
                 &conn,
@@ -320,7 +320,7 @@ impl Window {
         )?;
         conn.flush()?;
 
-        if !bar_config.autohide {
+        if !bar_config.hidden {
             xutils::send(&conn, &x::MapWindow { window: id })?;
         }
         xutils::send(
@@ -362,11 +362,11 @@ impl Window {
         let state = self.state.read().unwrap();
         let popup_updates = self.bar.update(&self.back_buffer_context, &state.blocks)?;
 
-        if self.bar_config.autohide && !popup_updates.is_empty() {
+        if self.bar_config.hidden && !popup_updates.is_empty() {
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 
-        let show_only = if self.bar_config.autohide {
+        let show_only = if self.bar_config.hidden {
             let mut popup_control = self.popup_control.write().unwrap();
             popup_control.extend_show_only(popup_updates);
             popup_control.show_only.clone()
@@ -385,7 +385,7 @@ impl Window {
     }
 
     pub fn handle_raw_motion(&self, _x: i16, y: i16) -> anyhow::Result<()> {
-        if !self.bar_config.autohide {
+        if !self.bar_config.hidden || !self.bar_config.popup_at_edge {
             return Ok(());
         }
         let edge_size: i16 = 3;

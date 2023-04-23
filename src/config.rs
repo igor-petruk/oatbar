@@ -335,6 +335,7 @@ pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debu
     #[serde(default)]
     pub color_ramp: Vec<String>,
 }
+
 impl TextProgressBarDisplay<Option<Placeholder>> {
     pub fn with_default(self) -> TextProgressBarDisplay<Placeholder> {
         // Known issue: RTL characters reverse the bar direction.
@@ -683,7 +684,13 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub margin: Margin,
     pub background: Dynamic,
     #[serde(default)]
-    pub autohide: bool,
+    pub hidden: bool,
+    #[serde(default = "default_popup_at_edge")]
+    pub popup_at_edge: bool,
+}
+
+fn default_popup_at_edge() -> bool {
+    true
 }
 
 impl Bar<Option<Placeholder>> {
@@ -697,7 +704,8 @@ impl Bar<Option<Placeholder>> {
             position: self.position.clone(),
             phantom_data: Default::default(),
             background: self.background.clone().unwrap_or_else(|| "#191919".into()),
-            autohide: self.autohide,
+            hidden: self.hidden,
+            popup_at_edge: self.popup_at_edge,
         }
     }
 }
