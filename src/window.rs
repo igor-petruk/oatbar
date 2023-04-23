@@ -359,27 +359,27 @@ impl Window {
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
-        let important_updates = { self.state.read().unwrap().important_updates.clone() };
-        if self.bar_config.autohide && !important_updates.is_empty() {
+        let state = self.state.read().unwrap();
+        let popup_updates = self.bar.update(&self.back_buffer_context, &state.blocks)?;
+
+        if self.bar_config.autohide && !popup_updates.is_empty() {
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 
         let show_only = if self.bar_config.autohide {
             let mut popup_control = self.popup_control.write().unwrap();
-            popup_control.extend_show_only(important_updates);
+            popup_control.extend_show_only(popup_updates);
             popup_control.show_only.clone()
         } else {
             None
         };
 
-        let state = self.state.read().unwrap();
-
-        self.bar.update(&self.back_buffer_context, &state.blocks)?;
         self.bar.render(&self.back_buffer_context, &show_only)?;
         self.bar.render(&self.shape_buffer_context, &show_only)?;
 
         self.swap_buffers()?;
         self.apply_shape()?;
+
         self.conn.flush()?;
         Ok(())
     }

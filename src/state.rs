@@ -16,12 +16,11 @@ use crate::config::{self, PlaceholderExt};
 
 use anyhow::Context;
 
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockData {
     pub config: config::Block<String>,
-    pub value_fingerprint: String,
 }
 
 impl BlockData {
@@ -39,8 +38,6 @@ impl BlockData {
 pub struct State {
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
-    pub value_fingerprints: HashMap<String, String>,
-    pub important_updates: HashMap<config::PopupMode, HashSet<String>>,
     config: config::Config<config::Placeholder>,
 }
 
@@ -83,7 +80,6 @@ impl State {
             .context("display")?;
         let value = b.processing_options.process_single(&display.value);
         Ok(BlockData {
-            value_fingerprint: value.clone(),
             config: config::Block::Text(config::TextBlock {
                 display: config::DisplayOptions { value, ..display },
                 ..b.clone()
@@ -100,10 +96,8 @@ impl State {
             .resolve_placeholders(&self.vars)
             .context("display")?;
         let value = b.processing_options.process_single(&b.display.value);
-        let value_fingerprint = value.clone();
 
         Ok(BlockData {
-            value_fingerprint,
             config: config::Block::Image(config::ImageBlock {
                 display: config::DisplayOptions { value, ..display },
                 ..b.clone()
@@ -120,10 +114,8 @@ impl State {
             .resolve_placeholders(&self.vars)
             .context("display")?;
         let value = b.processing_options.process_single(&display.value);
-        let value_fingerprint = value.clone();
 
         Ok(BlockData {
-            value_fingerprint,
             config: config::Block::Number(config::NumberBlock {
                 display: config::DisplayOptions { value, ..display },
                 ..b.clone()
@@ -174,7 +166,6 @@ impl State {
         let variants = variants_vec.join(enum_separator);
 
         Ok(BlockData {
-            value_fingerprint: active_str.into(),
             config: config::Block::Enum(config::EnumBlock {
                 variants,
                 variants_vec,
@@ -190,49 +181,16 @@ impl State {
         })
     }
 
-    pub fn update_blocks(&mut self) -> HashMap<config::PopupMode, HashSet<String>> {
-        let mut important_updates: HashMap<config::PopupMode, HashSet<String>> = HashMap::new();
-
-        for (name, block) in self.config.blocks.iter() {
-            let block_data = match &block {
+    pub fn update_blocks(&mut self) -> anyhow::Result<()> {
+        for block in self.config.blocks.values() {
+            match &block {
                 config::Block::Text(text_block) => self.text_block(text_block),
                 config::Block::Enum(enum_block) => self.enum_block(enum_block),
                 config::Block::Number(number_block) => self.number_block(number_block),
                 config::Block::Image(image_block) => self.image_block(image_block),
-            };
-
-            match block_data {
-                Ok(block_data) => {
-                    if let Some(old_fingerprint) = self.value_fingerprints.get(name) {
-                        if let Some(popup) = block_data.popup() {
-                            if *old_fingerprint != block_data.value_fingerprint {
-                                important_updates
-                                    .entry(popup)
-                                    .or_default()
-                                    .insert(name.clone());
-                            }
-                        }
-                    }
-                    let value_fingerprint_entry = self.value_fingerprints.entry(name.into());
-                    match value_fingerprint_entry {
-                        Entry::Vacant(v) => {
-                            if !block_data.value_fingerprint.is_empty() {
-                                v.insert(block_data.value_fingerprint.clone());
-                            }
-                        }
-                        Entry::Occupied(mut o) => {
-                            o.insert(block_data.value_fingerprint.clone());
-                        }
-                    }
-                    self.blocks.insert(name.into(), block_data);
-                }
-                Err(e) => {
-                    tracing::error!("Module {:?} has invalid value: {:?}", name, e);
-                }
-            }
+            }?;
         }
-
-        important_updates
+        Ok(())
     }
 
     pub fn handle_state_update(&mut self, state_update: Update) -> anyhow::Result<()> {
@@ -252,7 +210,7 @@ impl State {
             let processed = var.processing_options.process(&var_value);
             self.vars.insert(var.name.clone(), processed);
         }
-        self.important_updates = self.update_blocks();
+        self.update_blocks()?;
         Ok(())
     }
 }

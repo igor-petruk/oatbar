@@ -881,7 +881,9 @@ impl Bar {
         &mut self,
         drawing_context: &drawing::Context,
         block_data: &HashMap<String, state::BlockData>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<HashMap<config::PopupMode, HashSet<String>>> {
+        let mut popup_updates: HashMap<config::PopupMode, HashSet<String>> =
+            HashMap::with_capacity(block_data.len());
         for (name, data) in block_data.iter() {
             if !self.all_blocks.contains(name) {
                 continue;
@@ -905,12 +907,14 @@ impl Bar {
             };
             if updated {
                 // For now recreating, but it can be updated.
-                if let Ok(w) = self.build_widget(drawing_context, data) {
-                    self.blocks.insert(name.into(), w.into());
+                let block = self.build_widget(drawing_context, data)?;
+                self.blocks.insert(name.into(), block.into());
+                if let Some(popup) = data.popup() {
+                    popup_updates.entry(popup).or_default().insert(name.clone());
                 }
             }
         }
-        Ok(())
+        Ok(popup_updates)
     }
 
     pub fn render(
