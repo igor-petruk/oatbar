@@ -74,16 +74,18 @@ fn get_current_layout(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Resu
 }
 
 fn layout_to_blocks(layout: LayoutState) -> Vec<i3bar::Block> {
+    let value = layout
+        .variants
+        .get(layout.current)
+        .unwrap_or(&"?".to_string())
+        .to_string();
     let mut other = BTreeMap::new();
     other.insert("active".into(), layout.current.into());
     other.insert("variants".into(), layout.variants.join(",").into());
+    other.insert("value".into(), value.clone().into());
     vec![i3bar::Block {
         name: Some("layout".into()),
-        full_text: layout
-            .variants
-            .get(layout.current)
-            .unwrap_or(&"?".to_string())
-            .to_string(),
+        full_text: format!("layout: {}", value),
         instance: None,
         other,
     }]

@@ -32,23 +32,28 @@ struct Workspaces {
 }
 
 fn print_update(workspaces: &Workspaces, title: &str) -> anyhow::Result<()> {
+    let workspace_value = workspaces
+        .names
+        .get(workspaces.current)
+        .unwrap_or(&"?".to_string())
+        .to_string();
     let mut other = BTreeMap::new();
     other.insert("active".into(), workspaces.current.into());
     other.insert("variants".into(), workspaces.names.join(",").into());
+    other.insert("value".into(), workspace_value.clone().into());
+    let mut title_other = BTreeMap::new();
+    title_other.insert("value".into(), title.into());
     let blocks = vec![
         i3bar::Block {
+            full_text: format!("workspace: {}", workspace_value),
             name: Some("workspace".into()),
-            full_text: workspaces
-                .names
-                .get(workspaces.current)
-                .unwrap_or(&"?".to_string())
-                .to_string(),
             instance: None,
             other,
         },
         i3bar::Block {
             name: Some("window_title".into()),
-            full_text: title.into(),
+            full_text: format!("window: {}", title),
+            other: title_other,
             ..Default::default()
         },
     ];
