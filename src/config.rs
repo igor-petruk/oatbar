@@ -181,16 +181,24 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct Regex(#[serde(with = "serde_regex")] regex::Regex);
+
+impl PartialEq for Regex {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
-pub struct Replace(Vec<Vec<String>>);
+pub struct Replace(Vec<(Regex, String)>);
 
 impl Replace {
     pub fn apply(&self, string: &str) -> String {
-        // TODO: cache regex.
         let mut string = String::from(string);
         for replacement in self.0.iter() {
-            let re = regex::Regex::new(replacement.get(0).unwrap()).unwrap();
-            string = re.replace_all(&string, replacement.get(1).unwrap()).into();
+            let re = &replacement.0 .0;
+            string = re.replace_all(&string, &replacement.1).into();
         }
         string
     }
