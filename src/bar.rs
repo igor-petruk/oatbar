@@ -486,8 +486,8 @@ impl BlockGroup {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(input.len());
 
-        let mut eat_separators = false;
-        let mut last_edge = None;
+        let mut eat_separators = true;
+        let mut last_edge = Some(Left);
 
         for b in input.iter() {
             if !b.is_visible() {
