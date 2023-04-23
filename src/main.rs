@@ -31,6 +31,13 @@ use anyhow::Context;
 use crate::state::Source;
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "profile")]
+    let guard = pprof::ProfilerGuardBuilder::default()
+        .frequency(100)
+        .blocklist(&["libc", "libgcc", "pthread", "vdso"])
+        .build()
+        .unwrap();
+
     let sub = tracing_subscriber::fmt().compact().with_thread_names(true);
 
     #[cfg(debug_assertions)]
@@ -52,6 +59,15 @@ fn main() -> anyhow::Result<()> {
         let command = source::Command { index, config };
         command.spawn(state_update_tx.clone())?;
     }
+
+    #[cfg(feature = "profile")]
+    std::thread::spawn(move || loop {
+        if let Ok(report) = guard.report().build() {
+            let file = std::fs::File::create("flamegraph.svg").unwrap();
+            report.flamegraph(file).unwrap();
+        };
+        std::thread::sleep(std::time::Duration::from_secs(5));
+    });
 
     engine.run(state_update_rx)?;
     Ok(())
