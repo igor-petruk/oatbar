@@ -933,6 +933,7 @@ mod tests {
             name: "".into(),
             active: "a ${foo} b".into(),
             variants: "".into(),
+            variants_vec: vec![],
             display: DisplayOptions {
                 foreground: "b ${foo} c".into(),
                 ..Default::default()
