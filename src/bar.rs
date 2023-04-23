@@ -15,7 +15,6 @@
 #![allow(clippy::new_ret_no_self)]
 
 use std::{
-    cmp::Ordering,
     collections::{HashMap, HashSet},
     fmt::Debug,
     sync::Arc,
@@ -278,94 +277,13 @@ struct TextProgressBarNumberBlock {
 }
 
 impl TextProgressBarNumberBlock {
-    fn color_ramp_pass(normalized_position: f64, color_ramp: &[String], text: &str) -> String {
-        if color_ramp.is_empty() {
-            return text.into();
-        }
-        let color_position = (normalized_position * (color_ramp.len() - 1) as f64).floor() as usize;
-        let color = color_ramp
-            .get(color_position)
-            .expect("out of index color_ramp_pass");
-        format!("<span color='{}'>{}</span>", color, text)
-    }
-
-    fn progress_bar_string(
-        number_block: &config::NumberBlock<String>,
-        text_progress_bar: &config::TextProgressBarDisplay<String>,
-        width: usize,
-    ) -> anyhow::Result<String> {
-        let number_type = number_block.number_type;
-        let value = number_type
-            .parse_str(&number_block.display.value)
-            .context("value")?;
-
-        let (min_value, max_value) = match number_type {
-            config::NumberType::Percent => (Some(0.0), Some(100.0)),
-            _ => (
-                number_type
-                    .parse_str(&number_block.min_value)
-                    .context("min_value")?,
-                number_type
-                    .parse_str(&number_block.max_value)
-                    .context("max_value")?,
-            ),
-        };
-
-        let empty_result = (0..width).map(|_| ' ');
-        if max_value.is_none() || min_value.is_none() || value.is_none() {
-            return Ok(empty_result.collect());
-        }
-        let min_value = min_value.unwrap();
-
-        let max_value = max_value.unwrap();
-        if min_value >= max_value {
-            return Ok(empty_result.collect()); // error
-        }
-        let mut value = value.unwrap();
-        if value < min_value {
-            value = min_value;
-        }
-        if value > max_value {
-            value = max_value;
-        }
-        let fill = &text_progress_bar.fill;
-        let empty = &text_progress_bar.empty;
-        let indicator = &text_progress_bar.indicator;
-        let indicator_position =
-            ((value - min_value) / (max_value - min_value) * width as f64) as i32;
-        let segments: Vec<_> = (0..(width + 1) as i32)
-            .map(|i| {
-                let normalized_position = i as f64 / width as f64;
-                match i.cmp(&indicator_position) {
-                    Ordering::Less => Self::color_ramp_pass(
-                        normalized_position,
-                        &text_progress_bar.color_ramp,
-                        fill,
-                    ),
-                    Ordering::Equal => Self::color_ramp_pass(
-                        normalized_position,
-                        &text_progress_bar.color_ramp,
-                        indicator,
-                    ),
-                    Ordering::Greater => empty.into(),
-                }
-            })
-            .collect();
-        Ok(segments.join(""))
-    }
-
     fn new(
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
-        text_progress_bar: config::TextProgressBarDisplay<String>,
         height: f64,
     ) -> Self {
-        let progress_bar =
-            Self::progress_bar_string(number_block, &text_progress_bar, 10).unwrap_or_default();
-        let format = text_progress_bar.bar_format;
-        let markup = format.replace("{}", &progress_bar);
         let display = config::DisplayOptions {
-            value: markup,
+            value: number_block.parsed_data.text_bar_string.clone(),
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
@@ -395,94 +313,13 @@ struct TextNumberBlock {
 }
 
 impl TextNumberBlock {
-    fn ramp_pass(normalized_position: f64, ramp: &[String]) -> String {
-        let position = (normalized_position * (ramp.len() - 1) as f64).floor() as usize;
-        ramp.get(position).expect("out of index ramp pass").into()
-    }
-
-    fn text(
-        number_block: &config::NumberBlock<String>,
-        number_text_display: &config::NumberTextDisplay<String>,
-    ) -> anyhow::Result<String> {
-        if number_block.display.value.is_empty() {
-            return Ok("".into());
-        }
-        let number_type = number_block.number_type;
-        let (min_value, max_value) = match number_type {
-            config::NumberType::Percent => (Some(0.0), Some(100.0)),
-            _ => (
-                number_type
-                    .parse_str(&number_block.min_value)
-                    .context("min_value")?,
-                number_type
-                    .parse_str(&number_block.max_value)
-                    .context("max_value")?,
-            ),
-        };
-        let mut value = number_type
-            .parse_str(&number_block.display.value)
-            .context("value")?
-            .unwrap();
-
-        if let Some(min_value) = min_value {
-            if let Some(max_value) = max_value {
-                if min_value > max_value {
-                    return Ok("MIN>MAX".into()); // Fix
-                }
-            }
-            if value < min_value {
-                value = min_value;
-            }
-        }
-        if let Some(max_value) = max_value {
-            if value > max_value {
-                value = max_value;
-            }
-        }
-
-        if !number_text_display.ramp.is_empty() {
-            match (min_value, max_value) {
-                (Some(min), Some(max)) => {
-                    let normalized_position = (value - min) / (max - min);
-                    return Ok(Self::ramp_pass(
-                        normalized_position,
-                        &number_text_display.ramp,
-                    ));
-                }
-                _ => {
-                    return Ok("ramp with no MIN/MAX".into()); // fix
-                }
-            }
-        }
-
-        Ok(match number_text_display.number_type.unwrap() {
-            config::NumberType::Percent => format!("{}%", value),
-            config::NumberType::Number => format!("{}", value),
-            config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
-        })
-    }
-
-    fn pad(text: &str, number_text_display: &config::NumberTextDisplay<String>) -> String {
-        let chars_to_pad = number_text_display
-            .padded_width
-            .unwrap_or_default()
-            .checked_sub(text.len())
-            .unwrap_or_default();
-        let pad_string: String = (0..chars_to_pad).map(|_| ' ').collect();
-        format!("{}{}", pad_string, text)
-    }
-
     fn new(
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
-        number_text_display: config::NumberTextDisplay<String>,
         height: f64,
     ) -> Self {
-        let text = Self::text(number_block, &number_text_display).unwrap_or_default(); // Fix
-        let text = Self::pad(&text, &number_text_display);
-        let text = number_text_display.output_format.replace("{}", &text);
         let display = config::DisplayOptions {
-            value: text,
+            value: number_block.parsed_data.text_bar_string.clone(),
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
@@ -843,20 +680,18 @@ impl Bar {
                 text.separator_radius,
             ),
             config::Block::Number(number) => match &number.number_display.as_ref().unwrap() {
-                config::NumberDisplay::ProgressBar(text_progress_bar) => {
+                config::NumberDisplay::ProgressBar(_) => {
                     let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
                         drawing_context,
                         number,
-                        text_progress_bar.clone(),
                         self.bar.height as f64,
                     ));
                     b
                 }
-                config::NumberDisplay::Text(number_text_display) => {
+                config::NumberDisplay::Text(_) => {
                     let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
                         drawing_context,
                         number,
-                        number_text_display.clone(),
                         self.bar.height as f64,
                     ));
                     b
@@ -908,6 +743,7 @@ impl Bar {
             if updated {
                 // For now recreating, but it can be updated.
                 let block = self.build_widget(drawing_context, data)?;
+                // tracing::debug!("Updated '{}': {:?}", name, block);
                 self.blocks.insert(name.into(), block.into());
                 if let Some(popup) = data.popup() {
                     popup_updates.entry(popup).or_default().insert(name.clone());

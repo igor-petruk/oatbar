@@ -431,6 +431,15 @@ pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     ProgressBar(TextProgressBarDisplay<Dynamic>),
 }
 
+// This struct contains pre-processed inputs
+// that reduce number of diffs vs raw inputs.
+// For example small change in CPU percent can produce
+// the same progress bar view, no need to redraw.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct NumberParsedData {
+    pub text_bar_string: String,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
@@ -444,6 +453,8 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub processing_options: ProcessingOptions,
     pub number_type: NumberType,
     pub number_display: Option<NumberDisplay<Dynamic>>,
+    #[serde(skip)]
+    pub parsed_data: NumberParsedData,
 }
 
 impl NumberBlock<Option<Placeholder>> {
@@ -470,6 +481,7 @@ impl NumberBlock<Option<Placeholder>> {
                 ),
             }),
             processing_options: self.processing_options.with_defaults(),
+            parsed_data: Default::default(),
         }
     }
 }
@@ -501,6 +513,7 @@ impl NumberBlock<Placeholder> {
                 )),
                 None => None,
             },
+            parsed_data: self.parsed_data.clone(),
         })
     }
 }
