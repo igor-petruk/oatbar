@@ -182,13 +182,14 @@ impl State {
     }
 
     pub fn update_blocks(&mut self) -> anyhow::Result<()> {
-        for block in self.config.blocks.values() {
-            match &block {
+        for (name, block) in self.config.blocks.iter() {
+            let block_data = match &block {
                 config::Block::Text(text_block) => self.text_block(text_block),
                 config::Block::Enum(enum_block) => self.enum_block(enum_block),
                 config::Block::Number(number_block) => self.number_block(number_block),
                 config::Block::Image(image_block) => self.image_block(image_block),
             }?;
+            self.blocks.insert(name.into(), block_data);
         }
         Ok(())
     }
