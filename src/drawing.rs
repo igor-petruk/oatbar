@@ -51,6 +51,9 @@ impl Context {
         mode: Mode,
     ) -> anyhow::Result<Self> {
         let context = cairo::Context::new(buffer_surface.clone())?;
+        context.set_antialias(cairo::Antialias::Fast);
+        context.set_line_join(cairo::LineJoin::Round);
+        context.set_line_cap(cairo::LineCap::Square);
         let pango_context = match mode {
             Mode::Full => Some(pangocairo::create_context(&context)),
             Mode::Shape => None,

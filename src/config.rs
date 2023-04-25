@@ -108,9 +108,11 @@ pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
     pub background: Dynamic,
     pub overline_color: Dynamic,
     pub underline_color: Dynamic,
+    pub edgeline_color: Dynamic,
     pub pango_markup: Option<bool>,
     pub margin: Option<f64>,
     pub padding: Option<f64>,
+    pub line_width: Option<f64>,
     pub show_if_set: Dynamic,
     pub popup: Option<PopupMode>,
 }
@@ -135,8 +137,12 @@ impl DisplayOptions<Option<Placeholder>> {
             underline_color: self
                 .underline_color
                 .unwrap_or_else(|| default.underline_color.clone()),
+            edgeline_color: self
+                .edgeline_color
+                .unwrap_or_else(|| default.edgeline_color.clone()),
             margin: self.margin.or(default.margin),
             padding: self.padding.or(default.padding),
+            line_width: self.line_width.or(default.line_width),
             show_if_set: self
                 .show_if_set
                 .unwrap_or_else(|| default.show_if_set.clone()),
@@ -169,8 +175,13 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
                 .underline_color
                 .resolve_placeholders(vars)
                 .context("underline_color")?,
+            edgeline_color: self
+                .edgeline_color
+                .resolve_placeholders(vars)
+                .context("edgeline_color")?,
             margin: self.margin,
             padding: self.padding,
+            line_width: self.line_width,
             show_if_set: self
                 .show_if_set
                 .resolve_placeholders(vars)
@@ -876,9 +887,11 @@ fn default_display() -> DisplayOptions<Placeholder> {
         background: "#191919".into(),
         overline_color: "".into(),
         underline_color: "".into(),
+        edgeline_color: "".into(),
         pango_markup: Some(true),
         margin: Some(0.0),
         padding: Some(8.0),
+        line_width: Some(1.1),
         show_if_set: "visible".into(),
         popup: None,
     }

@@ -111,15 +111,18 @@ impl Block for BaseBlock {
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
         context.set_operator(cairo::Operator::Source);
+        let line_width = self.display_options.line_width.unwrap();
+        context.set_line_width(line_width);
+
+        // TODO: figure out how to prevent a gap between neighbour blocks.
+        let deg = std::f64::consts::PI / 180.0;
+        let radius = self.separator_radius.unwrap_or_default();
 
         let background_color = &self.display_options.background;
         if !background_color.is_empty() {
             drawing_context
                 .set_source_rgba_background(background_color)
                 .context("background")?;
-            // TODO: figure out how to prevent a gap between neighbour blocks.
-            let deg = std::f64::consts::PI / 180.0;
-            let radius = self.separator_radius.unwrap_or_default();
 
             match self.separator_type {
                 Some(config::SeparatorType::Right) => {
@@ -154,9 +157,6 @@ impl Block for BaseBlock {
             context.fill()?;
         }
 
-        let line_width = 3.0;
-        context.set_line_width(line_width);
-
         let overline_color = &self.display_options.overline_color;
         if !overline_color.is_empty() {
             drawing_context.set_source_rgba(overline_color)?;
@@ -175,6 +175,45 @@ impl Block for BaseBlock {
             );
             context.stroke()?;
         }
+
+        let edgeline_color = &self.display_options.edgeline_color;
+        if !edgeline_color.is_empty() {
+            match self.separator_type {
+                Some(config::SeparatorType::Right) => {
+                    context.new_sub_path();
+                    context.arc_negative(
+                        0.0,
+                        self.height - radius - line_width / 2.0,
+                        radius,
+                        90.0 * deg,
+                        0.0,
+                    );
+                    // context.line_to(0.0, 0.0);
+                    context.arc_negative(0.0, radius + line_width / 2.0, radius, 0.0, -90.0 * deg);
+                    context.stroke()?;
+                }
+                Some(config::SeparatorType::Left) => {
+                    context.new_sub_path();
+                    context.arc_negative(
+                        radius,
+                        radius + line_width / 2.0,
+                        radius,
+                        -90.0 * deg,
+                        -180.0 * deg,
+                    );
+                    context.arc_negative(
+                        radius,
+                        self.height - radius - line_width / 2.0,
+                        radius,
+                        -180.0 * deg,
+                        -270.0 * deg,
+                    );
+                    context.stroke()?;
+                }
+                _ => {}
+            }
+        }
+
         context.translate(
             self.margin + self.padding,
             (self.height - inner_dim.height) / 2.0,
