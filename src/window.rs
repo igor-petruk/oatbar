@@ -366,20 +366,22 @@ impl Window {
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 
-        let show_only = if self.bar_config.hidden {
+        let (visible, show_only) = if self.bar_config.hidden {
             let mut popup_control = self.popup_control.write().unwrap();
             popup_control.extend_show_only(popup_updates);
-            popup_control.show_only.clone()
+            // Maybe there is a race condition between visibility and rendering.
+            (popup_control.visible, popup_control.show_only.clone())
         } else {
-            None
+            (true, None)
         };
 
-        self.bar.render(&self.back_buffer_context, &show_only)?;
-        self.bar.render(&self.shape_buffer_context, &show_only)?;
+        if visible {
+            self.bar.render(&self.back_buffer_context, &show_only)?;
+            self.bar.render(&self.shape_buffer_context, &show_only)?;
 
-        self.swap_buffers()?;
-        self.apply_shape()?;
-
+            self.swap_buffers()?;
+            self.apply_shape()?;
+        }
         self.conn.flush()?;
         Ok(())
     }
