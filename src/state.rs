@@ -298,6 +298,7 @@ impl State {
     }
 
     fn enum_block(&self, b: &config::EnumBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
+        // Optimize this mess. It should just use normal resolve_placeholders for the entire config.
         let display = b
             .display
             .resolve_placeholders(&self.vars)
@@ -307,6 +308,12 @@ impl State {
             .active_display
             .resolve_placeholders(&self.vars)
             .context("active_display")?;
+
+        let b = config::EnumBlock {
+            display: display.clone(),
+            active_display: active_display.clone(),
+            ..b.clone()
+        };
 
         let active_str = &b
             .active
@@ -329,7 +336,7 @@ impl State {
             .split(enum_separator)
             .map(|value| b.processing_options.process_single(value))
             .enumerate()
-            .map(|(index, value)| format_active_inactive(b, active, index, value))
+            .map(|(index, value)| format_active_inactive(&b, active, index, value))
             .partition(|r| r.is_ok());
 
         if let Some(Err(err)) = errors.into_iter().next() {
