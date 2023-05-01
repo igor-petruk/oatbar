@@ -358,31 +358,46 @@ impl Window {
         })
     }
 
-    pub fn render(&mut self) -> anyhow::Result<()> {
+    pub fn render(&mut self, from_os: bool) -> anyhow::Result<()> {
         let state = self.state.read().unwrap();
-        let popup_updates = self.bar.update(&self.back_buffer_context, &state.blocks)?;
+        let mut updates = self.bar.update(&self.back_buffer_context, &state.blocks)?;
 
-        if self.bar_config.hidden && !popup_updates.is_empty() {
+        if from_os {
+            updates.redraw = bar::RedrawScope::All;
+        }
+
+        if self.bar_config.hidden && !updates.popup.is_empty() {
             PopupControl::show_or_prolong_popup(&self.popup_control)?;
         }
 
-        let (visible, show_only) = if self.bar_config.hidden {
+        let (visible, show_only, redraw) = if self.bar_config.hidden {
             let mut popup_control = self.popup_control.write().unwrap();
-            popup_control.extend_show_only(popup_updates);
+            popup_control.extend_show_only(updates.popup);
+            let redraw_mode = if popup_control.show_only.is_some() {
+                bar::RedrawScope::All
+            } else {
+                updates.redraw
+            };
             // Maybe there is a race condition between visibility and rendering.
-            (popup_control.visible, popup_control.show_only.clone())
+            (
+                popup_control.visible,
+                popup_control.show_only.clone(),
+                redraw_mode,
+            )
         } else {
-            (true, None)
+            (true, None, updates.redraw)
         };
 
-        if visible {
-            self.bar.render(&self.back_buffer_context, &show_only)?;
-            self.bar.render(&self.shape_buffer_context, &show_only)?;
+        if visible && redraw != bar::RedrawScope::None {
+            self.bar
+                .render(&self.back_buffer_context, &show_only, &redraw)?;
+            self.bar
+                .render(&self.shape_buffer_context, &show_only, &redraw)?;
 
             self.swap_buffers()?;
             self.apply_shape()?;
+            self.conn.flush()?;
         }
-        self.conn.flush()?;
         Ok(())
     }
 

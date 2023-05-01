@@ -115,13 +115,12 @@ impl Engine {
     ) -> anyhow::Result<()> {
         self.spawn_state_update_thread(state_update_rx)
             .context("engine state update")?;
-
         loop {
             let event = xutils::get_event(&self.conn)?;
             match event {
                 Some(xcb::Event::X(x::Event::Expose(ev))) => {
                     if let Some(window) = self.windows.get_mut(&ev.window()) {
-                        window.render()?;
+                        window.render(ev.width() != 1)?; // Hack for now to distinguish on-demand expose.
                     }
                 }
                 Some(xcb::Event::Input(xinput::Event::RawMotion(_event))) => {

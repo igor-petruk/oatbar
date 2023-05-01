@@ -26,13 +26,14 @@ use tracing::error;
 
 use crate::{config, drawing, state};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Dimensions {
     width: f64,
     height: f64,
 }
 
 trait Block {
+    fn name(&self) -> &str;
     fn get_dimensions(&self) -> Dimensions;
     fn is_visible(&self) -> bool;
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()>;
@@ -83,6 +84,10 @@ impl BaseBlock {
 impl DebugBlock for BaseBlock {}
 
 impl Block for BaseBlock {
+    fn name(&self) -> &str {
+        self.inner_block.name()
+    }
+
     fn is_visible(&self) -> bool {
         self.inner_block.is_visible()
     }
@@ -226,6 +231,7 @@ impl Block for BaseBlock {
 
 #[derive(Debug)]
 struct TextBlock {
+    name: String,
     pango_layout: Option<pango::Layout>,
     display_options: config::DisplayOptions<String>,
 }
@@ -234,6 +240,7 @@ impl DebugBlock for TextBlock {}
 
 impl TextBlock {
     fn new(
+        name: String,
         drawing_context: &drawing::Context,
         display_options: config::DisplayOptions<String>,
     ) -> Self {
@@ -254,12 +261,14 @@ impl TextBlock {
             None => None,
         };
         Self {
+            name,
             pango_layout,
             display_options,
         }
     }
 
     fn new_in_base_block(
+        name: String,
         drawing_context: &drawing::Context,
         display_options: config::DisplayOptions<String>,
         height: f64,
@@ -268,7 +277,7 @@ impl TextBlock {
     ) -> Box<dyn DebugBlock> {
         Box::new(BaseBlock::new(
             display_options.clone(),
-            Box::new(Self::new(drawing_context, display_options)),
+            Box::new(Self::new(name, drawing_context, display_options)),
             height,
             separator_type,
             separator_radius,
@@ -277,6 +286,10 @@ impl TextBlock {
 }
 
 impl Block for TextBlock {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
     fn get_dimensions(&self) -> Dimensions {
         if let Some(pango_layout) = &self.pango_layout {
             let ps = pango_layout.pixel_size();
@@ -317,6 +330,7 @@ struct TextProgressBarNumberBlock {
 
 impl TextProgressBarNumberBlock {
     fn new(
+        name: String,
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
         height: f64,
@@ -326,7 +340,8 @@ impl TextProgressBarNumberBlock {
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
-        let text_block = TextBlock::new_in_base_block(drawing_context, display, height, None, None);
+        let text_block =
+            TextBlock::new_in_base_block(name, drawing_context, display, height, None, None);
         Self { text_block }
     }
 }
@@ -334,6 +349,10 @@ impl TextProgressBarNumberBlock {
 impl DebugBlock for TextProgressBarNumberBlock {}
 
 impl Block for TextProgressBarNumberBlock {
+    fn name(&self) -> &str {
+        self.text_block.name()
+    }
+
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
     }
@@ -353,6 +372,7 @@ struct TextNumberBlock {
 
 impl TextNumberBlock {
     fn new(
+        name: String,
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
         height: f64,
@@ -362,7 +382,8 @@ impl TextNumberBlock {
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
-        let text_block = TextBlock::new_in_base_block(drawing_context, display, height, None, None);
+        let text_block =
+            TextBlock::new_in_base_block(name, drawing_context, display, height, None, None);
         Self { text_block }
     }
 }
@@ -370,6 +391,10 @@ impl TextNumberBlock {
 impl DebugBlock for TextNumberBlock {}
 
 impl Block for TextNumberBlock {
+    fn name(&self) -> &str {
+        self.text_block.name()
+    }
+
     fn get_dimensions(&self) -> Dimensions {
         self.text_block.get_dimensions()
     }
@@ -384,6 +409,7 @@ impl Block for TextNumberBlock {
 
 #[derive(Debug)]
 struct EnumBlock {
+    name: String,
     variant_blocks: Vec<Box<dyn DebugBlock>>,
     dim: Dimensions,
     block: config::EnumBlock<String>,
@@ -391,6 +417,7 @@ struct EnumBlock {
 
 impl EnumBlock {
     fn new(
+        name: String,
         drawing_context: &drawing::Context,
         block: &config::EnumBlock<String>,
         height: f64,
@@ -406,6 +433,7 @@ impl EnumBlock {
             };
             display_options.value = item.clone();
             let variant_block = TextBlock::new_in_base_block(
+                "".into(),
                 drawing_context,
                 display_options.clone(),
                 height,
@@ -417,6 +445,7 @@ impl EnumBlock {
         }
         let dim = Dimensions { width, height };
         EnumBlock {
+            name,
             variant_blocks,
             dim,
             block: block.clone(),
@@ -427,6 +456,10 @@ impl EnumBlock {
 impl DebugBlock for EnumBlock {}
 
 impl Block for EnumBlock {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
     fn get_dimensions(&self) -> Dimensions {
         self.dim.clone()
     }
@@ -451,6 +484,7 @@ impl Block for EnumBlock {
 
 #[derive(Debug)]
 struct ImageBlock {
+    name: String,
     display_options: config::DisplayOptions<String>,
     image_buf: anyhow::Result<cairo::ImageSurface>,
 }
@@ -464,12 +498,17 @@ impl ImageBlock {
         Ok(image)
     }
 
-    fn new(display_options: config::DisplayOptions<String>, height: f64) -> Box<dyn DebugBlock> {
+    fn new(
+        name: String,
+        display_options: config::DisplayOptions<String>,
+        height: f64,
+    ) -> Box<dyn DebugBlock> {
         let image_buf = Self::load_image(display_options.value.as_str());
         if let Err(e) = &image_buf {
             error!("Error loading PNG file: {:?}", e)
         }
         let image_block = Self {
+            name,
             image_buf,
             display_options: display_options.clone(),
         };
@@ -484,6 +523,10 @@ impl ImageBlock {
 }
 
 impl Block for ImageBlock {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
     fn get_dimensions(&self) -> Dimensions {
         match &self.image_buf {
             Ok(image_buf) => Dimensions {
@@ -613,7 +656,11 @@ impl BlockGroup {
         }
     }
 
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+    fn render(
+        &self,
+        drawing_context: &drawing::Context,
+        redraw: &RedrawScope,
+    ) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let mut pos: f64 = 0.0;
         for block in self.blocks.iter() {
@@ -623,9 +670,16 @@ impl BlockGroup {
             let b_dim = block.get_dimensions();
             context.save()?;
             context.translate(pos, 0.0);
-            block
-                .render(drawing_context)
-                .with_context(|| format!("block: {:?}", block))?;
+            let render = if let RedrawScope::Partial(render_only) = redraw {
+                render_only.contains(block.name())
+            } else {
+                true
+            };
+            if render {
+                block
+                    .render(drawing_context)
+                    .with_context(|| format!("block: {:?}", block))?;
+            }
             context.restore()?;
             pos += b_dim.width;
         }
@@ -656,6 +710,18 @@ impl Bar {
             blocks: HashMap::new(),
         })
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RedrawScope {
+    All,
+    Partial(HashSet<String>),
+    None,
+}
+
+pub struct Updates {
+    pub popup: HashMap<config::PopupMode, HashSet<String>>,
+    pub redraw: RedrawScope,
 }
 
 impl Bar {
@@ -707,11 +773,13 @@ impl Bar {
 
     fn build_widget(
         &self,
+        name: String,
         drawing_context: &drawing::Context,
         block_data: &state::BlockData,
     ) -> anyhow::Result<Box<dyn DebugBlock>> {
         let b: Box<dyn DebugBlock> = match &block_data.config {
             config::Block::Text(text) => TextBlock::new_in_base_block(
+                name,
                 drawing_context,
                 text.display.clone(),
                 self.bar.height as f64,
@@ -721,6 +789,7 @@ impl Bar {
             config::Block::Number(number) => match &number.number_display.as_ref().unwrap() {
                 config::NumberDisplay::ProgressBar(_) => {
                     let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
+                        name,
                         drawing_context,
                         number,
                         self.bar.height as f64,
@@ -729,6 +798,7 @@ impl Bar {
                 }
                 config::NumberDisplay::Text(_) => {
                     let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
+                        name,
                         drawing_context,
                         number,
                         self.bar.height as f64,
@@ -738,6 +808,7 @@ impl Bar {
             },
             config::Block::Enum(enum_block) => {
                 let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
+                    name,
                     drawing_context,
                     enum_block,
                     self.bar.height as f64,
@@ -745,7 +816,7 @@ impl Bar {
                 b
             }
             config::Block::Image(image) => {
-                ImageBlock::new(image.display.clone(), self.bar.height as f64)
+                ImageBlock::new(name, image.display.clone(), self.bar.height as f64)
             }
         };
         Ok(b)
@@ -755,9 +826,11 @@ impl Bar {
         &mut self,
         drawing_context: &drawing::Context,
         block_data: &HashMap<String, state::BlockData>,
-    ) -> anyhow::Result<HashMap<config::PopupMode, HashSet<String>>> {
-        let mut popup_updates: HashMap<config::PopupMode, HashSet<String>> =
+    ) -> anyhow::Result<Updates> {
+        let mut popup: HashMap<config::PopupMode, HashSet<String>> =
             HashMap::with_capacity(block_data.len());
+        let mut redraw: HashSet<String> = HashSet::new();
+        let mut redraw_all = false;
         for (name, data) in block_data.iter() {
             if !self.all_blocks.contains(name) {
                 continue;
@@ -785,34 +858,58 @@ impl Bar {
             };
             if updated {
                 // For now recreating, but it can be updated.
-                let block = self.build_widget(drawing_context, data)?;
+                let block = self.build_widget(name.into(), drawing_context, data)?;
+                let entry = self.blocks.entry(name.into());
                 // tracing::debug!("Updated '{}': {:?}", name, block);
-                self.blocks.insert(name.into(), block.into());
-                if let Some(popup) = data.popup() {
-                    popup_updates.entry(popup).or_default().insert(name.clone());
+                redraw.insert(name.into());
+                match entry {
+                    Entry::Occupied(mut o) => {
+                        if o.get().get_dimensions() != block.get_dimensions() {
+                            redraw_all = true
+                        }
+                        o.insert(block.into());
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(block.into());
+                    }
+                };
+                if let Some(popup_mode) = data.popup() {
+                    popup.entry(popup_mode).or_default().insert(name.clone());
                 }
             }
         }
-        Ok(popup_updates)
+        Ok(Updates {
+            popup,
+            redraw: if redraw_all {
+                RedrawScope::All
+            } else if !redraw.is_empty() {
+                RedrawScope::Partial(redraw)
+            } else {
+                RedrawScope::None
+            },
+        })
     }
 
     pub fn render(
         &self,
         drawing_context: &drawing::Context,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+        redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let bar = &self.bar;
 
         let width = drawing_context.width - (bar.margin.left + bar.margin.right) as f64;
 
-        context.save()?;
-        drawing_context
-            .set_source_rgba_background(&self.bar.background)
-            .context("bar.background")?;
-        context.set_operator(cairo::Operator::Source);
-        context.paint()?;
-        context.restore()?;
+        if *redraw == RedrawScope::All {
+            context.save()?;
+            drawing_context
+                .set_source_rgba_background(&self.bar.background)
+                .context("bar.background")?;
+            context.set_operator(cairo::Operator::Source);
+            context.paint()?;
+            context.restore()?;
+        }
 
         let all_blocks: Vec<String> = bar
             .blocks_left
@@ -851,19 +948,23 @@ impl Bar {
         context.translate(bar.margin.left.into(), bar.margin.top.into());
 
         context.save()?;
-        left_group.render(drawing_context).context("left_group")?;
+        left_group
+            .render(drawing_context, redraw)
+            .context("left_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate((width - center_group.dimensions.width) / 2.0, 0.0);
         center_group
-            .render(drawing_context)
+            .render(drawing_context, redraw)
             .context("center_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate(width - right_group.dimensions.width, 0.0);
-        right_group.render(drawing_context).context("right_group")?;
+        right_group
+            .render(drawing_context, redraw)
+            .context("right_group")?;
         context.restore()?;
 
         context.restore()?;
