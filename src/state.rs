@@ -32,6 +32,15 @@ impl BlockData {
             config::Block::Image(b) => b.display.popup,
         }
     }
+
+    pub fn popup_value(&self) -> &str {
+        match &self.config {
+            config::Block::Text(b) => &b.display.popup_value,
+            config::Block::Enum(b) => &b.display.popup_value,
+            config::Block::Number(b) => &b.display.popup_value,
+            config::Block::Image(b) => &b.display.popup_value,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -262,13 +271,14 @@ impl State {
         &self,
         b: &config::NumberBlock<config::Placeholder>,
     ) -> anyhow::Result<BlockData> {
-        let display = b
-            .display
-            .resolve_placeholders(&self.vars)
-            .context("display")?;
+        let b = b.resolve_placeholders(&self.vars).context("number_block")?;
+        let display = &b.display;
         let value = b.processing_options.process_single(&display.value);
         let mut number_block = config::NumberBlock {
-            display: config::DisplayOptions { value, ..display },
+            display: config::DisplayOptions {
+                value,
+                ..display.clone()
+            },
             ..b.clone()
         };
 

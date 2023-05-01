@@ -105,6 +105,7 @@ pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
     pub font: Dynamic,
     pub foreground: Dynamic,
     pub value: Dynamic,
+    pub popup_value: Dynamic,
     pub background: Dynamic,
     pub overline_color: Dynamic,
     pub underline_color: Dynamic,
@@ -131,6 +132,9 @@ impl DisplayOptions<Option<Placeholder>> {
                 .background
                 .unwrap_or_else(|| default.background.clone()),
             value: self.value.unwrap_or_else(|| default.value.clone()),
+            popup_value: self
+                .popup_value
+                .unwrap_or_else(|| default.popup_value.clone()),
             overline_color: self
                 .overline_color
                 .unwrap_or_else(|| default.overline_color.clone()),
@@ -167,6 +171,10 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
                 .resolve_placeholders(vars)
                 .context("background")?,
             value: self.value.resolve_placeholders(vars).context("value")?,
+            popup_value: self
+                .popup_value
+                .resolve_placeholders(vars)
+                .context("popup_value")?,
             overline_color: self
                 .overline_color
                 .resolve_placeholders(vars)
@@ -882,6 +890,7 @@ fn default_margin() -> Margin {
 fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
         value: "".into(),
+        popup_value: "".into(),
         font: "monospace 12".into(),
         foreground: "#dddddd".into(),
         background: "#191919".into(),

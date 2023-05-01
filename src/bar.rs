@@ -767,7 +767,11 @@ impl Bar {
 
             let updated = match entry {
                 Entry::Occupied(mut o) => {
-                    if data != o.get() {
+                    let old_data = o.get();
+                    if (!data.popup_value().is_empty()
+                        && old_data.popup_value() != data.popup_value())
+                        || (data.popup_value().is_empty() && data != o.get())
+                    {
                         o.insert(data.clone());
                         true
                     } else {
