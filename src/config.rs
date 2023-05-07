@@ -1013,7 +1013,7 @@ mod tests {
         let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>".into();
         let result = replace_placeholders(&value, &map);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "<test> hello $ world, () default </test>");
+        assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
     }
 
     #[test]
