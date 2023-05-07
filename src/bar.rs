@@ -58,7 +58,7 @@ fn handle_button_press(
     if let Some(on_click_command) = &event_handlers.on_click_command {
         let mut child = std::process::Command::new("bash") // relying on bash+disown for now.
             .arg("-c")
-            .arg(format!("{} & disown", &on_click_command))
+            .arg(format!("{} disown", &on_click_command))
             .env("BLOCK_NAME", name)
             .env("BLOCK_VALUE", value)
             .stdout(std::process::Stdio::piped())
