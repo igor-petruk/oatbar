@@ -225,6 +225,12 @@ impl Replace {
 
 serde_with::with_prefix!(prefix_active "active_");
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct EventHandlers {
+    pub on_click_command: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
@@ -239,6 +245,8 @@ pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten, with = "prefix_active")]
     pub active_display: DisplayOptions<Dynamic>,
+    #[serde(flatten)]
+    pub event_handlers: EventHandlers,
 }
 
 impl EnumBlock<Option<Placeholder>> {
@@ -253,6 +261,7 @@ impl EnumBlock<Option<Placeholder>> {
             active_display: self
                 .active_display
                 .with_default(&self.display.with_default(&default_block.active_display)),
+            event_handlers: self.event_handlers,
         }
     }
 }
@@ -275,6 +284,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
                 .active_display
                 .resolve_placeholders(vars)
                 .context("active_display")?,
+            event_handlers: self.event_handlers.clone(),
         })
     }
 }
@@ -289,6 +299,8 @@ pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub processing_options: ProcessingOptions,
     pub separator_type: Option<SeparatorType>,
     pub separator_radius: Option<f64>,
+    #[serde(flatten)]
+    pub event_handlers: EventHandlers,
 }
 
 impl TextBlock<Option<Placeholder>> {
@@ -299,6 +311,7 @@ impl TextBlock<Option<Placeholder>> {
             processing_options: self.processing_options.with_defaults(),
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
+            event_handlers: self.event_handlers,
         }
     }
 }
@@ -314,6 +327,7 @@ impl TextBlock<Placeholder> {
             processing_options: self.processing_options.clone(),
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
+            event_handlers: self.event_handlers.clone(),
         })
     }
 }
@@ -475,6 +489,8 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub number_display: Option<NumberDisplay<Dynamic>>,
     #[serde(skip)]
     pub parsed_data: NumberParsedData,
+    #[serde(flatten)]
+    pub event_handlers: EventHandlers,
 }
 
 impl NumberBlock<Option<Placeholder>> {
@@ -502,6 +518,7 @@ impl NumberBlock<Option<Placeholder>> {
             }),
             processing_options: self.processing_options.with_defaults(),
             parsed_data: Default::default(),
+            event_handlers: self.event_handlers,
         }
     }
 }
@@ -534,6 +551,7 @@ impl NumberBlock<Placeholder> {
                 None => None,
             },
             parsed_data: self.parsed_data.clone(),
+            event_handlers: self.event_handlers.clone(),
         })
     }
 }
@@ -546,6 +564,8 @@ pub struct ImageBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten)]
     pub processing_options: ProcessingOptions,
+    #[serde(flatten)]
+    pub event_handlers: EventHandlers,
 }
 
 impl ImageBlock<Option<Placeholder>> {
@@ -557,6 +577,7 @@ impl ImageBlock<Option<Placeholder>> {
             name: self.name.clone(),
             display: self.display.with_default(&default_block.display),
             processing_options: self.processing_options.with_defaults(),
+            event_handlers: self.event_handlers,
         }
     }
 }
@@ -570,6 +591,7 @@ impl ImageBlock<Placeholder> {
             name: self.name.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
             processing_options: self.processing_options.clone(),
+            event_handlers: self.event_handlers.clone(),
         })
     }
 }
@@ -985,6 +1007,7 @@ mod tests {
                 ..Default::default()
             },
             processing_options: Default::default(),
+            event_handlers: Default::default(),
         });
         let block = block.resolve_placeholders(&map).unwrap();
         if let Block::Enum(e) = block {

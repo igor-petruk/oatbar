@@ -134,6 +134,13 @@ impl Engine {
                         window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
                     }
                 }
+                Some(xcb::Event::X(x::Event::ButtonPress(event))) => {
+                    for window in self.windows.values() {
+                        if window.id == event.event() {
+                            window.handle_button_press(event.event_x(), event.event_y())?;
+                        }
+                    }
+                }
                 None => {
                     return Ok(());
                 }

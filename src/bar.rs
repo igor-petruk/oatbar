@@ -32,6 +32,11 @@ struct Dimensions {
     height: f64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum BlockEvent {
+    ButtonPress { x: f64, y: f64 },
+}
+
 trait Block {
     fn name(&self) -> &str;
     fn get_dimensions(&self) -> Dimensions;
@@ -40,9 +45,30 @@ trait Block {
     fn separator_type(&self) -> Option<config::SeparatorType> {
         None
     }
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()>;
 }
 
 trait DebugBlock: Block + Debug {}
+
+fn handle_button_press(
+    event_handlers: &config::EventHandlers,
+    name: &str,
+    value: &str,
+) -> anyhow::Result<()> {
+    if let Some(on_click_command) = &event_handlers.on_click_command {
+        let mut child = std::process::Command::new("bash") // relying on bash+disown for now.
+            .arg("-c")
+            .arg(format!("{} & disown", &on_click_command))
+            .env("BLOCK_NAME", name)
+            .env("BLOCK_VALUE", value)
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .context("Failed spawnning")?;
+        let _ = child.wait();
+        tracing::info!("{:?} spawned", on_click_command);
+    }
+    Ok(())
+}
 
 #[derive(Debug)]
 struct BaseBlock {
@@ -90,6 +116,10 @@ impl Block for BaseBlock {
 
     fn is_visible(&self) -> bool {
         self.inner_block.is_visible()
+    }
+
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        self.inner_block.handle_event(event)
     }
 
     fn get_dimensions(&self) -> Dimensions {
@@ -234,6 +264,7 @@ struct TextBlock {
     name: String,
     pango_layout: Option<pango::Layout>,
     display_options: config::DisplayOptions<String>,
+    event_handlers: config::EventHandlers,
 }
 
 impl DebugBlock for TextBlock {}
@@ -243,6 +274,7 @@ impl TextBlock {
         name: String,
         drawing_context: &drawing::Context,
         display_options: config::DisplayOptions<String>,
+        event_handlers: config::EventHandlers,
     ) -> Self {
         let pango_layout = match &drawing_context.pango_context {
             Some(pango_context) => {
@@ -264,6 +296,7 @@ impl TextBlock {
             name,
             pango_layout,
             display_options,
+            event_handlers,
         }
     }
 
@@ -274,10 +307,16 @@ impl TextBlock {
         height: f64,
         separator_type: Option<config::SeparatorType>,
         separator_radius: Option<f64>,
+        event_handlers: config::EventHandlers,
     ) -> Box<dyn DebugBlock> {
         Box::new(BaseBlock::new(
             display_options.clone(),
-            Box::new(Self::new(name, drawing_context, display_options)),
+            Box::new(Self::new(
+                name,
+                drawing_context,
+                display_options,
+                event_handlers,
+            )),
             height,
             separator_type,
             separator_radius,
@@ -286,6 +325,14 @@ impl TextBlock {
 }
 
 impl Block for TextBlock {
+    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
+        handle_button_press(
+            &self.event_handlers,
+            self.name(),
+            &self.display_options.value,
+        )
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -334,14 +381,22 @@ impl TextProgressBarNumberBlock {
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
         height: f64,
+        event_handlers: config::EventHandlers,
     ) -> Self {
         let display = config::DisplayOptions {
             value: number_block.parsed_data.text_bar_string.clone(),
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
-        let text_block =
-            TextBlock::new_in_base_block(name, drawing_context, display, height, None, None);
+        let text_block = TextBlock::new_in_base_block(
+            name,
+            drawing_context,
+            display,
+            height,
+            None,
+            None,
+            event_handlers,
+        );
         Self { text_block }
     }
 }
@@ -349,6 +404,10 @@ impl TextProgressBarNumberBlock {
 impl DebugBlock for TextProgressBarNumberBlock {}
 
 impl Block for TextProgressBarNumberBlock {
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        self.text_block.handle_event(event)
+    }
+
     fn name(&self) -> &str {
         self.text_block.name()
     }
@@ -376,14 +435,22 @@ impl TextNumberBlock {
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
         height: f64,
+        event_handlers: config::EventHandlers,
     ) -> Self {
         let display = config::DisplayOptions {
             value: number_block.parsed_data.text_bar_string.clone(),
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
-        let text_block =
-            TextBlock::new_in_base_block(name, drawing_context, display, height, None, None);
+        let text_block = TextBlock::new_in_base_block(
+            name,
+            drawing_context,
+            display,
+            height,
+            None,
+            None,
+            event_handlers,
+        );
         Self { text_block }
     }
 }
@@ -391,6 +458,10 @@ impl TextNumberBlock {
 impl DebugBlock for TextNumberBlock {}
 
 impl Block for TextNumberBlock {
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        self.text_block.handle_event(event)
+    }
+
     fn name(&self) -> &str {
         self.text_block.name()
     }
@@ -413,6 +484,7 @@ struct EnumBlock {
     variant_blocks: Vec<Box<dyn DebugBlock>>,
     dim: Dimensions,
     block: config::EnumBlock<String>,
+    event_handlers: config::EventHandlers,
 }
 
 impl EnumBlock {
@@ -421,6 +493,7 @@ impl EnumBlock {
         drawing_context: &drawing::Context,
         block: &config::EnumBlock<String>,
         height: f64,
+        event_handlers: config::EventHandlers,
     ) -> Self {
         let mut variant_blocks = vec![];
         let mut width: f64 = 0.0;
@@ -439,6 +512,7 @@ impl EnumBlock {
                 height,
                 None,
                 None,
+                event_handlers.clone(),
             );
             width += variant_block.get_dimensions().width;
             variant_blocks.push(variant_block);
@@ -449,6 +523,7 @@ impl EnumBlock {
             variant_blocks,
             dim,
             block: block.clone(),
+            event_handlers,
         }
     }
 }
@@ -456,6 +531,10 @@ impl EnumBlock {
 impl DebugBlock for EnumBlock {}
 
 impl Block for EnumBlock {
+    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
+        handle_button_press(&self.event_handlers, self.name(), "")
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -487,6 +566,7 @@ struct ImageBlock {
     name: String,
     display_options: config::DisplayOptions<String>,
     image_buf: anyhow::Result<cairo::ImageSurface>,
+    event_handlers: config::EventHandlers,
 }
 
 impl DebugBlock for ImageBlock {}
@@ -502,6 +582,7 @@ impl ImageBlock {
         name: String,
         display_options: config::DisplayOptions<String>,
         height: f64,
+        event_handlers: config::EventHandlers,
     ) -> Box<dyn DebugBlock> {
         let image_buf = Self::load_image(display_options.value.as_str());
         if let Err(e) = &image_buf {
@@ -511,6 +592,7 @@ impl ImageBlock {
             name,
             image_buf,
             display_options: display_options.clone(),
+            event_handlers,
         };
         Box::new(BaseBlock::new(
             display_options,
@@ -523,6 +605,10 @@ impl ImageBlock {
 }
 
 impl Block for ImageBlock {
+    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
+        handle_button_press(&self.event_handlers, self.name(), "")
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -656,6 +742,22 @@ impl BlockGroup {
         }
     }
 
+    fn lookup_block(&self, x: f64) -> anyhow::Result<Option<Arc<dyn DebugBlock>>> {
+        let mut pos: f64 = 0.0;
+        for block in self.blocks.iter() {
+            if !block.is_visible() {
+                continue;
+            }
+            let b_dim = block.get_dimensions();
+            let next_pos = pos + b_dim.width;
+            if pos <= x && x <= next_pos {
+                return Ok(Some(block.clone()));
+            }
+            pos = next_pos;
+        }
+        Ok(None)
+    }
+
     fn render(
         &self,
         drawing_context: &drawing::Context,
@@ -694,7 +796,9 @@ pub struct Bar {
     all_blocks: HashSet<String>,
     left_group: BlockGroup,
     center_group: BlockGroup,
+    center_group_pos: f64,
     right_group: BlockGroup,
+    right_group_pos: f64,
 }
 
 impl Bar {
@@ -713,7 +817,9 @@ impl Bar {
             blocks: HashMap::new(),
             left_group: BlockGroup::new(&[]),
             center_group: BlockGroup::new(&[]),
+            center_group_pos: 0.0,
             right_group: BlockGroup::new(&[]),
+            right_group_pos: 0.0,
         })
     }
 }
@@ -791,6 +897,7 @@ impl Bar {
                 self.bar.height as f64,
                 text.separator_type.clone(),
                 text.separator_radius,
+                text.event_handlers.clone(),
             ),
             config::Block::Number(number) => match &number.number_display.as_ref().unwrap() {
                 config::NumberDisplay::ProgressBar(_) => {
@@ -799,6 +906,7 @@ impl Bar {
                         drawing_context,
                         number,
                         self.bar.height as f64,
+                        number.event_handlers.clone(),
                     ));
                     b
                 }
@@ -808,6 +916,7 @@ impl Bar {
                         drawing_context,
                         number,
                         self.bar.height as f64,
+                        number.event_handlers.clone(),
                     ));
                     b
                 }
@@ -818,12 +927,16 @@ impl Bar {
                     drawing_context,
                     enum_block,
                     self.bar.height as f64,
+                    enum_block.event_handlers.clone(),
                 ));
                 b
             }
-            config::Block::Image(image) => {
-                ImageBlock::new(name, image.display.clone(), self.bar.height as f64)
-            }
+            config::Block::Image(image) => ImageBlock::new(
+                name,
+                image.display.clone(),
+                self.bar.height as f64,
+                image.event_handlers.clone(),
+            ),
         };
         Ok(b)
     }
@@ -899,6 +1012,7 @@ impl Bar {
 
     pub fn layout_blocks(
         &mut self,
+        drawing_area_width: f64,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
     ) -> anyhow::Result<()> {
         let bar = &self.bar;
@@ -932,9 +1046,31 @@ impl Bar {
             &self.bar.blocks_right,
         );
 
+        let width = drawing_area_width - (bar.margin.left + bar.margin.right) as f64;
         self.left_group = BlockGroup::new(&flat_left);
         self.center_group = BlockGroup::new(&flat_center);
+        self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
         self.right_group = BlockGroup::new(&flat_right);
+        self.right_group_pos = width - self.right_group.dimensions.width;
+
+        Ok(())
+    }
+
+    pub fn handle_button_press(&self, x: i16, y: i16) -> anyhow::Result<()> {
+        let x = (x - self.bar.margin.left as i16) as f64;
+        let y = (y - self.bar.margin.top as i16) as f64;
+
+        let block = if x >= self.right_group_pos {
+            self.right_group.lookup_block(x - self.right_group_pos)
+        } else if x >= self.center_group_pos {
+            self.center_group.lookup_block(x - self.center_group_pos)
+        } else {
+            self.left_group.lookup_block(x)
+        }?;
+
+        if let Some(block) = block {
+            block.handle_event(&BlockEvent::ButtonPress { x, y })?
+        }
 
         Ok(())
     }
@@ -946,8 +1082,6 @@ impl Bar {
     ) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let bar = &self.bar;
-
-        let width = drawing_context.width - (bar.margin.left + bar.margin.right) as f64;
 
         if *redraw == RedrawScope::All {
             context.save()?;
@@ -969,14 +1103,14 @@ impl Bar {
         context.restore()?;
 
         context.save()?;
-        context.translate((width - self.center_group.dimensions.width) / 2.0, 0.0);
+        context.translate(self.center_group_pos, 0.0);
         self.center_group
             .render(drawing_context, redraw)
             .context("center_group")?;
         context.restore()?;
 
         context.save()?;
-        context.translate(width - self.right_group.dimensions.width, 0.0);
+        context.translate(self.right_group_pos, 0.0);
         self.right_group
             .render(drawing_context, redraw)
             .context("right_group")?;

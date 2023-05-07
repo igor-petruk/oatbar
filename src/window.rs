@@ -388,7 +388,8 @@ impl Window {
             (true, None, updates.redraw)
         };
 
-        self.bar.layout_blocks(&show_only)?;
+        self.bar
+            .layout_blocks(self.back_buffer_context.width, &show_only)?;
 
         if visible && redraw != bar::RedrawScope::None {
             self.bar.render(&self.back_buffer_context, &redraw)?;
@@ -399,6 +400,10 @@ impl Window {
             self.conn.flush()?;
         }
         Ok(())
+    }
+
+    pub fn handle_button_press(&self, x: i16, y: i16) -> anyhow::Result<()> {
+        self.bar.handle_button_press(x, y)
     }
 
     pub fn handle_raw_motion(&self, _x: i16, y: i16) -> anyhow::Result<()> {
