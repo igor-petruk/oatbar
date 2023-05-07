@@ -107,6 +107,31 @@ fn main() -> anyhow::Result<()> {
         return Err(anyhow!("xkb-1.0 is not supported"));
     }
 
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(layout) = args.get(1) {
+        let layout: usize = layout.parse()?;
+        let group = match layout {
+            0 => xkb::Group::N1,
+            1 => xkb::Group::N2,
+            2 => xkb::Group::N3,
+            _ => xkb::Group::N4,
+        };
+        xutils::send(
+            &conn,
+            &xkb::LatchLockState {
+                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                group_lock: group,
+                lock_group: true,
+                latch_group: false,
+                group_latch: 0,
+                affect_mod_locks: x::ModMask::empty(),
+                affect_mod_latches: x::ModMask::empty(),
+                mod_locks: x::ModMask::empty(),
+            },
+        )?;
+        return Ok(());
+    }
+
     let events = xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY;
     xutils::send(
         &conn,

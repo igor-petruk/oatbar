@@ -319,9 +319,15 @@ impl State {
             .resolve_placeholders(&self.vars)
             .context("active_display")?;
 
+        let event_handlers = b
+            .event_handlers
+            .resolve_placeholders(&self.vars)
+            .context("event_handlers")?;
+
         let b = config::EnumBlock {
             display: display.clone(),
             active_display: active_display.clone(),
+            event_handlers,
             ..b.clone()
         };
 

@@ -80,6 +80,7 @@ fn replace_placeholders(
                     }
                 }
                 Some(other) => {
+                    result.push('$');
                     result.push(other);
                 }
                 None => {
@@ -231,6 +232,19 @@ pub struct EventHandlers {
     pub on_click_command: Option<String>,
 }
 
+impl PlaceholderExt for EventHandlers {
+    type R = EventHandlers;
+
+    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<EventHandlers> {
+        Ok(EventHandlers {
+            on_click_command: self
+                .on_click_command
+                .as_ref()
+                .map(|c| c.resolve_placeholders(vars).expect("on_click_command")),
+        })
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
@@ -284,7 +298,10 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
                 .active_display
                 .resolve_placeholders(vars)
                 .context("active_display")?,
-            event_handlers: self.event_handlers.clone(),
+            event_handlers: self
+                .event_handlers
+                .resolve_placeholders(vars)
+                .context("event_handlers")?,
         })
     }
 }
@@ -327,7 +344,10 @@ impl TextBlock<Placeholder> {
             processing_options: self.processing_options.clone(),
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
-            event_handlers: self.event_handlers.clone(),
+            event_handlers: self
+                .event_handlers
+                .resolve_placeholders(vars)
+                .context("event_handlers")?,
         })
     }
 }
@@ -551,7 +571,10 @@ impl NumberBlock<Placeholder> {
                 None => None,
             },
             parsed_data: self.parsed_data.clone(),
-            event_handlers: self.event_handlers.clone(),
+            event_handlers: self
+                .event_handlers
+                .resolve_placeholders(vars)
+                .context("event_handlers")?,
         })
     }
 }
@@ -591,7 +614,10 @@ impl ImageBlock<Placeholder> {
             name: self.name.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
             processing_options: self.processing_options.clone(),
-            event_handlers: self.event_handlers.clone(),
+            event_handlers: self
+                .event_handlers
+                .resolve_placeholders(vars)
+                .context("event_handlers")?,
         })
     }
 }
