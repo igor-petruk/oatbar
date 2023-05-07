@@ -531,8 +531,26 @@ impl EnumBlock {
 impl DebugBlock for EnumBlock {}
 
 impl Block for EnumBlock {
-    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        handle_button_press(&self.event_handlers, self.name(), "")
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        match event {
+            BlockEvent::ButtonPress { x, .. } => {
+                let mut pos: f64 = 0.0;
+                for (index, block) in self.variant_blocks.iter().enumerate() {
+                    let next_pos = pos + block.get_dimensions().width;
+                    if pos <= *x && *x <= next_pos {
+                        handle_button_press(
+                            &self.event_handlers,
+                            self.name(),
+                            &format!("{}", index),
+                        )?;
+                        break;
+                    }
+                    pos = next_pos;
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn name(&self) -> &str {
@@ -742,8 +760,13 @@ impl BlockGroup {
         }
     }
 
-    fn lookup_block(&self, x: f64) -> anyhow::Result<Option<Arc<dyn DebugBlock>>> {
+    fn lookup_block(
+        &self,
+        group_pos: f64,
+        x: f64,
+    ) -> anyhow::Result<Option<(f64, Arc<dyn DebugBlock>)>> {
         let mut pos: f64 = 0.0;
+        let x = x - group_pos;
         for block in self.blocks.iter() {
             if !block.is_visible() {
                 continue;
@@ -751,7 +774,7 @@ impl BlockGroup {
             let b_dim = block.get_dimensions();
             let next_pos = pos + b_dim.width;
             if pos <= x && x <= next_pos {
-                return Ok(Some(block.clone()));
+                return Ok(Some((pos + group_pos, block.clone())));
             }
             pos = next_pos;
         }
@@ -1060,16 +1083,19 @@ impl Bar {
         let x = (x - self.bar.margin.left as i16) as f64;
         let y = (y - self.bar.margin.top as i16) as f64;
 
-        let block = if x >= self.right_group_pos {
-            self.right_group.lookup_block(x - self.right_group_pos)
+        let block_pair = if x >= self.right_group_pos {
+            self.right_group.lookup_block(self.right_group_pos, x)
         } else if x >= self.center_group_pos {
-            self.center_group.lookup_block(x - self.center_group_pos)
+            self.center_group.lookup_block(self.center_group_pos, x)
         } else {
-            self.left_group.lookup_block(x)
+            self.left_group.lookup_block(0.0, x)
         }?;
 
-        if let Some(block) = block {
-            block.handle_event(&BlockEvent::ButtonPress { x, y })?
+        if let Some((block_pos, block)) = block_pair {
+            block.handle_event(&BlockEvent::ButtonPress {
+                x: x - block_pos,
+                y,
+            })?
         }
 
         Ok(())
