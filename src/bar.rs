@@ -692,6 +692,9 @@ pub struct Bar {
     block_data: HashMap<String, state::BlockData>,
     blocks: HashMap<String, Arc<dyn DebugBlock>>,
     all_blocks: HashSet<String>,
+    left_group: BlockGroup,
+    center_group: BlockGroup,
+    right_group: BlockGroup,
 }
 
 impl Bar {
@@ -708,6 +711,9 @@ impl Bar {
             bar: bar.clone(),
             block_data: HashMap::new(),
             blocks: HashMap::new(),
+            left_group: BlockGroup::new(&[]),
+            center_group: BlockGroup::new(&[]),
+            right_group: BlockGroup::new(&[]),
         })
     }
 }
@@ -878,6 +884,7 @@ impl Bar {
                 }
             }
         }
+
         Ok(Updates {
             popup,
             redraw: if redraw_all {
@@ -890,26 +897,11 @@ impl Bar {
         })
     }
 
-    pub fn render(
-        &self,
-        drawing_context: &drawing::Context,
+    pub fn layout_blocks(
+        &mut self,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-        redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
-        let context = &drawing_context.context;
         let bar = &self.bar;
-
-        let width = drawing_context.width - (bar.margin.left + bar.margin.right) as f64;
-
-        if *redraw == RedrawScope::All {
-            context.save()?;
-            drawing_context
-                .set_source_rgba_background(&self.bar.background)
-                .context("bar.background")?;
-            context.set_operator(cairo::Operator::Source);
-            context.paint()?;
-            context.restore()?;
-        }
 
         let all_blocks: Vec<String> = bar
             .blocks_left
@@ -940,29 +932,52 @@ impl Bar {
             &self.bar.blocks_right,
         );
 
-        let left_group = BlockGroup::new(&flat_left);
-        let center_group = BlockGroup::new(&flat_center);
-        let right_group = BlockGroup::new(&flat_right);
+        self.left_group = BlockGroup::new(&flat_left);
+        self.center_group = BlockGroup::new(&flat_center);
+        self.right_group = BlockGroup::new(&flat_right);
+
+        Ok(())
+    }
+
+    pub fn render(
+        &self,
+        drawing_context: &drawing::Context,
+        redraw: &RedrawScope,
+    ) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
+        let bar = &self.bar;
+
+        let width = drawing_context.width - (bar.margin.left + bar.margin.right) as f64;
+
+        if *redraw == RedrawScope::All {
+            context.save()?;
+            drawing_context
+                .set_source_rgba_background(&self.bar.background)
+                .context("bar.background")?;
+            context.set_operator(cairo::Operator::Source);
+            context.paint()?;
+            context.restore()?;
+        }
 
         context.save()?;
         context.translate(bar.margin.left.into(), bar.margin.top.into());
 
         context.save()?;
-        left_group
+        self.left_group
             .render(drawing_context, redraw)
             .context("left_group")?;
         context.restore()?;
 
         context.save()?;
-        context.translate((width - center_group.dimensions.width) / 2.0, 0.0);
-        center_group
+        context.translate((width - self.center_group.dimensions.width) / 2.0, 0.0);
+        self.center_group
             .render(drawing_context, redraw)
             .context("center_group")?;
         context.restore()?;
 
         context.save()?;
-        context.translate(width - right_group.dimensions.width, 0.0);
-        right_group
+        context.translate(width - self.right_group.dimensions.width, 0.0);
+        self.right_group
             .render(drawing_context, redraw)
             .context("right_group")?;
         context.restore()?;

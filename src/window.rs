@@ -388,11 +388,11 @@ impl Window {
             (true, None, updates.redraw)
         };
 
+        self.bar.layout_blocks(&show_only)?;
+
         if visible && redraw != bar::RedrawScope::None {
-            self.bar
-                .render(&self.back_buffer_context, &show_only, &redraw)?;
-            self.bar
-                .render(&self.shape_buffer_context, &show_only, &redraw)?;
+            self.bar.render(&self.back_buffer_context, &redraw)?;
+            self.bar.render(&self.shape_buffer_context, &redraw)?;
 
             self.swap_buffers()?;
             self.apply_shape()?;
