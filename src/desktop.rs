@@ -84,6 +84,28 @@ fn get_workspaces(
     })
 }
 
+fn set_current_workspace(
+    root: Window,
+    conn: &xcb::Connection,
+    current: &Atom,
+    current_value: u32,
+) -> anyhow::Result<()> {
+    xutils::send(
+        conn,
+        &x::SendEvent {
+            propagate: false,
+            destination: x::SendEventDest::Window(root),
+            event_mask: x::EventMask::all(),
+            event: &x::ClientMessageEvent::new(
+                root,
+                *current,
+                x::ClientMessageData::Data32([current_value, 0, 0, 0, 0]),
+            ),
+        },
+    )?;
+    Ok(())
+}
+
 fn get_active_window_title(
     conn: &xcb::Connection,
     root: Window,
@@ -144,6 +166,13 @@ fn main() -> anyhow::Result<()> {
     let desktop_names = get_atom(&conn, "_NET_DESKTOP_NAMES")?;
     let active_window = get_atom(&conn, "_NET_ACTIVE_WINDOW")?;
     let window_name = get_atom(&conn, "_NET_WM_NAME")?;
+
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(workspace) = args.get(1) {
+        let workspace = workspace.parse()?;
+        set_current_workspace(screen.root(), &conn, &current_desktop, workspace)?;
+        return Ok(());
+    }
 
     println!("{}", serde_json::to_string(&i3bar::Header::default())?);
     println!("[");
