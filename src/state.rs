@@ -78,7 +78,7 @@ fn format_active_inactive(
 fn format_error_str(error_str: &str) -> String {
     use itertools::Itertools;
     error_str
-        .split("\n")
+        .split('\n')
         .filter(|s| !s.trim().is_empty())
         .join(" ")
 }
