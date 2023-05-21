@@ -306,7 +306,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
@@ -935,7 +935,7 @@ fn default_margin() -> Margin {
     FromInt::from_int(0)
 }
 
-fn default_display() -> DisplayOptions<Placeholder> {
+pub fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
         value: "".into(),
         popup_value: "".into(),

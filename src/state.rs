@@ -47,6 +47,7 @@ impl BlockData {
 pub struct State {
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
+    pub error: Option<String>,
     config: config::Config<config::Placeholder>,
 }
 
@@ -72,6 +73,14 @@ fn format_active_inactive(
         value_placeholder.replace("{}", &value)
     };
     Ok(result)
+}
+
+fn format_error_str(error_str: &str) -> String {
+    use itertools::Itertools;
+    error_str
+        .split("\n")
+        .filter(|s| !s.trim().is_empty())
+        .join(" ")
 }
 
 impl State {
@@ -381,20 +390,30 @@ impl State {
     pub fn update_blocks(&mut self) -> anyhow::Result<()> {
         for (name, block) in self.config.blocks.iter() {
             let block_data = match &block {
-                config::Block::Text(text_block) => self.text_block(text_block),
-                config::Block::Enum(enum_block) => self.enum_block(enum_block),
-                config::Block::Number(number_block) => self.number_block(number_block),
-                config::Block::Image(image_block) => self.image_block(image_block),
-            }?;
+                config::Block::Text(text_block) => {
+                    self.text_block(text_block).context("text_block")
+                }
+                config::Block::Enum(enum_block) => {
+                    self.enum_block(enum_block).context("enum_block")
+                }
+                config::Block::Number(number_block) => {
+                    self.number_block(number_block).context("number_block")
+                }
+                config::Block::Image(image_block) => {
+                    self.image_block(image_block).context("image_block")
+                }
+            }
+            .with_context(|| format!("block: '{}'", name))?;
             self.blocks.insert(name.into(), block_data);
         }
         Ok(())
     }
 
-    pub fn handle_state_update(&mut self, state_update: Update) -> anyhow::Result<()> {
+    pub fn handle_state_update(&mut self, state_update: Update) {
         if let Some(prefix) = state_update.reset_prefix {
             self.vars.retain(|k, _| !k.starts_with(&prefix));
         }
+
         for update in state_update.entries.into_iter() {
             let var = match update.instance {
                 Some(instance) => format!("{}.{}.{}", update.name, instance, update.var),
@@ -404,12 +423,28 @@ impl State {
         }
 
         for var in self.config.vars.values() {
-            let var_value = var.input.resolve_placeholders(&self.vars)?;
-            let processed = var.processing_options.process(&var_value);
-            self.vars.insert(var.name.clone(), processed);
+            let var_value = var
+                .input
+                .resolve_placeholders(&self.vars)
+                .with_context(|| format!("var: '{}'", var.name));
+            match var_value {
+                Ok(value) => {
+                    let processed = var.processing_options.process(&value);
+                    self.vars.insert(var.name.clone(), processed);
+                }
+                Err(e) => {
+                    self.error = Some(format_error_str(&format!("{:?}", e)));
+                }
+            }
         }
-        self.update_blocks()?;
-        Ok(())
+
+        if let Err(e) = self.update_blocks().context("update failed") {
+            self.error = Some(format_error_str(&format!("{:?}", e)));
+        }
+
+        if let Some(error) = state_update.error {
+            self.error = Some(format_error_str(&format!("State error: {}", error)));
+        }
     }
 }
 
@@ -417,6 +452,7 @@ impl State {
 pub struct Update {
     pub entries: Vec<UpdateEntry>,
     pub reset_prefix: Option<String>,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Default)]

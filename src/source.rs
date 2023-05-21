@@ -80,6 +80,7 @@ impl<'de> Visitor<'de> for RowVisitor {
                 .send(state::Update {
                     entries,
                     reset_prefix: Some(format!("{}:", self.name)),
+                    ..Default::default()
                 })
                 .unwrap();
         }
@@ -119,7 +120,28 @@ fn line_to_opt(line: Option<std::io::Result<String>>) -> Option<String> {
 }
 
 impl Command {
-    fn run_child(
+    fn run_command(
+        &self,
+        name: &str,
+        tx: &std::sync::mpsc::Sender<state::Update>,
+    ) -> anyhow::Result<()> {
+        let mut child = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&self.config.command)
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .context("Failed spawnning")?;
+        if let Err(e) = self.process_child_output(name.into(), &mut child, tx.clone()) {
+            tracing::warn!("Error running command {}: {:?}", name, e);
+        }
+        let result = child.wait()?;
+        if !result.success() {
+            return Err(anyhow::anyhow!("command returned {:?}", result.code()));
+        }
+        Ok(())
+    }
+
+    fn process_child_output(
         &self,
         name: String,
         child: &mut std::process::Child,
@@ -237,20 +259,27 @@ impl state::Source for Command {
             .clone()
             .unwrap_or_else(|| format!("cm{}", self.index));
 
-        thread::spawn(format!("c-{}", name), move || loop {
-            let mut child = std::process::Command::new("sh")
-                .arg("-c")
-                .arg(&self.config.command)
-                .stdout(std::process::Stdio::piped())
-                .spawn()
-                .context("Failed spawnning")?;
-            if let Err(e) = self.run_child(name.clone(), &mut child, tx.clone()) {
-                tracing::warn!("Error running command {}: {:?}", name, e);
-            }
-            let _ = child.wait();
-            let interval = Duration::from_secs(self.config.interval.unwrap_or(10));
-            std::thread::sleep(interval);
-        })?;
+        let result = {
+            let tx = tx.clone();
+            let name = name.clone();
+            thread::spawn(name.clone(), move || loop {
+                let result = self.run_command(&name, &tx);
+                if let Err(e) = result {
+                    tx.send(state::Update {
+                        error: Some(format!("Running command '{}' failed: {:?}", name, e)),
+                        ..Default::default()
+                    })?;
+                }
+                let interval = Duration::from_secs(self.config.interval.unwrap_or(10));
+                std::thread::sleep(interval);
+            })
+        };
+        if let Err(e) = result {
+            tx.send(state::Update {
+                error: Some(format!("Spawning thread '{}' failed: {:?}", name, e)),
+                ..Default::default()
+            })?;
+        }
         Ok(())
     }
 }

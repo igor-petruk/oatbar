@@ -92,7 +92,7 @@ impl Engine {
             while let Ok(state_update) = state_update_rx.recv() {
                 {
                     let mut state = state.write().unwrap();
-                    state.handle_state_update(state_update)?;
+                    state.handle_state_update(state_update);
                 }
                 for window in window_ids.iter() {
                     xutils::send(
@@ -109,6 +109,38 @@ impl Engine {
         })
     }
 
+    fn handle_event(&mut self, event: &xcb::Event) -> anyhow::Result<()> {
+        match event {
+            xcb::Event::X(x::Event::Expose(ev)) => {
+                if let Some(window) = self.windows.get_mut(&ev.window()) {
+                    window.render(ev.width() != 1); // Hack for now to distinguish on-demand expose.
+                }
+            }
+            xcb::Event::Input(xinput::Event::RawMotion(_event)) => {
+                let pointer = xutils::query(
+                    &self.conn,
+                    &x::QueryPointer {
+                        window: self.screen.root(),
+                    },
+                )?;
+                for window in self.windows.values() {
+                    window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
+                }
+            }
+            xcb::Event::X(x::Event::ButtonPress(event)) => {
+                for window in self.windows.values() {
+                    if window.id == event.event() {
+                        window.handle_button_press(event.event_x(), event.event_y())?;
+                    }
+                }
+            }
+            _ => {
+                tracing::debug!("Unhandled XCB event: {:?}", event);
+            }
+        }
+        Ok(())
+    }
+
     pub fn run(
         &mut self,
         state_update_rx: std::sync::mpsc::Receiver<state::Update>,
@@ -116,36 +148,15 @@ impl Engine {
         self.spawn_state_update_thread(state_update_rx)
             .context("engine state update")?;
         loop {
-            let event = xutils::get_event(&self.conn)?;
+            let event = xutils::get_event(&self.conn).context("failed getting an X event")?;
             match event {
-                Some(xcb::Event::X(x::Event::Expose(ev))) => {
-                    if let Some(window) = self.windows.get_mut(&ev.window()) {
-                        window.render(ev.width() != 1)?; // Hack for now to distinguish on-demand expose.
-                    }
-                }
-                Some(xcb::Event::Input(xinput::Event::RawMotion(_event))) => {
-                    let pointer = xutils::query(
-                        &self.conn,
-                        &x::QueryPointer {
-                            window: self.screen.root(),
-                        },
-                    )?;
-                    for window in self.windows.values() {
-                        window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
-                    }
-                }
-                Some(xcb::Event::X(x::Event::ButtonPress(event))) => {
-                    for window in self.windows.values() {
-                        if window.id == event.event() {
-                            window.handle_button_press(event.event_x(), event.event_y())?;
-                        }
+                Some(event) => {
+                    if let Err(e) = self.handle_event(&event) {
+                        tracing::error!("Failed handling event {:?}, error: {:?}", event, e);
                     }
                 }
                 None => {
                     return Ok(());
-                }
-                _ => {
-                    tracing::debug!("Unhandled XCB event: {:?}", event);
                 }
             }
         }

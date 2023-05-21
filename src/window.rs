@@ -358,16 +358,30 @@ impl Window {
         })
     }
 
-    pub fn render(&mut self, from_os: bool) -> anyhow::Result<()> {
+    fn render_bar(&self, redraw: bar::RedrawScope) -> anyhow::Result<()> {
+        self.bar.render(&self.back_buffer_context, &redraw)?;
+        self.bar.render(&self.shape_buffer_context, &redraw)?;
+
+        self.swap_buffers()?;
+        self.apply_shape()?;
+        self.conn.flush()?;
+        Ok(())
+    }
+
+    pub fn render(&mut self, from_os: bool) {
         let state = self.state.read().unwrap();
-        let mut updates = self.bar.update(&self.back_buffer_context, &state.blocks)?;
+        let mut updates = self
+            .bar
+            .update(&self.back_buffer_context, &state.blocks, &state.error);
 
         if from_os {
             updates.redraw = bar::RedrawScope::All;
         }
 
         if self.bar_config.hidden && !updates.popup.is_empty() {
-            PopupControl::show_or_prolong_popup(&self.popup_control)?;
+            if let Err(e) = PopupControl::show_or_prolong_popup(&self.popup_control) {
+                tracing::error!("Showing popup failed: {:?}", e);
+            }
         }
 
         let (visible, show_only, redraw) = if self.bar_config.hidden {
@@ -389,17 +403,13 @@ impl Window {
         };
 
         self.bar
-            .layout_blocks(self.back_buffer_context.width, &show_only)?;
+            .layout_blocks(self.back_buffer_context.width, &show_only);
 
         if visible && redraw != bar::RedrawScope::None {
-            self.bar.render(&self.back_buffer_context, &redraw)?;
-            self.bar.render(&self.shape_buffer_context, &redraw)?;
-
-            self.swap_buffers()?;
-            self.apply_shape()?;
-            self.conn.flush()?;
+            if let Err(e) = self.render_bar(redraw) {
+                tracing::error!("Failed to render bar: {:?}", e);
+            }
         }
-        Ok(())
     }
 
     pub fn handle_button_press(&self, x: i16, y: i16) -> anyhow::Result<()> {

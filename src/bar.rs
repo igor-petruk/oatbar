@@ -26,6 +26,8 @@ use tracing::error;
 
 use crate::{config, drawing, state};
 
+const ERROR_BLOCK_NAME: &str = "__error";
+
 #[derive(Debug, Clone, PartialEq)]
 struct Dimensions {
     width: f64,
@@ -63,7 +65,7 @@ fn handle_button_press(
             .env("BLOCK_VALUE", value)
             .stdout(std::process::Stdio::piped())
             .spawn()
-            .context("Failed spawnning")?;
+            .context("Failed spawning")?;
         let _ = child.wait();
         tracing::info!("{:?} spawned", on_click_command);
     }
@@ -89,9 +91,9 @@ impl BaseBlock {
         separator_type: Option<config::SeparatorType>,
         separator_radius: Option<f64>,
     ) -> Self {
-        let margin = display_options.margin.unwrap();
+        let margin = display_options.margin.unwrap_or_default();
         let padding = if separator_type.is_none() {
-            display_options.padding.unwrap()
+            display_options.padding.unwrap_or_default()
         } else {
             0.0
         };
@@ -146,7 +148,7 @@ impl Block for BaseBlock {
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
         context.set_operator(cairo::Operator::Source);
-        let line_width = self.display_options.line_width.unwrap();
+        let line_width = self.display_options.line_width.unwrap_or_default();
         context.set_line_width(line_width);
 
         // TODO: figure out how to prevent a gap between neighbour blocks.
@@ -497,7 +499,7 @@ impl EnumBlock {
     ) -> Self {
         let mut variant_blocks = vec![];
         let mut width: f64 = 0.0;
-        let active: usize = block.active.parse().expect("enum active");
+        let active: usize = block.active.parse().unwrap_or_default();
         for (index, item) in block.variants_vec.iter().enumerate() {
             let mut display_options = if index == active {
                 block.active_display.clone()
@@ -815,6 +817,7 @@ impl BlockGroup {
 pub struct Bar {
     bar: config::Bar<config::Placeholder>,
     block_data: HashMap<String, state::BlockData>,
+    error: Option<String>,
     blocks: HashMap<String, Arc<dyn DebugBlock>>,
     all_blocks: HashSet<String>,
     left_group: BlockGroup,
@@ -837,6 +840,7 @@ impl Bar {
             all_blocks,
             bar: bar.clone(),
             block_data: HashMap::new(),
+            error: None,
             blocks: HashMap::new(),
             left_group: BlockGroup::new(&[]),
             center_group: BlockGroup::new(&[]),
@@ -911,8 +915,8 @@ impl Bar {
         name: String,
         drawing_context: &drawing::Context,
         block_data: &state::BlockData,
-    ) -> anyhow::Result<Box<dyn DebugBlock>> {
-        let b: Box<dyn DebugBlock> = match &block_data.config {
+    ) -> Box<dyn DebugBlock> {
+        match &block_data.config {
             config::Block::Text(text) => TextBlock::new_in_base_block(
                 name,
                 drawing_context,
@@ -922,7 +926,11 @@ impl Bar {
                 text.separator_radius,
                 text.event_handlers.clone(),
             ),
-            config::Block::Number(number) => match &number.number_display.as_ref().unwrap() {
+            config::Block::Number(number) => match &number
+                .number_display
+                .as_ref()
+                .expect("number_display must be set")
+            {
                 config::NumberDisplay::ProgressBar(_) => {
                     let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
                         name,
@@ -960,19 +968,48 @@ impl Bar {
                 self.bar.height as f64,
                 image.event_handlers.clone(),
             ),
+        }
+    }
+
+    fn error_block(error: &str) -> (String, state::BlockData) {
+        let name = ERROR_BLOCK_NAME.to_string();
+        let error_block = config::TextBlock {
+            name: name.clone(),
+            display: config::DisplayOptions {
+                value: error.into(),
+                ..config::default_display()
+            },
+            ..Default::default()
         };
-        Ok(b)
+        (
+            name,
+            state::BlockData {
+                config: config::Block::Text(error_block),
+            },
+        )
     }
 
     pub fn update(
         &mut self,
         drawing_context: &drawing::Context,
         block_data: &HashMap<String, state::BlockData>,
-    ) -> anyhow::Result<Updates> {
+        error: &Option<String>,
+    ) -> Updates {
+        self.error = error.clone();
+
         let mut popup: HashMap<config::PopupMode, HashSet<String>> =
             HashMap::with_capacity(block_data.len());
         let mut redraw: HashSet<String> = HashSet::new();
         let mut redraw_all = false;
+
+        if let Some(error) = error {
+            let (name, block_data) = Self::error_block(error);
+            self.blocks.insert(
+                name.clone(),
+                self.build_widget(name, drawing_context, &block_data).into(),
+            );
+        };
+
         for (name, data) in block_data.iter() {
             if !self.all_blocks.contains(name) {
                 continue;
@@ -1000,7 +1037,7 @@ impl Bar {
             };
             if updated {
                 // For now recreating, but it can be updated.
-                let block = self.build_widget(name.into(), drawing_context, data)?;
+                let block = self.build_widget(name.into(), drawing_context, data);
                 let entry = self.blocks.entry(name.into());
                 // tracing::debug!("Updated '{}': {:?}", name, block);
                 redraw.insert(name.into());
@@ -1021,62 +1058,67 @@ impl Bar {
             }
         }
 
-        Ok(Updates {
+        Updates {
             popup,
-            redraw: if redraw_all {
+            redraw: if redraw_all || self.error.is_some() {
                 RedrawScope::All
             } else if !redraw.is_empty() {
                 RedrawScope::Partial(redraw)
             } else {
                 RedrawScope::None
             },
-        })
+        }
     }
 
     pub fn layout_blocks(
         &mut self,
         drawing_area_width: f64,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) -> anyhow::Result<()> {
+    ) {
         let bar = &self.bar;
 
-        let all_blocks: Vec<String> = bar
-            .blocks_left
-            .iter()
-            .chain(bar.blocks_center.iter())
-            .chain(bar.blocks_right.iter())
-            .cloned()
-            .collect();
-        let entire_bar_visible =
-            Self::visible_per_popup_mode(show_only, config::PopupMode::Bar, &all_blocks);
+        if self.error.is_some() {
+            let flat_left = Self::flatten(&self.blocks, true, &None, &[ERROR_BLOCK_NAME.into()]);
+            self.left_group = BlockGroup::new(&flat_left);
+            self.center_group = BlockGroup::new(&[]);
+            self.right_group = BlockGroup::new(&[]);
+        } else {
+            let all_blocks: Vec<String> = bar
+                .blocks_left
+                .iter()
+                .chain(bar.blocks_center.iter())
+                .chain(bar.blocks_right.iter())
+                .cloned()
+                .collect();
+            let entire_bar_visible =
+                Self::visible_per_popup_mode(show_only, config::PopupMode::Bar, &all_blocks);
 
-        let flat_left = Self::flatten(
-            &self.blocks,
-            entire_bar_visible,
-            show_only,
-            &self.bar.blocks_left,
-        );
-        let flat_center = Self::flatten(
-            &self.blocks,
-            entire_bar_visible,
-            show_only,
-            &self.bar.blocks_center,
-        );
-        let flat_right = Self::flatten(
-            &self.blocks,
-            entire_bar_visible,
-            show_only,
-            &self.bar.blocks_right,
-        );
+            let flat_left = Self::flatten(
+                &self.blocks,
+                entire_bar_visible,
+                show_only,
+                &self.bar.blocks_left,
+            );
+            let flat_center = Self::flatten(
+                &self.blocks,
+                entire_bar_visible,
+                show_only,
+                &self.bar.blocks_center,
+            );
+            let flat_right = Self::flatten(
+                &self.blocks,
+                entire_bar_visible,
+                show_only,
+                &self.bar.blocks_right,
+            );
 
-        let width = drawing_area_width - (bar.margin.left + bar.margin.right) as f64;
-        self.left_group = BlockGroup::new(&flat_left);
-        self.center_group = BlockGroup::new(&flat_center);
-        self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
-        self.right_group = BlockGroup::new(&flat_right);
-        self.right_group_pos = width - self.right_group.dimensions.width;
-
-        Ok(())
+            let width = drawing_area_width - (bar.margin.left + bar.margin.right) as f64;
+            self.left_group = BlockGroup::new(&flat_left);
+            self.center_group = BlockGroup::new(&flat_center);
+            self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
+            self.right_group = BlockGroup::new(&flat_right);
+            self.right_group_pos = width - self.right_group.dimensions.width;
+        }
     }
 
     pub fn handle_button_press(&self, x: i16, y: i16) -> anyhow::Result<()> {
