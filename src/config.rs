@@ -240,7 +240,8 @@ impl PlaceholderExt for EventHandlers {
             on_click_command: self
                 .on_click_command
                 .as_ref()
-                .map(|c| c.resolve_placeholders(vars).expect("on_click_command")),
+                .map(|c| c.resolve_placeholders(vars).context("on_click_command"))
+                .map_or(Ok(None), |r| r.map(Some))?,
         })
     }
 }
@@ -425,8 +426,8 @@ impl TextProgressBarDisplay<Placeholder> {
             color_ramp: self
                 .color_ramp
                 .iter()
-                .map(|color| color.resolve_placeholders(vars).expect("color_ramp"))
-                .collect(),
+                .map(|color| color.resolve_placeholders(vars).context("color_ramp"))
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
 }
@@ -471,8 +472,8 @@ impl NumberTextDisplay<Placeholder> {
             ramp: self
                 .ramp
                 .iter()
-                .map(|ramp| ramp.resolve_placeholders(vars).expect("ramp"))
-                .collect(),
+                .map(|ramp| ramp.resolve_placeholders(vars).context("ramp"))
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
 }
@@ -977,7 +978,7 @@ pub fn write_default_config(config_path: &Path) -> anyhow::Result<()> {
 }
 
 pub fn load() -> anyhow::Result<Config<Placeholder>> {
-    let mut path = dirs::config_dir().expect("Missing config dir");
+    let mut path = dirs::config_dir().context("Missing config dir")?;
     path.push("oatbar.toml");
     if !path.exists() {
         warn!("Config at {:?} is missing. Writing default config...", path);

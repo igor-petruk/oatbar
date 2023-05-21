@@ -97,7 +97,9 @@ impl PopupControl {
                             let mut popup_control = popup_control_lock.write().unwrap();
                             popup_control.timer = None;
                             popup_control.reset_show_only();
-                            popup_control.set_visible(false).expect("hidden-hide");
+                            if let Err(e) = popup_control.set_visible(false) {
+                                tracing::error!("Failed to show window: {:?}", e);
+                            }
                         },
                     )?
                 };
@@ -433,7 +435,7 @@ impl Window {
             config::BarPosition::Center => false,
         };
 
-        let mut popup_control = self.popup_control.write().expect("RwLock");
+        let mut popup_control = self.popup_control.write().unwrap();
         if !popup_control.is_poping_up() {
             if !popup_control.visible && over_edge {
                 popup_control.set_visible(true)?;
