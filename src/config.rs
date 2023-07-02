@@ -36,7 +36,7 @@ pub trait PlaceholderExt {
 impl PlaceholderExt for String {
     type R = String;
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        vars.process(&self)
+        vars.process(self)
     }
 }
 
