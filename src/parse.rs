@@ -326,3 +326,19 @@ impl ExpressionProcessor for HashMap<String, String> {
         Ok(result.into_iter().collect())
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_value() {
+        let mut map = HashMap::new();
+        map.insert("foo".into(), "hello".into());
+        map.insert("bar".into(), "world".into());
+        map.insert("baz".into(), "unuzed".into());
+        let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>";
+        let result = map.process(&value);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
+    }
+}

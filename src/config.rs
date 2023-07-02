@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::parse::ExpressionProcessor;
 use crate::source;
 
 use std::fmt::Debug;
@@ -35,63 +36,11 @@ pub trait PlaceholderExt {
 impl PlaceholderExt for String {
     type R = String;
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        replace_placeholders(self, vars)
+        vars.process(&self)
     }
 }
 
 type PlaceholderVars = HashMap<String, String>;
-
-fn replace_placeholders(
-    value_str: &Placeholder,
-    hash_map: &HashMap<String, String>,
-) -> anyhow::Result<String> {
-    let mut result = Vec::<char>::with_capacity(value_str.len());
-    let mut char_iter = value_str.chars();
-    let empty = String::new();
-    while let Some(char) = char_iter.next() {
-        match char {
-            '$' => match char_iter.next() {
-                Some('{') => {
-                    let mut var = Vec::<char>::with_capacity(255);
-                    loop {
-                        match char_iter.next() {
-                            Some('}') => {
-                                let var: String = var.into_iter().collect();
-                                let (var, default_value) =
-                                    if let Some((var_name, default_value)) = var.split_once('|') {
-                                        (var_name, default_value)
-                                    } else {
-                                        (var.as_str(), "")
-                                    };
-                                let value = hash_map
-                                    .get(var)
-                                    .map(|s| s.as_str())
-                                    .filter(|s| !s.is_empty())
-                                    .unwrap_or(default_value);
-                                let mut var_chars: Vec<char> = value.chars().collect();
-                                result.append(&mut var_chars);
-                                break;
-                            }
-                            Some(other) => {
-                                var.push(other);
-                            }
-                            None => return Err(anyhow::anyhow!("Non-closed placeholder")),
-                        }
-                    }
-                }
-                Some(other) => {
-                    result.push('$');
-                    result.push(other);
-                }
-                None => {
-                    return Err(anyhow::anyhow!("Unescaped $ at the end of the string"));
-                }
-            },
-            char => result.push(char),
-        }
-    }
-    Ok(result.into_iter().collect())
-}
 
 #[derive(Debug, Clone, Deserialize, Copy, Hash, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -1003,18 +952,6 @@ mod tests {
         let config: Result<Config<Option<Placeholder>>, toml::de::Error> =
             toml::from_str(&String::from_utf8_lossy(DEFAULT_CONFIG));
         assert!(config.is_ok());
-    }
-
-    #[test]
-    fn test_value() {
-        let mut map = HashMap::new();
-        map.insert("foo".into(), "hello".into());
-        map.insert("bar".into(), "world".into());
-        map.insert("baz".into(), "unuzed".into());
-        let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>".into();
-        let result = replace_placeholders(&value, &map);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
     }
 
     #[test]
