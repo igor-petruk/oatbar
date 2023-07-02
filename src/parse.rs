@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
@@ -266,5 +267,62 @@ impl TableGetterExt for toml::Table {
             Some(t) => Ok(t),
             None => Err(ParseError::FieldRequired { field: name.into() }),
         }
+    }
+}
+
+pub trait ExpressionProcessor {
+    fn process(&self, expression: &str) -> anyhow::Result<String>;
+}
+
+impl ExpressionProcessor for HashMap<String, String> {
+    fn process(&self, expression: &str) -> anyhow::Result<String> {
+        let mut result = Vec::<char>::with_capacity(expression.len());
+        let mut char_iter = expression.chars();
+        while let Some(char) = char_iter.next() {
+            match char {
+                '$' => match char_iter.next() {
+                    Some('{') => {
+                        let mut var = Vec::<char>::with_capacity(255);
+                        loop {
+                            match char_iter.next() {
+                                Some('}') => {
+                                    let var: String = var.into_iter().collect();
+                                    let (var, default_value) = if let Some((
+                                        var_name,
+                                        default_value,
+                                    )) = var.split_once('|')
+                                    {
+                                        (var_name, default_value)
+                                    } else {
+                                        (var.as_str(), "")
+                                    };
+                                    let value = self
+                                        .get(var)
+                                        .map(|s| s.as_str())
+                                        .filter(|s| !s.is_empty())
+                                        .unwrap_or(default_value);
+                                    let mut var_chars: Vec<char> = value.chars().collect();
+                                    result.append(&mut var_chars);
+                                    break;
+                                }
+                                Some(other) => {
+                                    var.push(other);
+                                }
+                                None => return Err(anyhow::anyhow!("Non-closed placeholder")),
+                            }
+                        }
+                    }
+                    Some(other) => {
+                        result.push('$');
+                        result.push(other);
+                    }
+                    None => {
+                        return Err(anyhow::anyhow!("Unescaped $ at the end of the string"));
+                    }
+                },
+                char => result.push(char),
+            }
+        }
+        Ok(result.into_iter().collect())
     }
 }
