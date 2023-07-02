@@ -57,5 +57,6 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 xcb = { version = "1.2", features = ["xkb", "xlib_xcb", "xinput"] }
 itertools = "0.10.5"
+thiserror = "1.0.40"
 
 

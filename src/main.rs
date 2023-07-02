@@ -17,6 +17,7 @@ mod bar;
 mod config;
 mod drawing;
 mod engine;
+mod parse;
 mod protocol;
 mod source;
 mod state;
