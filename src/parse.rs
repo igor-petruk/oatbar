@@ -9,10 +9,10 @@ use std::{
     marker::PhantomData,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Final;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Input;
 
 #[derive(Debug, Clone)]
@@ -44,6 +44,11 @@ pub enum ParseError {
     WrongType { got: String, want: String },
     #[error("field {field:?} required")]
     FieldRequired { field: String },
+    #[error("failed to deserialize")]
+    DeserializationFailed {
+        #[source]
+        source: Box<anyhow::Error>,
+    },
     #[error("unable to get {field:?}")]
     CannotParseField {
         field: String,
@@ -157,6 +162,15 @@ impl From<String> for Field<Input, String> {
     }
 }
 
+impl Field<Input, String> {
+    pub fn plain(self) -> String {
+        match self.data {
+            FieldData::Final(p) => p,
+            FieldData::Input(i) => i,
+        }
+    }
+}
+
 impl TryFrom<&toml::Value> for Field<Input, f64> {
     type Error = ParseError;
     fn try_from(v: &toml::Value) -> Result<Self, ParseError> {
@@ -208,16 +222,43 @@ pub trait TableGetterExt {
         'a: 'b,
         &'b toml::Value: TryInto<Field<Input, T>, Error = ParseError>;
 
+    fn optional_plain<'de, T: Clone>(&self, name: &str) -> Result<Option<T>, ParseError>
+    where
+        T: serde::de::Deserialize<'de>;
+
     fn required<'a, 'b, T: Clone>(&'a self, name: &str) -> Result<Field<Input, T>, ParseError>
     where
         'a: 'b,
         &'b toml::Value: TryInto<Field<Input, T>, Error = ParseError>;
 
+    fn required_plain<'de, T: Clone>(&self, name: &str) -> Result<T, ParseError>
+    where
+        T: serde::de::Deserialize<'de>;
+
     fn table_optional(&self, name: &str) -> Result<Option<toml::Table>, ParseError>;
     fn table_required(&self, name: &str) -> Result<toml::Table, ParseError>;
+    fn array(&self, name: &str) -> Result<Vec<toml::Value>, ParseError>;
 }
 
 impl TableGetterExt for toml::Table {
+    fn optional_plain<'de, T: Clone>(&self, name: &str) -> Result<Option<T>, ParseError>
+    where
+        T: serde::de::Deserialize<'de>,
+    {
+        match self.get(name) {
+            Some(v) => match v.clone().try_into() {
+                Ok(v) => Ok(Some(v)),
+                Err(e) => Err(ParseError::CannotParseField {
+                    field: name.into(),
+                    source: Box::new(ParseError::DeserializationFailed {
+                        source: Box::new(anyhow::anyhow!("{:?}", e)),
+                    }),
+                }),
+            },
+            None => Ok(None),
+        }
+    }
+
     fn optional<'a, 'b, T: Clone>(
         &'a self,
         name: &str,
@@ -246,6 +287,29 @@ impl TableGetterExt for toml::Table {
         match self.optional(name)? {
             Some(v) => Ok(v),
             None => Err(ParseError::FieldRequired { field: name.into() }),
+        }
+    }
+
+    fn required_plain<'de, T: Clone>(&self, name: &str) -> Result<T, ParseError>
+    where
+        T: serde::de::Deserialize<'de>,
+    {
+        match self.optional_plain(name)? {
+            Some(v) => Ok(v),
+            None => Err(ParseError::FieldRequired { field: name.into() }),
+        }
+    }
+
+    fn array(&self, name: &str) -> Result<Vec<toml::Value>, ParseError> {
+        match self.get(name) {
+            Some(t) => match t.as_array() {
+                Some(array) => Ok(array.clone()),
+                None => Err(ParseError::WrongType {
+                    got: t.type_str().into(),
+                    want: "array".into(),
+                }),
+            },
+            None => Ok(Default::default()),
         }
     }
 
