@@ -16,10 +16,11 @@
 extern crate macro_rules_attribute;
 
 mod bar;
-#[allow(unused, unused_macros)]
+#[allow(unused)]
 mod config;
 mod drawing;
 mod engine;
+#[allow(unused_macros)]
 mod parse;
 mod protocol;
 mod source;

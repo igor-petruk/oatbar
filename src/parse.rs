@@ -87,7 +87,7 @@ impl<'de, T: Clone + FieldConstructable> Visitor<'de> for FieldVisitor<T> {
     where
         E: de::Error,
     {
-        FieldConstructable::from_string(&v).map_err(de::Error::custom)
+        FieldConstructable::from_string(v).map_err(de::Error::custom)
     }
 
     fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
