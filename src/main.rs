@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[macro_use]
+extern crate macro_rules_attribute;
+
 mod bar;
-#[allow(unused)]
+#[allow(unused, unused_macros)]
 mod config;
 mod drawing;
 mod engine;

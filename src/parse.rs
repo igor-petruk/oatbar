@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+use serde::de;
+use serde::de::Visitor;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::ops::{Deref, DerefMut};
@@ -8,6 +11,115 @@ use std::{
     fmt::{Debug, Formatter},
     marker::PhantomData,
 };
+
+attribute_alias! {
+    #[apply(DeserializeFields)] =
+        #[derive(Deserialize)]
+        #[serde(bound(
+            deserialize = "Field<S, String>: Deserialize<'de>, Field<S, i64>: Deserialize<'de>, Field<S, f64>: Deserialize<'de>"
+        ))]
+    ;
+}
+
+trait FieldConstructable {
+    fn from_string(s: &str) -> anyhow::Result<Field<Input, Self>>
+    where
+        Self: Clone;
+    fn from_i64(v: i64) -> anyhow::Result<Field<Input, Self>>
+    where
+        Self: Clone;
+    fn from_f64(v: f64) -> anyhow::Result<Field<Input, Self>>
+    where
+        Self: Clone;
+}
+
+impl FieldConstructable for String {
+    fn from_string(s: &str) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_input(s))
+    }
+    fn from_i64(v: i64) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_input(v.to_string()))
+    }
+    fn from_f64(v: f64) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_input(v.to_string()))
+    }
+}
+
+impl FieldConstructable for f64 {
+    fn from_string(s: &str) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_input(s))
+    }
+    fn from_i64(v: i64) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_final(v as f64))
+    }
+    fn from_f64(v: f64) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_final(v))
+    }
+}
+
+impl FieldConstructable for i64 {
+    fn from_string(s: &str) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_input(s))
+    }
+    fn from_i64(v: i64) -> anyhow::Result<Field<Input, Self>> {
+        Ok(Field::new_final(v))
+    }
+    fn from_f64(_: f64) -> anyhow::Result<Field<Input, Self>> {
+        Err(anyhow::anyhow!("Expected integer, got float"))
+    }
+}
+
+struct FieldVisitor<T: Clone> {
+    pd: PhantomData<fn() -> T>,
+}
+
+impl<'de, T: Clone + FieldConstructable> Visitor<'de> for FieldVisitor<T> {
+    type Value = Field<Input, T>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(&format!(
+            "`{}` or a placeholder expession \"${{...}}\"",
+            std::any::type_name::<T>()
+        ))
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        FieldConstructable::from_string(&v).map_err(de::Error::custom)
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        FieldConstructable::from_string(&v).map_err(de::Error::custom)
+    }
+
+    fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        FieldConstructable::from_i64(v).map_err(de::Error::custom)
+    }
+
+    fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        FieldConstructable::from_f64(v).map_err(de::Error::custom)
+    }
+}
+
+impl<'de, T: Clone + FieldConstructable> Deserialize<'de> for Field<Input, T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(FieldVisitor { pd: PhantomData })
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Final;
@@ -195,77 +307,6 @@ impl TryFrom<&toml::Value> for Field<Input, i64> {
                 got: v.type_str().into(),
                 want: "integer".into(),
             }),
-        }
-    }
-}
-
-pub trait TableGetterExt {
-    fn optional<'a, 'b, T: Clone>(
-        &'a self,
-        name: &str,
-    ) -> Result<Option<Field<Input, T>>, ParseError>
-    where
-        'a: 'b,
-        &'b toml::Value: TryInto<Field<Input, T>, Error = ParseError>;
-
-    fn required<'a, 'b, T: Clone>(&'a self, name: &str) -> Result<Field<Input, T>, ParseError>
-    where
-        'a: 'b,
-        &'b toml::Value: TryInto<Field<Input, T>, Error = ParseError>;
-
-    fn table_optional(&self, name: &str) -> Result<Option<toml::Table>, ParseError>;
-    fn table_required(&self, name: &str) -> Result<toml::Table, ParseError>;
-}
-
-impl TableGetterExt for toml::Table {
-    fn optional<'a, 'b, T: Clone>(
-        &'a self,
-        name: &str,
-    ) -> Result<Option<Field<Input, T>>, ParseError>
-    where
-        'a: 'b,
-        &'b toml::Value: TryInto<Field<Input, T>, Error = ParseError>,
-    {
-        match self.get(name) {
-            Some(v) => match v.try_into() {
-                Ok(v) => Ok(Some(v)),
-                Err(e) => Err(ParseError::CannotParseField {
-                    field: name.into(),
-                    source: Box::new(e),
-                }),
-            },
-            None => Ok(None),
-        }
-    }
-
-    fn required<'a, 'b, T: Clone>(&'a self, name: &str) -> Result<Field<Input, T>, ParseError>
-    where
-        'a: 'b,
-        &'b toml::Value: TryInto<Field<Input, T>, Error = ParseError>,
-    {
-        match self.optional(name)? {
-            Some(v) => Ok(v),
-            None => Err(ParseError::FieldRequired { field: name.into() }),
-        }
-    }
-
-    fn table_optional(&self, name: &str) -> Result<Option<toml::Table>, ParseError> {
-        match self.get(name) {
-            Some(t) => match t.as_table() {
-                Some(table) => Ok(Some(table.clone())),
-                None => Err(ParseError::WrongType {
-                    got: t.type_str().into(),
-                    want: "table".into(),
-                }),
-            },
-            None => Ok(None),
-        }
-    }
-
-    fn table_required(&self, name: &str) -> Result<toml::Table, ParseError> {
-        match self.table_optional(name)? {
-            Some(t) => Ok(t),
-            None => Err(ParseError::FieldRequired { field: name.into() }),
         }
     }
 }
