@@ -15,25 +15,25 @@
 #[macro_use]
 extern crate macro_rules_attribute;
 
-mod bar;
+// mod bar;
 #[allow(unused)]
 mod config;
-mod drawing;
-mod engine;
+// mod drawing;
+// mod engine;
 #[allow(unused_macros)]
 mod parse;
-mod protocol;
-mod source;
-mod state;
-mod thread;
-mod timer;
-mod window;
-mod wmready;
-mod xutils;
+// mod protocol;
+// mod source;
+// mod state;
+// mod thread;
+// mod timer;
+// mod window;
+// mod wmready;
+// mod xutils;
 
-use anyhow::Context;
+// use anyhow::Context;
 
-use crate::state::Source;
+// use crate::state::Source;
 
 fn main() -> anyhow::Result<()> {
     #[cfg(feature = "profile")]
@@ -50,20 +50,20 @@ fn main() -> anyhow::Result<()> {
 
     sub.init();
 
-    let config = config::load()?;
-    let commands = config.commands.clone();
+    let _config = config::load()?;
+    // let commands = config.commands.clone();
 
-    wmready::wait().context("Unable to connect to WM")?;
+    // wmready::wait().context("Unable to connect to WM")?;
 
-    let state: state::State = state::State::new(config.clone());
-    let (state_update_tx, state_update_rx) = std::sync::mpsc::channel();
+    // let state: state::State = state::State::new(config.clone());
+    // let (state_update_tx, state_update_rx) = std::sync::mpsc::channel();
 
-    let mut engine = engine::Engine::new(config, state)?;
+    // let mut engine = engine::Engine::new(config, state)?;
 
-    for (index, config) in commands.into_iter().enumerate() {
-        let command = source::Command { index, config };
-        command.spawn(state_update_tx.clone())?;
-    }
+    // for (index, config) in commands.into_iter().enumerate() {
+    //     let command = source::Command { index, config };
+    //     command.spawn(state_update_tx.clone())?;
+    // }
 
     #[cfg(feature = "profile")]
     std::thread::spawn(move || loop {
@@ -74,6 +74,6 @@ fn main() -> anyhow::Result<()> {
         std::thread::sleep(std::time::Duration::from_secs(5));
     });
 
-    engine.run(state_update_rx)?;
+    // engine.run(state_update_rx)?;
     Ok(())
 }
