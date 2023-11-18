@@ -22,6 +22,7 @@ use std::path::Path;
 use std::{collections::HashMap, io::Read};
 
 use anyhow::Context;
+use cairo::ffi::cairo_copy_clip_rectangle_list;
 use serde::{de, de::DeserializeOwned, de::Deserializer, Deserialize};
 use tracing::{debug, warn};
 
@@ -758,14 +759,16 @@ pub struct DefaultBlock<Dynamic: From<String> + Clone + Default + Debug> {
 }
 
 impl DefaultBlock<Option<Placeholder>> {
-    fn with_default(&self) -> DefaultBlock<Placeholder> {
+    fn with_default(&self, default_block: &DefaultBlock<Placeholder>) -> DefaultBlock<Placeholder> {
         DefaultBlock {
             name: None,
-            display: self.display.clone().with_default(&default_display()),
-            active_display: self
-                .active_display
-                .clone()
-                .with_default(&self.display.clone().with_default(&default_active_display())),
+            display: self.display.clone().with_default(&default_block.display),
+            active_display: self.active_display.clone().with_default(
+                &self
+                    .display
+                    .clone()
+                    .with_default(&default_block.active_display),
+            ),
         }
     }
 }
@@ -865,18 +868,30 @@ pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
 
 impl Config<Option<Placeholder>> {
     fn with_defaults(&self) -> Config<Placeholder> {
-        let default_block: HashMap<Option<String>, DefaultBlock<Placeholder>> = self
+        let base_default_block = DefaultBlock {
+            name: None,
+            display: default_display(),
+            active_display: default_active_display(),
+        };
+        let none_default_block = self
             .default_block_vec
             .iter()
-            .map(|b| (b.name.clone(), b.clone().with_default()))
+            .filter(|b| b.name.is_none())
+            .next()
+            .map(|b| b.with_default(&base_default_block))
+            .unwrap_or_else(|| base_default_block);
+        let mut default_block_map: HashMap<Option<String>, DefaultBlock<Placeholder>> = self
+            .default_block_vec
+            .iter()
+            .map(|b| (b.name.clone(), b.clone().with_default(&none_default_block)))
             .collect();
-        let none_default_block = DefaultBlock::default().with_default();
+        default_block_map.insert(None, none_default_block.clone());
         let blocks: HashMap<String, Block<Placeholder>> = self
             .blocks_vec
             .iter()
             .map(|b| {
                 b.clone().with_default_and_name(
-                    &default_block
+                    &default_block_map
                         .get(b.inherit())
                         .unwrap_or(&none_default_block),
                 )
@@ -884,7 +899,7 @@ impl Config<Option<Placeholder>> {
             .collect();
         Config {
             bar: self.bar.iter().map(|b| b.with_default()).collect(),
-            default_block,
+            default_block: default_block_map,
             blocks,
             vars: self
                 .vars_vec
@@ -998,6 +1013,7 @@ mod tests {
         map.insert("foo".into(), "hello".into());
         let mut block = Block::Enum(EnumBlock {
             name: "".into(),
+            inherit: None,
             active: "a ${foo} b".into(),
             variants: "".into(),
             variants_vec: vec![],
