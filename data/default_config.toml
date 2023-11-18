@@ -3,12 +3,14 @@ height=32
 blocks_left=[ "workspace", "active_window"]
 blocks_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
 clock_format="%H:%M %a %e %b %Y"
+background="#191919dd"
 
 [default_block]
 background="#191919dd"
 active_background="#333333dd"
 active_overline_color = "#facd5a"
 active_foreground = "#facd5a"
+active_value = '<span weight="bold">{}</span>'
 
 [[command]]
 name="disk_free"
@@ -20,19 +22,27 @@ name="clock"
 command="date '+%a %b %e %H:%M:%S'"
 interval=1
 
+[[command]]
+name="desktop"
+command="oatbar-desktop"
+
+[[command]]
+name="keyboard"
+command="oatbar-keyboard"
+
 [[block]]
 name = 'workspace'
 type = 'enum'
-active = '${workspace.active}'
-variants = '${workspace.variants}'
-active_value = '<span weight="bold">${value}</span>'
+active = '${desktop:workspace.active}'
+variants = '${desktop:workspace.variants}'
+on_click_command = "oatbar-desktop $BLOCK_VALUE &"
 
 [[block]]
 name = 'layout_enum'
 type = 'enum'
-active = '${layout.active}'
-variants = '${layout.variants}'
-active_value = '<span weight="bold">${value}</span>'
+active = '${keyboard:layout.active}'
+variants = '${keyboard:layout.variants}'
+on_click_command = "oatbar-keyboard $BLOCK_VALUE &"
 
 [[block]]
 name='disk_free'
@@ -47,8 +57,8 @@ value = '${clock.full_text}'
 [[block]]
 name='active_window'
 type = 'text'
-value = ':: ${active_window.title} ::'
-show_if_set = '${active_window.title}'
+value = ':: ${desktop:window_title.value} ::'
+show_if_set = '${desktop:window_title.value}'
 pango_markup = false
 
 [[block]]
