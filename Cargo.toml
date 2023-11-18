@@ -33,6 +33,10 @@ path="src/keyboard.rs"
 name="oatbar-desktop"
 path="src/desktop.rs"
 
+[[bin]]
+name="oatbar-poke"
+path="src/poke.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]

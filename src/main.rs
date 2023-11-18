@@ -22,6 +22,8 @@ mod drawing;
 mod engine;
 #[allow(unused_macros)]
 mod parse;
+#[allow(unused)]
+mod pidfile;
 mod protocol;
 mod source;
 mod state;
@@ -47,6 +49,8 @@ fn main() -> anyhow::Result<()> {
     let sub = sub.with_max_level(tracing::Level::TRACE);
 
     sub.init();
+
+    pidfile::Pidfile::new()?.write()?;
 
     let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGUSR1])?;
 
