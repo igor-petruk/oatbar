@@ -199,6 +199,7 @@ impl PlaceholderExt for EventHandlers {
 #[serde(rename_all = "snake_case")]
 pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
+    pub inherit: Option<String>,
     pub active: Dynamic,
     pub variants: Dynamic,
     #[serde(skip)]
@@ -217,6 +218,7 @@ impl EnumBlock<Option<Placeholder>> {
     pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> EnumBlock<Placeholder> {
         EnumBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             active: self.active.unwrap_or_default(),
             variants: self.variants.unwrap_or_default(),
             variants_vec: vec![],
@@ -236,6 +238,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<EnumBlock<String>> {
         Ok(EnumBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             active: self.active.resolve_placeholders(vars).context("active")?,
             variants: self
                 .variants
@@ -260,6 +263,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
 #[serde(rename_all = "snake_case")]
 pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
+    pub inherit: Option<String>,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten)]
@@ -274,6 +278,7 @@ impl TextBlock<Option<Placeholder>> {
     pub fn with_default(self, default_block: &DefaultBlock<Placeholder>) -> TextBlock<Placeholder> {
         TextBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
             processing_options: self.processing_options.with_defaults(),
             separator_type: self.separator_type.clone(),
@@ -290,6 +295,7 @@ impl TextBlock<Placeholder> {
     ) -> anyhow::Result<TextBlock<String>> {
         Ok(TextBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
             processing_options: self.processing_options.clone(),
             separator_type: self.separator_type.clone(),
@@ -448,6 +454,7 @@ pub struct NumberParsedData {
 #[serde(rename_all = "snake_case")]
 pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
+    pub inherit: Option<String>,
     pub min_value: Dynamic,
     pub max_value: Dynamic,
     #[serde(flatten)]
@@ -470,6 +477,7 @@ impl NumberBlock<Option<Placeholder>> {
     ) -> NumberBlock<Placeholder> {
         NumberBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             min_value: self.min_value.clone().unwrap_or_else(|| "0".into()),
             max_value: self.max_value.clone().unwrap_or_else(|| "".into()),
             display: self.display.clone().with_default(&default_block.display),
@@ -500,6 +508,7 @@ impl NumberBlock<Placeholder> {
     ) -> anyhow::Result<NumberBlock<String>> {
         Ok(NumberBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             min_value: self
                 .min_value
                 .resolve_placeholders(vars)
@@ -533,6 +542,7 @@ impl NumberBlock<Placeholder> {
 #[serde(rename_all = "snake_case")]
 pub struct ImageBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub name: String,
+    pub inherit: Option<String>,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten)]
@@ -548,6 +558,7 @@ impl ImageBlock<Option<Placeholder>> {
     ) -> ImageBlock<Placeholder> {
         ImageBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
             processing_options: self.processing_options.with_defaults(),
             event_handlers: self.event_handlers,
@@ -562,6 +573,7 @@ impl ImageBlock<Placeholder> {
     ) -> anyhow::Result<ImageBlock<String>> {
         Ok(ImageBlock {
             name: self.name.clone(),
+            inherit: self.inherit.clone(),
             display: self.display.resolve_placeholders(vars).context("display")?,
             processing_options: self.processing_options.clone(),
             event_handlers: self
@@ -591,6 +603,14 @@ pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
 }
 
 impl Block<Option<Placeholder>> {
+    pub fn inherit(&self) -> &Option<String> {
+        match self {
+            Block::Text(e) => &e.inherit,
+            Block::Enum(e) => &e.inherit,
+            Block::Number(e) => &e.inherit,
+            Block::Image(e) => &e.inherit,
+        }
+    }
     pub fn with_default_and_name(
         self,
         default_block: &DefaultBlock<Placeholder>,
@@ -730,6 +750,7 @@ impl Bar<Option<Placeholder>> {
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
 pub struct DefaultBlock<Dynamic: From<String> + Clone + Default + Debug> {
+    pub name: Option<String>,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten, with = "prefix_active")]
@@ -739,6 +760,7 @@ pub struct DefaultBlock<Dynamic: From<String> + Clone + Default + Debug> {
 impl DefaultBlock<Option<Placeholder>> {
     fn with_default(&self) -> DefaultBlock<Placeholder> {
         DefaultBlock {
+            name: None,
             display: self.display.clone().with_default(&default_display()),
             active_display: self
                 .active_display
@@ -825,7 +847,8 @@ impl Var<Option<Placeholder>> {
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
     pub bar: Vec<Bar<Dynamic>>,
-    pub default_block: DefaultBlock<Dynamic>,
+    #[serde(skip)]
+    pub default_block: HashMap<Option<String>, DefaultBlock<Dynamic>>,
     #[serde(skip)]
     pub blocks: HashMap<String, Block<Dynamic>>,
     #[serde(skip)]
@@ -836,19 +859,33 @@ pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
     pub vars_vec: Vec<Var<Dynamic>>,
     #[serde(default, rename = "command")]
     pub commands: Vec<source::CommandConfig>,
+    #[serde(default, rename = "default_block")]
+    pub default_block_vec: Vec<DefaultBlock<Dynamic>>,
 }
 
 impl Config<Option<Placeholder>> {
     fn with_defaults(&self) -> Config<Placeholder> {
-        let default_block = self.default_block.with_default();
+        let default_block: HashMap<Option<String>, DefaultBlock<Placeholder>> = self
+            .default_block_vec
+            .iter()
+            .map(|b| (b.name.clone(), b.clone().with_default()))
+            .collect();
+        let none_default_block = DefaultBlock::default().with_default();
+        let blocks: HashMap<String, Block<Placeholder>> = self
+            .blocks_vec
+            .iter()
+            .map(|b| {
+                b.clone().with_default_and_name(
+                    &default_block
+                        .get(b.inherit())
+                        .unwrap_or(&none_default_block),
+                )
+            })
+            .collect();
         Config {
             bar: self.bar.iter().map(|b| b.with_default()).collect(),
-            default_block: default_block.clone(),
-            blocks: self
-                .blocks_vec
-                .iter()
-                .map(|b| b.clone().with_default_and_name(&default_block))
-                .collect(),
+            default_block,
+            blocks,
             vars: self
                 .vars_vec
                 .iter()
@@ -856,6 +893,7 @@ impl Config<Option<Placeholder>> {
                 .collect(),
             blocks_vec: vec![],
             vars_vec: vec![],
+            default_block_vec: vec![],
             commands: self.commands.clone(),
         }
     }

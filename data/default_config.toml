@@ -5,7 +5,7 @@ blocks_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
 clock_format="%H:%M %a %e %b %Y"
 background="#191919dd"
 
-[default_block]
+[[default_block]]
 background="#191919dd"
 active_background="#333333dd"
 active_overline_color = "#facd5a"
