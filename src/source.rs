@@ -14,6 +14,7 @@
 
 use crate::protocol::i3bar;
 use anyhow::Context;
+use crossbeam_channel::select;
 use serde::de::*;
 use serde::Deserialize;
 use std::fmt;
@@ -23,7 +24,7 @@ use std::time::Duration;
 use crate::{state, thread};
 
 struct RowVisitor {
-    tx: std::sync::mpsc::Sender<state::Update>,
+    tx: crossbeam_channel::Sender<state::Update>,
     name: String,
 }
 
@@ -123,14 +124,14 @@ impl Command {
     fn run_command(
         &self,
         name: &str,
-        tx: &std::sync::mpsc::Sender<state::Update>,
+        tx: &crossbeam_channel::Sender<state::Update>,
     ) -> anyhow::Result<()> {
         let mut child = std::process::Command::new("sh")
             .arg("-c")
             .arg(&self.config.command)
             .stdout(std::process::Stdio::piped())
             .spawn()
-            .context("Failed spawnning")?;
+            .context("Failed spawning")?;
         if let Err(e) = self.process_child_output(name.into(), &mut child, tx.clone()) {
             tracing::warn!("Error running command {}: {:?}", name, e);
         }
@@ -145,7 +146,7 @@ impl Command {
         &self,
         name: String,
         child: &mut std::process::Child,
-        tx: std::sync::mpsc::Sender<state::Update>,
+        tx: crossbeam_channel::Sender<state::Update>,
     ) -> anyhow::Result<()> {
         let stdout = child.stdout.take().unwrap();
         let mut reader = BufReader::new(stdout);
@@ -249,10 +250,12 @@ impl Command {
         }
         Ok(())
     }
-}
 
-impl state::Source for Command {
-    fn spawn(self, tx: std::sync::mpsc::Sender<state::Update>) -> anyhow::Result<()> {
+    pub fn spawn(
+        self,
+        tx: crossbeam_channel::Sender<state::Update>,
+        poke_rx: crossbeam_channel::Receiver<()>,
+    ) -> anyhow::Result<()> {
         let name = self
             .config
             .name
@@ -270,8 +273,10 @@ impl state::Source for Command {
                         ..Default::default()
                     })?;
                 }
-                let interval = Duration::from_secs(self.config.interval.unwrap_or(10));
-                std::thread::sleep(interval);
+                select! {
+                    recv(poke_rx) -> _ => tracing::info!("Skipping interval for {} command", name),
+                    default(Duration::from_secs(self.config.interval.unwrap_or(10))) => (),
+                }
             })
         };
         if let Err(e) = result {

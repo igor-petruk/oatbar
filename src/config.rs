@@ -887,8 +887,7 @@ impl Config<Option<Placeholder>> {
         let none_default_block = self
             .default_block_vec
             .iter()
-            .filter(|b| b.name.is_none())
-            .next()
+            .find(|b| b.name.is_none())
             .map(|b| b.with_default(&base_default_block))
             .unwrap_or_else(|| base_default_block);
         let mut default_block_map: HashMap<Option<String>, DefaultBlock<Placeholder>> = self
@@ -902,7 +901,7 @@ impl Config<Option<Placeholder>> {
             .iter()
             .map(|b| {
                 b.clone().with_default_and_name(
-                    &default_block_map
+                    default_block_map
                         .get(b.inherit())
                         .unwrap_or(&none_default_block),
                 )

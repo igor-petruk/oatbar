@@ -33,8 +33,6 @@ mod xutils;
 
 use anyhow::Context;
 
-use crate::state::Source;
-
 fn main() -> anyhow::Result<()> {
     #[cfg(feature = "profile")]
     let guard = pprof::ProfilerGuardBuilder::default()
@@ -50,20 +48,34 @@ fn main() -> anyhow::Result<()> {
 
     sub.init();
 
+    let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGUSR1])?;
+
     let config = config::load()?;
     let commands = config.commands.clone();
 
     wmready::wait().context("Unable to connect to WM")?;
 
     let state: state::State = state::State::new(config.clone());
-    let (state_update_tx, state_update_rx) = std::sync::mpsc::channel();
+    let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
     let mut engine = engine::Engine::new(config, state)?;
 
+    let mut poke_tx_channels = vec![];
     for (index, config) in commands.into_iter().enumerate() {
+        let (poke_tx, poke_rx) = crossbeam_channel::unbounded();
         let command = source::Command { index, config };
-        command.spawn(state_update_tx.clone())?;
+        command.spawn(state_update_tx.clone(), poke_rx)?;
+        poke_tx_channels.push(poke_tx);
     }
+
+    thread::spawn("signals", move || {
+        for _ in signals.forever() {
+            for tx in poke_tx_channels.iter() {
+                let _ = tx.send(());
+            }
+        }
+        Ok(())
+    })?;
 
     #[cfg(feature = "profile")]
     std::thread::spawn(move || loop {

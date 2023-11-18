@@ -467,7 +467,3 @@ pub struct UpdateEntry {
     pub var: String,
     pub value: String,
 }
-
-pub trait Source {
-    fn spawn(self, tx: std::sync::mpsc::Sender<Update>) -> anyhow::Result<()>;
-}

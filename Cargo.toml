@@ -59,5 +59,7 @@ xcb = { version = "1.2", features = ["xkb", "xlib_xcb", "xinput"] }
 itertools = "0.12"
 thiserror = "1.0.40"
 macro_rules_attribute = "0.2.0"
+signal-hook = "0.3.17"
+crossbeam-channel = "0.5.8"
 
 

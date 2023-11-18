@@ -82,7 +82,7 @@ impl Engine {
 
     pub fn spawn_state_update_thread(
         &self,
-        state_update_rx: std::sync::mpsc::Receiver<state::Update>,
+        state_update_rx: crossbeam_channel::Receiver<state::Update>,
     ) -> anyhow::Result<()> {
         let window_ids = self.window_ids.clone();
         let conn = self.conn.clone();
@@ -143,7 +143,7 @@ impl Engine {
 
     pub fn run(
         &mut self,
-        state_update_rx: std::sync::mpsc::Receiver<state::Update>,
+        state_update_rx: crossbeam_channel::Receiver<state::Update>,
     ) -> anyhow::Result<()> {
         self.spawn_state_update_thread(state_update_rx)
             .context("engine state update")?;
