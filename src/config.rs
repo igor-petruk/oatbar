@@ -15,6 +15,7 @@
 use crate::parse::ExpressionProcessor;
 use crate::source;
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -164,11 +165,18 @@ impl PartialEq for Regex {
 pub struct Replace(Vec<(Regex, String)>);
 
 impl Replace {
-    pub fn apply(&self, string: &str) -> String {
+    pub fn apply(&self, replace_first_match: bool, string: &str) -> String {
         let mut string = String::from(string);
         for replacement in self.0.iter() {
             let re = &replacement.0 .0;
-            string = re.replace_all(&string, &replacement.1).into();
+            let replacement = re.replace_all(&string, &replacement.1);
+            if replace_first_match {
+                if let Cow::Owned(_) = replacement {
+                    string = replacement.into();
+                    break;
+                }
+            }
+            string = replacement.into();
         }
         string
     }
@@ -783,6 +791,8 @@ pub struct TextAlignment {
 pub struct ProcessingOptions {
     pub enum_separator: Option<String>,
     #[serde(default)]
+    pub replace_first_match: bool,
+    #[serde(default)]
     pub replace: Replace,
     #[serde(flatten, default)]
     pub text_alignment: TextAlignment,
@@ -794,6 +804,7 @@ impl ProcessingOptions {
     fn with_defaults(&self) -> Self {
         Self {
             enum_separator: self.enum_separator.clone(),
+            replace_first_match: self.replace_first_match,
             replace: self.replace.clone(),
             text_alignment: self.text_alignment.clone(),
             ellipsis: self.ellipsis.clone(),
@@ -801,7 +812,7 @@ impl ProcessingOptions {
     }
 
     pub fn process_single(&self, value: &str) -> String {
-        let value = self.replace.apply(value);
+        let value = self.replace.apply(self.replace_first_match, value);
         let mut s_chars: Vec<char> = value.chars().collect();
         match self.text_alignment.max_length {
             Some(max_length) if s_chars.len() > max_length => {
