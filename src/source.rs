@@ -55,7 +55,7 @@ pub fn block_to_su_entry(name: &str, idx: usize, block: i3bar::Block) -> Vec<sta
                 value,
             }
         })
-        .chain(full_text.into_iter())
+        .chain(full_text)
         .collect()
 }
 
