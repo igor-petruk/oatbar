@@ -42,11 +42,11 @@ profile = ["dep:pprof"]
 pprof = { version = "0.13", features = ["flamegraph"], optional = true }
 anyhow = "1"
 bytesize = "1.1"
-cairo-rs = { version = "0.17", features = ["xcb", "png"], default-features=false }
+cairo-rs = { version = "0.18", features = ["xcb", "png"], default-features=false }
 derive_builder = "0.12"
 dirs = "5"
 hex_color = { version = "2", default-features = false, features = ["serde"] }
-pangocairo = "0.17"
+pangocairo = "0.18"
 regex = "1.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
