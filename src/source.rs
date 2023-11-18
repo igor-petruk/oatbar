@@ -23,6 +23,29 @@ use std::time::Duration;
 
 use crate::{state, thread};
 
+#[derive(Clone)]
+pub struct Poker {
+    tx: Vec<crossbeam_channel::Sender<()>>,
+}
+
+impl Poker {
+    pub fn new() -> Self {
+        Self { tx: vec![] }
+    }
+
+    pub fn add(&mut self) -> crossbeam_channel::Receiver<()> {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.tx.push(tx);
+        rx
+    }
+
+    pub fn poke(&self) {
+        for tx in self.tx.iter() {
+            let _ = tx.send(());
+        }
+    }
+}
+
 struct RowVisitor {
     tx: crossbeam_channel::Sender<state::Update>,
     name: String,

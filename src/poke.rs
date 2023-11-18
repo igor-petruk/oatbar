@@ -1,12 +1,12 @@
+use anyhow::anyhow;
+
 #[allow(unused)]
-mod pidfile;
+mod ipc;
 
 fn main() -> anyhow::Result<()> {
-    let pid = pidfile::Pidfile::new()?.read()?;
-    let mut child = std::process::Command::new("kill")
-        .arg("-USR1")
-        .arg(format!("{}", pid))
-        .spawn()?;
-    let _ = child.wait();
+    let response = ipc::send_request(ipc::Request::Poke)?;
+    if let Some(error) = response.error {
+        return Err(anyhow!("{}", error));
+    }
     Ok(())
 }

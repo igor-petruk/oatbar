@@ -20,10 +20,11 @@ mod bar;
 mod config;
 mod drawing;
 mod engine;
+#[allow(unused)]
+mod ipc;
+mod ipcserver;
 #[allow(unused_macros)]
 mod parse;
-#[allow(unused)]
-mod pidfile;
 mod protocol;
 mod source;
 mod state;
@@ -50,10 +51,6 @@ fn main() -> anyhow::Result<()> {
 
     sub.init();
 
-    pidfile::Pidfile::new()?.write()?;
-
-    let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGUSR1])?;
-
     let config = config::load()?;
     let commands = config.commands.clone();
 
@@ -64,22 +61,13 @@ fn main() -> anyhow::Result<()> {
 
     let mut engine = engine::Engine::new(config, state)?;
 
-    let mut poke_tx_channels = vec![];
+    let mut poker = source::Poker::new();
     for (index, config) in commands.into_iter().enumerate() {
-        let (poke_tx, poke_rx) = crossbeam_channel::unbounded();
         let command = source::Command { index, config };
-        command.spawn(state_update_tx.clone(), poke_rx)?;
-        poke_tx_channels.push(poke_tx);
+        command.spawn(state_update_tx.clone(), poker.add())?;
     }
 
-    thread::spawn("signals", move || {
-        for _ in signals.forever() {
-            for tx in poke_tx_channels.iter() {
-                let _ = tx.send(());
-            }
-        }
-        Ok(())
-    })?;
+    ipcserver::spawn_listener(poker)?;
 
     #[cfg(feature = "profile")]
     std::thread::spawn(move || loop {
