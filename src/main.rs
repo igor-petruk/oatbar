@@ -67,7 +67,7 @@ fn main() -> anyhow::Result<()> {
         command.spawn(state_update_tx.clone(), poker.add())?;
     }
 
-    ipcserver::spawn_listener(poker)?;
+    ipcserver::spawn_listener(poker, state_update_tx)?;
 
     #[cfg(feature = "profile")]
     std::thread::spawn(move || loop {

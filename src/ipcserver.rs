@@ -1,34 +1,61 @@
 use std::io::prelude::*;
 use std::os::unix::net::{UnixListener, UnixStream};
 
-use crate::{ipc, source, thread};
+use crate::{ipc, source, state, thread};
 
 fn handle_poke(poker: source::Poker) -> anyhow::Result<ipc::Response> {
     poker.poke();
     Ok(Default::default())
 }
 
-fn handle_client(mut stream: UnixStream, poker: source::Poker) -> anyhow::Result<()> {
+fn handle_set_var(
+    state_update_tx: crossbeam_channel::Sender<state::Update>,
+    name: String,
+    value: String,
+) -> anyhow::Result<ipc::Response> {
+    state_update_tx.send(state::Update {
+        entries: vec![state::UpdateEntry {
+            var: name,
+            value,
+            ..Default::default()
+        }],
+        ..Default::default()
+    })?;
+    Ok(Default::default())
+}
+
+fn handle_client(
+    mut stream: UnixStream,
+    poker: source::Poker,
+    state_update_tx: crossbeam_channel::Sender<state::Update>,
+) -> anyhow::Result<()> {
     let mut vec = Vec::with_capacity(10 * 1024);
     if stream.read_to_end(&mut vec).is_ok() {
         let request: ipc::Request = serde_json::from_slice(&vec)?;
         tracing::info!("IPC request {:?}", request);
         let response = match request {
             ipc::Request::Poke => handle_poke(poker),
+            ipc::Request::SetVar { name, value } => handle_set_var(state_update_tx, name, value),
         }?;
         serde_json::to_writer(stream, &response)?;
     }
     Ok(())
 }
 
-pub fn spawn_listener(poker: source::Poker) -> anyhow::Result<()> {
+pub fn spawn_listener(
+    poker: source::Poker,
+    state_update_tx: crossbeam_channel::Sender<state::Update>,
+) -> anyhow::Result<()> {
     let path = ipc::socket_path()?;
     std::fs::remove_file(&path)?;
     let socket = UnixListener::bind(&path)?;
     thread::spawn("ipc", move || {
         for stream in socket.incoming() {
             let poker = poker.clone();
-            thread::spawn("ipc-client", move || handle_client(stream?, poker))?;
+            let state_update_tx = state_update_tx.clone();
+            thread::spawn("ipc-client", move || {
+                handle_client(stream?, poker, state_update_tx)
+            })?;
         }
         Ok(())
     })?;

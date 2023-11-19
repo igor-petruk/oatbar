@@ -8,6 +8,11 @@ use std::path::PathBuf;
 #[serde(tag = "type")]
 pub enum Request {
     Poke,
+    #[serde(rename = "set-var")]
+    SetVar {
+        name: String,
+        value: String,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
