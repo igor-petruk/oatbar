@@ -420,11 +420,15 @@ impl State {
         }
 
         for update in state_update.entries.into_iter() {
-            let var = match update.instance {
-                Some(instance) => format!("{}.{}.{}", update.name, instance, update.var),
-                None => format!("{}.{}", update.name, update.var),
-            };
-            self.vars.insert(var, update.value);
+            let mut var = Vec::with_capacity(3);
+            if let Some(name) = update.name {
+                var.push(name);
+            }
+            if let Some(instance) = update.instance {
+                var.push(instance);
+            }
+            var.push(update.var);
+            self.vars.insert(var.join("."), update.value);
         }
 
         for var in self.config.vars.values() {
@@ -462,7 +466,7 @@ pub struct Update {
 
 #[derive(Debug, Default)]
 pub struct UpdateEntry {
-    pub name: String,
+    pub name: Option<String>,
     pub instance: Option<String>,
     pub var: String,
     pub value: String,

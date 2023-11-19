@@ -58,7 +58,7 @@ pub fn block_to_su_entry(name: &str, idx: usize, block: i3bar::Block) -> Vec<sta
         block.name.unwrap_or_else(|| format!("{}", idx))
     );
     let full_text = vec![state::UpdateEntry {
-        name: name.clone(),
+        name: Some(name.clone()),
         instance: block.instance.clone(),
         var: "full_text".into(),
         value: block.full_text,
@@ -73,7 +73,7 @@ pub fn block_to_su_entry(name: &str, idx: usize, block: i3bar::Block) -> Vec<sta
                 other => other.to_string(),
             };
             state::UpdateEntry {
-                name: name.clone(),
+                name: Some(name.clone()),
                 instance: block.instance.clone(),
                 var,
                 value,
@@ -202,7 +202,7 @@ impl Command {
                     }
                     tx.send(state::Update {
                         entries: vec![state::UpdateEntry {
-                            name: name.clone(),
+                            name: Some(name.clone()),
                             var: "full_text".into(),
                             value: first_line,
                             ..Default::default()
@@ -230,7 +230,7 @@ impl Command {
             let full_text = full_text.ok().unwrap_or_default();
 
             let mut entries = vec![state::UpdateEntry {
-                name: name.clone(),
+                name: Some(name.clone()),
                 var: "full_text".into(),
                 value: full_text,
                 ..Default::default()
@@ -239,7 +239,7 @@ impl Command {
             if self.config.format == Format::I3blocks {
                 if let Some(short_text) = line_to_opt(lines.next()) {
                     entries.push(state::UpdateEntry {
-                        name: name.clone(),
+                        name: Some(name.clone()),
                         var: "short_text".into(),
                         value: short_text,
                         ..Default::default()
@@ -249,7 +249,7 @@ impl Command {
 
                 if let Some(color) = line_to_opt(lines.next()) {
                     entries.push(state::UpdateEntry {
-                        name: name.clone(),
+                        name: Some(name.clone()),
                         var: "foreground".into(),
                         value: color,
                         ..Default::default()
@@ -258,7 +258,7 @@ impl Command {
 
                 if let Some(background) = line_to_opt(lines.next()) {
                     entries.push(state::UpdateEntry {
-                        name: name.clone(),
+                        name: Some(name.clone()),
                         var: "background".into(),
                         value: background,
                         ..Default::default()
