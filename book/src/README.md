@@ -19,6 +19,8 @@ data in various formats that are already popular in ecosystem.
 
 [![Screenshot](https://raw.githubusercontent.com/igor-petruk/oatbar-media/main/screenshot-mini.png)](https://raw.githubusercontent.com/igor-petruk/oatbar-media/main/screenshot.png)
 
-## Disclaimer
+## Next Steps
 
-This is not an officially supported Google product.
+* [Installation](./installation.md)
+
+* [Configuration](./configuration/README.md)
