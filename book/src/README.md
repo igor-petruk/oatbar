@@ -60,7 +60,8 @@ value = '${clock.full_text}'
 
 Here `clock` command sends plain text, but `desktop` streams
 structured data in JSON. Both are connected to text and selector
-widgets.
+widgets. `desktop` ships with `oatbar`, but it is an external tool
+to the bar, as can be your script.
 
 ## Next Steps
 
