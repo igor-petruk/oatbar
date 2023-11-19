@@ -5,10 +5,10 @@ not have this file, it would be generated with reasonable defaults.
 
 ![New setup](../new-setup.png)
 
-Proceed to [Concepts](./configuration/concepts.md) to learn basic building blocks
+Proceed to [concepts](./configuration/concepts.md) to learn basic building blocks
 of `oatbar` configuration.
 
-Proceed to [Cookbook](./configuration/cookbook.md) if you are familiar with concepts and you are looking for a _recipe_ to solve a particular problem, proceed to
+Proceed to [cookbook](./configuration/cookbook.md) if you are familiar with concepts and you are looking for a _recipe_ to solve a particular problem, proceed to
 the particular problem.
 
 <div class="warning">
