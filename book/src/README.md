@@ -33,7 +33,7 @@ Example:
 ```toml
 [[bar]]
 height=32
-blocks_left=[ "workspace"]
+blocks_left=["workspace"]
 blocks_right=["clock"]
 
 [[command]]
