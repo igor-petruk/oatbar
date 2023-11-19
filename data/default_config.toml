@@ -2,7 +2,6 @@
 height=32
 blocks_left=[ "workspace", "active_window"]
 blocks_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
-clock_format="%H:%M %a %e %b %Y"
 background="#191919dd"
 
 [[default_block]]
