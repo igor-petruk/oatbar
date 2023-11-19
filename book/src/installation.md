@@ -38,6 +38,10 @@ During the first launch the bar will create a default config at
 oatbar
 ```
 
-And it will greet you with
+And you should see:
 
-TODO: add image
+![New setup](new-setup.png)
+
+### Next
+
+[Configuration](./configuration)
