@@ -1,0 +1,6 @@
+[book]
+authors = ["Igor Petruk"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Oatbar"
