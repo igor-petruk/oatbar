@@ -1,12 +1,12 @@
 # Summary
 
-- [Introduction](./intro.md)
+- [Introduction](./README.md)
 - [Installation](./installation.md)
 
 # Configuration
 
 - [Concepts]()
 
-# Misc 
+# Other 
 
 - [Links](./links.md)
