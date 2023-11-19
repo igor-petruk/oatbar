@@ -27,7 +27,7 @@ pub fn socket_path() -> anyhow::Result<PathBuf> {
 
 pub fn send_request(request: Request) -> anyhow::Result<Response> {
     let path = socket_path()?;
-    let mut stream = UnixStream::connect(&path)?;
+    let mut stream = UnixStream::connect(path)?;
     serde_json::to_writer(&mut stream, &request)?;
     stream.shutdown(std::net::Shutdown::Write);
     let mut vec = Vec::with_capacity(10 * 1024);

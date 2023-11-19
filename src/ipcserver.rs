@@ -10,7 +10,7 @@ fn handle_poke(poker: source::Poker) -> anyhow::Result<ipc::Response> {
 
 fn handle_client(mut stream: UnixStream, poker: source::Poker) -> anyhow::Result<()> {
     let mut vec = Vec::with_capacity(10 * 1024);
-    if let Ok(_) = stream.read_to_end(&mut vec) {
+    if stream.read_to_end(&mut vec).is_ok() {
         let request: ipc::Request = serde_json::from_slice(&vec)?;
         tracing::info!("IPC request {:?}", request);
         let response = match request {
@@ -23,7 +23,7 @@ fn handle_client(mut stream: UnixStream, poker: source::Poker) -> anyhow::Result
 
 pub fn spawn_listener(poker: source::Poker) -> anyhow::Result<()> {
     let path = ipc::socket_path()?;
-    let _ = std::fs::remove_file(&path)?;
+    std::fs::remove_file(&path)?;
     let socket = UnixListener::bind(&path)?;
     thread::spawn("ipc", move || {
         for stream in socket.incoming() {
