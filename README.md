@@ -11,7 +11,7 @@ Oatbar is a standalone desktop bar that can be used with various WMs and DEs. Th
 
 ## Installation and User Guide
 
-Please proceed to [oatbar.app](https://oatbar.app).
+Please proceed to the [oatbar.app](https://oatbar.app).
 
 ## Disclaimer
 
