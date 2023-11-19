@@ -23,4 +23,4 @@ data in various formats that are already popular in ecosystem.
 
 * [Installation](./installation.md)
 
-* [Configuration](./configuration/README.md)
+* [Configuration](./configuration)
