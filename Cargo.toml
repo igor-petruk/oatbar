@@ -22,7 +22,7 @@ categories = ["graphics", "visualization"]
 license = "Apache-2.0"
 documentation = "https://github.com/igor-petruk/oatbar"
 repository = "https://github.com/igor-petruk/oatbar"
-homepage = "https://github.com/igor-petruk/oatbar"
+homepage = "https://oatbar.app"
 default-run="oatbar"
 
 [[bin]]
