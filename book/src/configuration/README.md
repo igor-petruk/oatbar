@@ -13,9 +13,9 @@ the [Cookbook](./configuration/cookbook.md).
 
 <div class="warning">
 
-Warning
+The configuration is unstable.
 
-Until 1.0 version is releases, the configuration change is unstable and
+Until 1.0 release, the configuration change is unstable and
 can change between minor releases.
 
 </div>
