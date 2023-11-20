@@ -1,6 +1,8 @@
 use std::io::prelude::*;
 use std::os::unix::net::{UnixListener, UnixStream};
 
+use anyhow::Context;
+
 use crate::{ipc, source, state, thread};
 
 fn handle_poke(poker: source::Poker) -> anyhow::Result<ipc::Response> {
@@ -46,9 +48,9 @@ pub fn spawn_listener(
     poker: source::Poker,
     state_update_tx: crossbeam_channel::Sender<state::Update>,
 ) -> anyhow::Result<()> {
-    let path = ipc::socket_path()?;
-    std::fs::remove_file(&path)?;
-    let socket = UnixListener::bind(&path)?;
+    let path = ipc::socket_path().context("Unable to get socket path")?;
+    let _ = std::fs::remove_file(&path);
+    let socket = UnixListener::bind(&path).context("Unable to bind")?;
     thread::spawn("ipc", move || {
         for stream in socket.incoming() {
             let poker = poker.clone();
