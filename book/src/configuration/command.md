@@ -30,7 +30,7 @@ name="hello"
 command="echo Hello world"
 ```
 
-This will set `${hello.full_text}` [variable](./variable.md) to be used 
+This will set `${hello:full_text}` [variable](./variable.md) to be used 
 by [blocks](./block.md). If the command outputs multiple lines, each print
 will set this variable to a new value. Pauses between prints can be used
 to only update the variable when necessary.
