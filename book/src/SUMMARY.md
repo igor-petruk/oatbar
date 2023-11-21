@@ -7,9 +7,10 @@
 
 - [Overview](./configuration/README.md)
 - [Concepts](./configuration/concepts.md)
-  - [Sources]()
-  - [Blocks]()
-  - [Variables]()
+  - [Bar](./configuration/bar.md)
+  - [Command](./configuration/command.md)
+  - [Block](./configuration/block.md)
+  - [Variable](./configuration/variable.md)
 - [Cookbook](./configuration/cookbook.md)
 
 # Other 
