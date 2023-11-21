@@ -12,10 +12,12 @@ fn handle_poke(poker: source::Poker) -> anyhow::Result<ipc::Response> {
 
 fn handle_set_var(
     state_update_tx: crossbeam_channel::Sender<state::Update>,
+    command_name: String,
     name: String,
     value: String,
 ) -> anyhow::Result<ipc::Response> {
     state_update_tx.send(state::Update {
+        command_name,
         entries: vec![state::UpdateEntry {
             var: name,
             value,
@@ -37,7 +39,11 @@ fn handle_client(
         tracing::info!("IPC request {:?}", request);
         let response = match request {
             ipc::Request::Poke => handle_poke(poker),
-            ipc::Request::SetVar { name, value } => handle_set_var(state_update_tx, name, value),
+            ipc::Request::SetVar {
+                command_name,
+                name,
+                value,
+            } => handle_set_var(state_update_tx, command_name, name, value),
         }?;
         serde_json::to_writer(stream, &response)?;
     }

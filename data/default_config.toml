@@ -46,12 +46,12 @@ on_click_command = "oatbar-keyboard $BLOCK_VALUE &"
 [[block]]
 name='disk_free'
 type = 'text'
-value = '<span weight="bold" foreground="#facd5a">/</span> ${disk_free.full_text}'
+value = '<span weight="bold" foreground="#facd5a">/</span> ${disk_free:full_text}'
 
 [[block]]
 name = 'clock'
 type = 'text'
-value = '${clock.full_text}'
+value = '${clock:full_text}'
 
 [[block]]
 name='active_window'

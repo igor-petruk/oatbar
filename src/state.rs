@@ -16,7 +16,10 @@ use crate::config::{self, PlaceholderExt};
 
 use anyhow::Context;
 
-use std::{cmp::Ordering, collections::HashMap};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockData {
@@ -48,6 +51,7 @@ pub struct State {
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
     pub error: Option<String>,
+    pub command_errors: BTreeMap<String, String>,
     config: config::Config<config::Placeholder>,
 }
 
@@ -415,7 +419,8 @@ impl State {
     }
 
     pub fn handle_state_update(&mut self, state_update: Update) {
-        if let Some(prefix) = state_update.reset_prefix {
+        if state_update.reset_command_vars {
+            let prefix = format!("{}:", state_update.command_name);
             self.vars.retain(|k, _| !k.starts_with(&prefix));
         }
 
@@ -428,9 +433,13 @@ impl State {
                 var.push(instance);
             }
             var.push(update.var);
-            self.vars.insert(var.join("."), update.value);
+            self.vars.insert(
+                format!("{}:{}", state_update.command_name, var.join(".")),
+                update.value,
+            );
         }
 
+        self.error = None;
         for var in self.config.vars.values() {
             let var_value = var
                 .input
@@ -459,8 +468,9 @@ impl State {
 
 #[derive(Debug, Default)]
 pub struct Update {
+    pub command_name: String,
     pub entries: Vec<UpdateEntry>,
-    pub reset_prefix: Option<String>,
+    pub reset_command_vars: bool,
     pub error: Option<String>,
 }
 

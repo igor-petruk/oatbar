@@ -48,15 +48,11 @@ impl Poker {
 
 struct RowVisitor {
     tx: crossbeam_channel::Sender<state::Update>,
-    name: String,
+    command_name: String,
 }
 
-pub fn block_to_su_entry(name: &str, idx: usize, block: i3bar::Block) -> Vec<state::UpdateEntry> {
-    let name = format!(
-        "{}:{}",
-        name,
-        block.name.unwrap_or_else(|| format!("{}", idx))
-    );
+pub fn block_to_su_entry(idx: usize, block: i3bar::Block) -> Vec<state::UpdateEntry> {
+    let name = block.name.unwrap_or_else(|| format!("{}", idx));
     let full_text = vec![state::UpdateEntry {
         name: Some(name.clone()),
         instance: block.instance.clone(),
@@ -98,12 +94,13 @@ impl<'de> Visitor<'de> for RowVisitor {
             let entries = row
                 .into_iter()
                 .enumerate()
-                .flat_map(|(idx, block)| block_to_su_entry(&self.name, idx, block))
+                .flat_map(|(idx, block)| block_to_su_entry(idx, block))
                 .collect();
             self.tx
                 .send(state::Update {
+                    command_name: self.command_name.clone(),
                     entries,
-                    reset_prefix: Some(format!("{}:", self.name)),
+                    reset_command_vars: true,
                     ..Default::default()
                 })
                 .unwrap();
@@ -146,7 +143,7 @@ fn line_to_opt(line: Option<std::io::Result<String>>) -> Option<String> {
 impl Command {
     fn run_command(
         &self,
-        name: &str,
+        command_name: &str,
         tx: &crossbeam_channel::Sender<state::Update>,
     ) -> anyhow::Result<()> {
         let mut child = std::process::Command::new("sh")
@@ -155,8 +152,9 @@ impl Command {
             .stdout(std::process::Stdio::piped())
             .spawn()
             .context("Failed spawning")?;
-        if let Err(e) = self.process_child_output(name.into(), &mut child, tx.clone()) {
-            tracing::warn!("Error running command {}: {:?}", name, e);
+        if let Err(e) = self.process_child_output(command_name, &mut child, tx.clone()) {
+            // TODO: route to error.
+            tracing::warn!("Error running command {}: {:?}", command_name, e);
         }
         let result = child.wait()?;
         if !result.success() {
@@ -167,7 +165,7 @@ impl Command {
 
     fn process_child_output(
         &self,
-        name: String,
+        command_name: &str,
         child: &mut std::process::Child,
         tx: crossbeam_channel::Sender<state::Update>,
     ) -> anyhow::Result<()> {
@@ -201,8 +199,8 @@ impl Command {
                         }
                     }
                     tx.send(state::Update {
+                        command_name: command_name.into(),
                         entries: vec![state::UpdateEntry {
-                            name: Some(name.clone()),
                             var: "full_text".into(),
                             value: first_line,
                             ..Default::default()
@@ -216,7 +214,10 @@ impl Command {
 
         if format == Format::I3bar {
             let mut stream = serde_json::Deserializer::from_reader(reader);
-            stream.deserialize_seq(RowVisitor { tx, name })?;
+            stream.deserialize_seq(RowVisitor {
+                tx,
+                command_name: command_name.into(),
+            })?;
             return Ok(());
         }
 
@@ -224,13 +225,12 @@ impl Command {
 
         while let Some(full_text) = lines.next() {
             if let Err(e) = &full_text {
-                tracing::warn!("Error from command {:?}: {:?}", name, e);
+                tracing::warn!("Error from command {:?}: {:?}", command_name, e);
                 break;
             }
             let full_text = full_text.ok().unwrap_or_default();
 
             let mut entries = vec![state::UpdateEntry {
-                name: Some(name.clone()),
                 var: "full_text".into(),
                 value: full_text,
                 ..Default::default()
@@ -239,7 +239,6 @@ impl Command {
             if self.config.format == Format::I3blocks {
                 if let Some(short_text) = line_to_opt(lines.next()) {
                     entries.push(state::UpdateEntry {
-                        name: Some(name.clone()),
                         var: "short_text".into(),
                         value: short_text,
                         ..Default::default()
@@ -249,7 +248,6 @@ impl Command {
 
                 if let Some(color) = line_to_opt(lines.next()) {
                     entries.push(state::UpdateEntry {
-                        name: Some(name.clone()),
                         var: "foreground".into(),
                         value: color,
                         ..Default::default()
@@ -258,7 +256,6 @@ impl Command {
 
                 if let Some(background) = line_to_opt(lines.next()) {
                     entries.push(state::UpdateEntry {
-                        name: Some(name.clone()),
                         var: "background".into(),
                         value: background,
                         ..Default::default()
@@ -267,6 +264,7 @@ impl Command {
             }
 
             tx.send(state::Update {
+                command_name: command_name.into(),
                 entries,
                 ..Default::default()
             })?;
@@ -279,7 +277,7 @@ impl Command {
         tx: crossbeam_channel::Sender<state::Update>,
         poke_rx: crossbeam_channel::Receiver<()>,
     ) -> anyhow::Result<()> {
-        let name = self
+        let command_name = self
             .config
             .name
             .clone()
@@ -287,24 +285,32 @@ impl Command {
 
         let result = {
             let tx = tx.clone();
-            let name = name.clone();
-            thread::spawn(name.clone(), move || loop {
-                let result = self.run_command(&name, &tx);
+            let command_name = command_name.clone();
+            thread::spawn(command_name.clone(), move || loop {
+                let result = self.run_command(&command_name, &tx);
                 if let Err(e) = result {
                     tx.send(state::Update {
-                        error: Some(format!("Running command '{}' failed: {:?}", name, e)),
+                        command_name: command_name.clone(),
+                        error: Some(format!(
+                            "Running command '{}' failed: {:?}",
+                            command_name, e
+                        )),
                         ..Default::default()
                     })?;
                 }
                 select! {
-                    recv(poke_rx) -> _ => tracing::info!("Skipping interval for {} command", name),
+                    recv(poke_rx) -> _ => tracing::info!("Skipping interval for {} command", command_name),
                     default(Duration::from_secs(self.config.interval.unwrap_or(10))) => (),
                 }
             })
         };
         if let Err(e) = result {
             tx.send(state::Update {
-                error: Some(format!("Spawning thread '{}' failed: {:?}", name, e)),
+                command_name: command_name.clone(),
+                error: Some(format!(
+                    "Spawning thread '{}' failed: {:?}",
+                    command_name, e
+                )),
                 ..Default::default()
             })?;
         }
