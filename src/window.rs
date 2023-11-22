@@ -372,9 +372,11 @@ impl Window {
 
     pub fn render(&mut self, from_os: bool) {
         let state = self.state.read().unwrap();
-        let mut updates = self
-            .bar
-            .update(&self.back_buffer_context, &state.blocks, &state.error);
+        let mut updates = self.bar.update(
+            &self.back_buffer_context,
+            &state.blocks,
+            &state.build_error_msg(),
+        );
 
         if from_os {
             updates.redraw = bar::RedrawScope::All;

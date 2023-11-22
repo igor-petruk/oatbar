@@ -153,12 +153,18 @@ impl Command {
             .spawn()
             .context("Failed spawning")?;
         if let Err(e) = self.process_child_output(command_name, &mut child, tx.clone()) {
-            // TODO: route to error.
-            tracing::warn!("Error running command {}: {:?}", command_name, e);
+            return Err(anyhow::anyhow!("Error running command: {:?}", e));
         }
         let result = child.wait()?;
         if !result.success() {
-            return Err(anyhow::anyhow!("command returned {:?}", result.code()));
+            if let Some(code) = result.code() {
+                return Err(anyhow::anyhow!("command exit code {:?}", code));
+            } else {
+                return Err(anyhow::anyhow!(
+                    "command exit code unknown, result: {:?}",
+                    result
+                ));
+            }
         }
         Ok(())
     }
@@ -291,10 +297,7 @@ impl Command {
                 if let Err(e) = result {
                     tx.send(state::Update {
                         command_name: command_name.clone(),
-                        error: Some(format!(
-                            "Running command '{}' failed: {:?}",
-                            command_name, e
-                        )),
+                        error: Some(format!("Command failed: {:?}", e)),
                         ..Default::default()
                     })?;
                 }
@@ -307,10 +310,7 @@ impl Command {
         if let Err(e) = result {
             tx.send(state::Update {
                 command_name: command_name.clone(),
-                error: Some(format!(
-                    "Spawning thread '{}' failed: {:?}",
-                    command_name, e
-                )),
+                error: Some(format!("Spawning thread failed: {:?}", e)),
                 ..Default::default()
             })?;
         }

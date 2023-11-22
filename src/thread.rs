@@ -25,11 +25,11 @@ where
     std::thread::Builder::new()
         .name(name)
         .spawn(move || {
-            info!("Thread started.");
+            trace!("Thread started.");
             let result = f();
             match &result {
                 Ok(_) => {
-                    info!("Thread finished: {:?}.", result);
+                    trace!("Thread finished: {:?}.", result);
                 }
                 Err(_) => {
                     error!("Thread finished: {:?}", result);

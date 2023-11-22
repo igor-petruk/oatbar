@@ -95,6 +95,16 @@ impl State {
         }
     }
 
+    pub fn build_error_msg(&self) -> Option<String> {
+        if let Some(error) = &self.error {
+            Some(error.clone())
+        } else if let Some((cmd, error)) = self.command_errors.first_key_value() {
+            Some(format!("{}: {}", cmd, error))
+        } else {
+            None
+        }
+    }
+
     fn color_ramp_pass(
         normalized_position: f64,
         color_ramp: &[String],
@@ -461,7 +471,12 @@ impl State {
         }
 
         if let Some(error) = state_update.error {
-            self.error = Some(format_error_str(&format!("State error: {}", error)));
+            self.command_errors.insert(
+                state_update.command_name,
+                format_error_str(&format!("State error: {}", error)),
+            );
+        } else {
+            self.command_errors.remove(&state_update.command_name);
         }
     }
 }

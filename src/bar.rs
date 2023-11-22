@@ -995,12 +995,15 @@ impl Bar {
         block_data: &HashMap<String, state::BlockData>,
         error: &Option<String>,
     ) -> Updates {
+        let mut redraw_all = false;
+        if self.error.is_some() != error.is_some() {
+            redraw_all = true;
+        }
         self.error = error.clone();
 
         let mut popup: HashMap<config::PopupMode, HashSet<String>> =
             HashMap::with_capacity(block_data.len());
         let mut redraw: HashSet<String> = HashSet::new();
-        let mut redraw_all = false;
 
         if let Some(error) = error {
             let (name, block_data) = Self::error_block(error);
