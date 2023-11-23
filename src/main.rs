@@ -32,6 +32,7 @@ mod thread;
 mod timer;
 mod window;
 mod wmready;
+mod xrandr;
 mod xutils;
 
 use anyhow::Context;

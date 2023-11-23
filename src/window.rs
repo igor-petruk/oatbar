@@ -144,7 +144,18 @@ impl Window {
         let margin = &bar_config.margin;
 
         let height = bar_config.height;
-        let window_width = screen.width_in_pixels();
+
+        let monitor = crate::xrandr::get_monitor(&conn, screen.root(), &bar_config.monitor)?
+            .unwrap_or_else(|| crate::xrandr::Monitor {
+                name: "default".into(),
+                primary: true,
+                x: 0,
+                y: 0,
+                width: screen.width_in_pixels(),
+                height: screen.height_in_pixels(),
+            });
+
+        let window_width = monitor.width;
         let window_height = height + margin.top + margin.bottom;
 
         let cid = conn.generate_id();
@@ -161,16 +172,20 @@ impl Window {
         let id: x::Window = conn.generate_id();
         let y = match bar_config.position {
             config::BarPosition::Top => 0,
-            config::BarPosition::Center => {
-                (screen.height_in_pixels() as i16 - window_height as i16) / 2
-            }
-            config::BarPosition::Bottom => screen.height_in_pixels() as i16 - window_height as i16,
+            config::BarPosition::Center => (monitor.height as i16 - window_height as i16) / 2,
+            config::BarPosition::Bottom => monitor.height as i16 - window_height as i16,
         };
+        let x = monitor.x as i16;
+
+        info!(
+            "Placing the bar at x: {}, y: {}, width: {}, height: {}",
+            x, y, window_width, window_height
+        );
         conn.send_request(&x::CreateWindow {
             depth: 32,
             wid: id,
             parent: screen.root(),
-            x: 0,
+            x,
             y,
             width: window_width,
             height: window_height,
@@ -329,7 +344,7 @@ impl Window {
             &conn,
             &x::ConfigureWindow {
                 window: id,
-                value_list: &[x::ConfigWindow::X(0), x::ConfigWindow::Y(y.into())],
+                value_list: &[x::ConfigWindow::X(x.into()), x::ConfigWindow::Y(y.into())],
             },
         )?;
         conn.flush()?;

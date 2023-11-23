@@ -720,6 +720,7 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub blocks_left: Vec<String>,
     pub blocks_center: Vec<String>,
     pub blocks_right: Vec<String>,
+    pub monitor: Option<String>,
     #[serde(default = "default_height")]
     pub height: u16,
     #[serde(default = "default_bar_position")]
@@ -745,6 +746,7 @@ impl Bar<Option<Placeholder>> {
             blocks_left: self.blocks_left.clone(),
             blocks_center: self.blocks_center.clone(),
             blocks_right: self.blocks_right.clone(),
+            monitor: self.monitor.clone(),
             height: self.height,
             margin: self.margin.clone(),
             position: self.position.clone(),
