@@ -55,7 +55,7 @@ on_click_command = "oatbar-desktop $BLOCK_VALUE &"
 [[block]]
 name = 'clock'
 type = 'text'
-value = '${clock:full_text}'
+value = '${clock:value}'
 ```
 
 Here `clock` command sends plain text, but `desktop` streams

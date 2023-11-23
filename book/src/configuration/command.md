@@ -21,6 +21,8 @@ substitutions.
 
 ### Formats
 
+Formats are usually auto-detected and there is no need to set `format` explicitly.
+
 #### `plain`
 
 Plain text format is just text printed to `stdout`.
@@ -30,25 +32,29 @@ name="hello"
 command="echo Hello world"
 ```
 
-This will set `${hello:full_text}` [variable](./variable.md) to be used 
+This will set `${hello:value}` [variable](./variable.md) to be used 
 by [blocks](./block.md). If the command outputs multiple lines, each print
-will set this variable to a new value. Pauses between prints can be used
-to only update the variable when necessary.
-
+will set this variable to a new value. If the command runs indefinitely, the 
+pauses between prints can be used to only update the variable when necessary.
 When the command is complete, it will be restarted after `interval`
 seconds (the default is `10`).
+
+If `line_names` are set, then the output is expected in groups of
+multiple lines, each will set it's own variable, like `${hello:first_name}` and
+`${hello:last_name}` in the following example:
+
+```toml
+name="hello"
+line_names=["first_name", "last_name"]
+```
 
 Many [`polybar` scripts](https://github.com/polybar/polybar-scripts) can be
 used via the `plain` format, as soon as they don't use polybar specific
 formatting.
 
-#### `i3blocks`
-
-`oatbar` supports [`i3blocks` raw format](https://vivien.github.io/i3blocks/#_format)
-to benefit from some of the exising plugins in it's ecosystem. `i3blocks` is the only
-format that needs to be specified. `plain` and `i3bar` are autodetected. Another 
-benefit of this format is that scripts can stream both values and colors
-without JSON.
+[`i3blocks` raw format](https://vivien.github.io/i3blocks/#_format) plugins
+can be consumed too by means of the `line_names` set to standard names for
+`i3blocks`.
 
 #### `i3bar`
 

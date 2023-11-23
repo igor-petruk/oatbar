@@ -10,7 +10,7 @@ blocks_right=["clock"]
 [[block]]
 name = 'clock'
 type = 'text'
-value = '${clock:full_text}'
+value = '${clock:value}'
 
 [[command]]
 name="clock"
