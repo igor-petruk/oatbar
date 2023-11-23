@@ -109,12 +109,57 @@ impl<'de> Visitor<'de> for RowVisitor {
     }
 }
 
+struct PlainSender {
+    command_name: String,
+    tx: crossbeam_channel::Sender<state::Update>,
+    line_names: Vec<String>, // has at least 1 element.
+    entries: Vec<state::UpdateEntry>,
+}
+
+impl PlainSender {
+    fn new(
+        command_name: &str,
+        tx: crossbeam_channel::Sender<state::Update>,
+        line_names: Vec<String>,
+    ) -> Self {
+        let line_names = if line_names.is_empty() {
+            vec!["value".to_string()]
+        } else {
+            line_names
+        };
+        let entries = Vec::with_capacity(line_names.len());
+        Self {
+            command_name: command_name.into(),
+            tx,
+            line_names,
+            entries,
+        }
+    }
+
+    fn send(&mut self, line: String) -> anyhow::Result<()> {
+        self.entries.push(state::UpdateEntry {
+            var: self.line_names.get(self.entries.len()).unwrap().clone(),
+            value: line,
+            ..Default::default()
+        });
+        if self.entries.len() == self.line_names.len() {
+            let entries =
+                std::mem::replace(&mut self.entries, Vec::with_capacity(self.line_names.len()));
+            self.tx.send(state::Update {
+                command_name: self.command_name.clone(),
+                entries,
+                ..Default::default()
+            })?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Format {
     Auto,
     Plain,
-    I3blocks,
     I3bar,
 }
 
@@ -125,6 +170,8 @@ pub struct CommandConfig {
     interval: Option<u64>,
     #[serde(default = "default_format")]
     format: Format,
+    #[serde(default)]
+    line_names: Vec<String>,
 }
 
 fn default_format() -> Format {
@@ -134,10 +181,6 @@ fn default_format() -> Format {
 pub struct Command {
     pub index: usize,
     pub config: CommandConfig,
-}
-
-fn line_to_opt(line: Option<std::io::Result<String>>) -> Option<String> {
-    line.and_then(|v| v.ok())
 }
 
 impl Command {
@@ -180,6 +223,9 @@ impl Command {
 
         let mut format = self.config.format.clone();
 
+        let mut plain_sender =
+            PlainSender::new(command_name, tx.clone(), self.config.line_names.clone());
+
         if format == Format::Auto || format == Format::I3bar {
             let mut first_line = String::new();
             reader.read_line(&mut first_line)?;
@@ -198,22 +244,14 @@ impl Command {
                         return Err(anyhow::anyhow!("Cannot parse i3bar header: {:?}", e));
                     }
                     // It was Auto, falling back to Plain.
+                    format = Format::Plain;
                     if first_line.ends_with('\n') {
                         first_line.pop();
                         if first_line.ends_with('\r') {
                             first_line.pop();
                         }
                     }
-                    tx.send(state::Update {
-                        command_name: command_name.into(),
-                        entries: vec![state::UpdateEntry {
-                            var: "full_text".into(),
-                            value: first_line,
-                            ..Default::default()
-                        }],
-                        ..Default::default()
-                    })?;
-                    format = Format::Plain;
+                    plain_sender.send(first_line)?;
                 }
             }
         }
@@ -227,53 +265,14 @@ impl Command {
             return Ok(());
         }
 
-        let mut lines = reader.lines();
-
-        while let Some(full_text) = lines.next() {
-            if let Err(e) = &full_text {
+        // Process plain format.
+        for line in reader.lines() {
+            if let Err(e) = &line {
                 tracing::warn!("Error from command {:?}: {:?}", command_name, e);
                 break;
             }
-            let full_text = full_text.ok().unwrap_or_default();
-
-            let mut entries = vec![state::UpdateEntry {
-                var: "full_text".into(),
-                value: full_text,
-                ..Default::default()
-            }];
-
-            if self.config.format == Format::I3blocks {
-                if let Some(short_text) = line_to_opt(lines.next()) {
-                    entries.push(state::UpdateEntry {
-                        var: "short_text".into(),
-                        value: short_text,
-                        ..Default::default()
-                    });
-                    // Ignore short_text.
-                }
-
-                if let Some(color) = line_to_opt(lines.next()) {
-                    entries.push(state::UpdateEntry {
-                        var: "foreground".into(),
-                        value: color,
-                        ..Default::default()
-                    });
-                }
-
-                if let Some(background) = line_to_opt(lines.next()) {
-                    entries.push(state::UpdateEntry {
-                        var: "background".into(),
-                        value: background,
-                        ..Default::default()
-                    });
-                }
-            }
-
-            tx.send(state::Update {
-                command_name: command_name.into(),
-                entries,
-                ..Default::default()
-            })?;
+            let line = line.ok().unwrap_or_default();
+            plain_sender.send(line)?;
         }
         Ok(())
     }
