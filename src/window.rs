@@ -133,6 +133,7 @@ impl Window {
         conn: Arc<xcb::Connection>,
         state: Arc<RwLock<state::State>>,
     ) -> anyhow::Result<Self> {
+        info!("Loading bar {:?}", name);
         let screen = {
             let setup = conn.get_setup();
             setup.roots().next().unwrap()

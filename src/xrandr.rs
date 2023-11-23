@@ -21,7 +21,7 @@ pub fn get_monitor(
     if let Some(name) = &name {
         tracing::info!("Trying to find monitor {:?}", name);
     } else {
-        tracing::info!("Trying to find primary monitor.");
+        tracing::info!("Trying to find the primary monitor.");
     }
 
     let monitors_reply = xutils::query(
@@ -61,10 +61,17 @@ pub fn get_monitor(
         monitors.iter().find(|m| m.primary)
     };
 
-    if let Some(monitor) = monitor_found {
-        info!("Selected monitor: {}", monitor.name);
-        Ok(monitor_found.cloned())
+    let monitor = if let Some(monitor) = monitor_found {
+        info!("Monitor found: {}", monitor.name);
+        monitor_found
+    } else if let Some(name) = name {
+        return Err(anyhow::anyhow!(
+            "Monitor {:?} not found, but specified for the bar",
+            name
+        ));
     } else {
-        Err(anyhow::anyhow!("No monitor matches the criteria"))
-    }
+        info!("Primary monitor not found, picking the first one");
+        monitors.first()
+    };
+    Ok(monitor.cloned())
 }
