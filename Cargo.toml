@@ -34,7 +34,7 @@ name="oatbar-desktop"
 path="src/desktop.rs"
 
 [[bin]]
-name="oatbarctl"
+name="oatctl"
 path="src/cli.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
