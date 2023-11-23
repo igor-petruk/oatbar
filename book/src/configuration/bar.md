@@ -12,6 +12,10 @@ blocks_left=["block1", "block2"]
 blocks_center=["block3"]
 blocks_right=["block4"]
 
+# Monitor to use as listed by `xrandr` command.
+# If unspecified, the primary is used.
+monitor="DP-6.8"
+
 # Height of the bar.
 height=32
 
@@ -27,7 +31,3 @@ hidden=true
 # Make a hidden bar pop up when the mouse is near the edge of the screen.
 popup_at_edge=true  
 ```
-
-## Planned features
-
-- [ ] Support multiple monitors
