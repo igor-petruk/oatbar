@@ -42,6 +42,15 @@ And you should see:
 
 ![New setup](new-setup.png)
 
+### NetBSD
+
+On NetBSD, a package is available from the official repositories.
+To install it, simply run:
+
+```
+pkgin install oatbar
+```
+
 ### Next
 
 [Configuration](./configuration)
