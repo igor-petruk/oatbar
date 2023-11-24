@@ -55,6 +55,9 @@ pub fn spawn_listener(
     state_update_tx: crossbeam_channel::Sender<state::Update>,
 ) -> anyhow::Result<()> {
     let path = ipc::socket_path().context("Unable to get socket path")?;
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     let _ = std::fs::remove_file(&path);
     let socket = UnixListener::bind(&path).context("Unable to bind")?;
     thread::spawn("ipc", move || {
