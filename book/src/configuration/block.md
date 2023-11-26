@@ -2,19 +2,21 @@
 
 Blocks are the widgets displaying pieces of information on the bar. Supported blocks types are:
 
-* **Text** focuses on displaying text information.
+* [**Text**](#text-block) focuses on displaying text information.
   * Fake text blocks can be used as separators, blank spaces or edges of the small partial bars within a bar.
-* **Number** focuses on presenting numerical information.
+* [**Number**](#number-block) focuses on presenting numerical information.
   * Support numerical units, such as bytes or percentages.
   * Displayed as text or as progress bars.
-* **Enum** focuses on presenting a selection among multiple items.
+* [**Enum**](#enum-block) focuses on presenting a selection among multiple items.
   * Active item and other items can be presented differently.
-* **Image** focuses on rendering an image.
+* [**Image**](#image-block) focuses on rendering an image.
 
 `oatbar` provides a lot of hidden power via these widgets, as they can provide
-more than they initially seem. The reference below explains properties of
-these blocks, but the [Cookbock](./cookbook.md) shows how to use them in a very
-clever way.
+more than they initially seem. Consider that the most of the string properties
+of blocks support variable substitution, directly controlled by your scripts.
+
+The reference below explains properties of these blocks and the
+[Cookbock](./cookbook.md) shows how to use them in a very clever way.
 
 ## Common properties
 
@@ -78,6 +80,11 @@ line_width=0.4
 # Margin and padding of the block within a bar.
 margin=3.0
 padding=5.0
+
+# A command to run on click.
+# It is run with `sh -c "... disown"` and `&` is required to detach the process.
+# BLOCK_NAME and BLOCK_VALUE environment variables are set.
+on_click_command = 'chrome &'
 ```
 
 To avoid repetition, consider using `default_block`, that
@@ -100,6 +107,11 @@ inherit="ws1_widgets"
 
 ## Text block
 
+```toml
+[[block]]
+type="text"
+```
+
 Text blocks include all common properties, which should be enough to show
 basic text or icons using [Pango markup](https://docs.gtk.org/Pango/pango_markup.html),
  icon fonts such as [Font Awesome](https://fontawesome.com/),
@@ -115,37 +127,94 @@ They are smaller bars within a bar that groups multiple blocks together.
 blocks_right=["L", "music", "R", "E", "L", "layout", "S", "clock", "R"]
 
 [[block]]
-name='music'
+name="music"
 ...
 show_if_set = '${player:now_playing.full_text}'
 popup = "partial_bar"
 
 [[block]]
 name="S"
-type = 'text'
-separator_type = 'gap'
-value = '|'
+type = "text"
+separator_type = "gap"
+value = "|"
 
 [[block]]
 name="E"
-type = 'text'
-separator_type = 'gap'
-value = ' '
+type = "text"
+separator_type = "gap"
+value = " "
 background = "#00000000"
 
 [[block]]
-name='L'
-type = 'text'
-separator_type = 'left'
+name="L"
+type = "text"
+separator_type = "left"
 separator_radius = 8.0
 
 [[block]]
-name='R'
-type = 'text'
-separator_type = 'right'
+name="R"
+type = "text"
+separator_type = "right"
 separator_radius = 8.0
 ```
 
 `separator_type` gives a hint on where partial bars are located.
 This helps when `popup="partial_bar"`. It also helps to collapse
 unnecessary separators when normal blocks around them are hidden.
+
+## Number block
+
+```toml
+[[block]]
+type="number"
+```
+
+Number can be displayed as text on the text block. But the real
+value comes when the bar understands that the data is a number.
+
+In addition to common properties, the number blocks 
+support unit conversions and alternative forms of display,
+such as progress bars.
+
+```toml
+# Min/max values are used in progress bars.
+# They are set as string because they support
+# variable substituion and can be specified in units.
+min_value="0"
+max_value="1000"
+
+# A number type that input represents.
+#  - number - a number from min to max
+#  - percent - a number from 0 to 100, '%' is ommitted from the input when parsing.
+#  - bytes - a number that supports byte unit suffixes, e.g. "GB", "kb",
+#      - See https://docs.rs/bytesize/latest/bytesize/
+number_type="number"
+```
+
+In addition a child block `number_display` can be used to add a progress bar.
+
+```toml
+[[block]]
+type="number"
+name="cpu"
+...
+
+# Note single brackets [...] after [[block]]
+[block.number_display]
+type="progress_bar"
+
+# Progress bar characters. In this example would render: "━━━━雷     "
+empty=" "
+fill="━"
+indicator="雷"
+
+# If set, splits the bar into even chunks and colors them according to these values.
+color_ramp=["#000000", "#000000", "#000000", "#ffff00", "#ff000"]
+
+# If set, an additional decoration for the bar, which will be rendered in place of {}.
+bar_format="cpu: <span font='Iosevka Nerd Font Mono 12'>{}</span>"
+```
+
+## Enum block
+
+## Image block
