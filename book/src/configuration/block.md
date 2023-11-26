@@ -218,3 +218,13 @@ bar_format="cpu: <span font='Iosevka Nerd Font Mono 12'>{}</span>"
 ## Enum block
 
 ## Image block
+
+In image blocks, the `value` property is interpreted as and image file name to be
+rendered.
+
+No image manipluations are performed and the support is pretty basic. Consider
+however that the `value` can come from a custom script that could select or render
+an arbitrary image to a temporary directory, offering unlimited possibilities.
+
+*Request to the community*: How do you think this feature can be improved?
+[Let me know](https://github.com/igor-petruk/oatbar/issues/new).
