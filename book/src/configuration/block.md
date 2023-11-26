@@ -217,6 +217,32 @@ bar_format="cpu: <span font='Iosevka Nerd Font Mono 12'>{}</span>"
 
 ## Enum block
 
+```toml
+[[block]]
+type="enum"
+```
+
+Enum is different from text block as it renders multiple child text blocks called
+`variants`, only one of which is `active`. *Example:* keyboard layout switch.
+
+Almost every common property related to block display has an `active_` counterpart
+to configure an active block. For example `background` and `active_background`.
+
+```toml
+# A separated list of variants, e.g. "ua,se,us".
+variants = '${keyboard:layout.variants}'
+# An index of the item that is to be active starting from 0.
+active = '${keyboard:layout.active}'
+# A separator for the variants list. Default: ",".
+enum_separator="|"
+```
+
+Text processing via `replace` is done per item of the `variants` separately,
+not together.
+
+`BLOCK_VALUE` environment variable set for `on_click_handler` command is set to
+the index of the variant that was clicked on.
+
 ## Image block
 
 In image blocks, the `value` property is interpreted as and image file name to be
