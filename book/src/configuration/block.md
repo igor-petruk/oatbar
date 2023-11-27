@@ -238,7 +238,8 @@ enum_separator="|"
 ```
 
 Text processing via `replace` is done per item of the `variants` separately,
-not together.
+not together. If an variant becomes empty as a result of processing, it will
+not be displayed, but it won't impact the meaning of `active` index.
 
 `BLOCK_VALUE` environment variable set for `on_click_handler` command is set to
 the index of the variant that was clicked on.
