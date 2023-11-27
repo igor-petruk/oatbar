@@ -481,9 +481,15 @@ impl Block for TextNumberBlock {
 }
 
 #[derive(Debug)]
+struct VariantBlock {
+    index: usize,
+    block: Box<dyn DebugBlock>,
+}
+
+#[derive(Debug)]
 struct EnumBlock {
     name: String,
-    variant_blocks: Vec<Box<dyn DebugBlock>>,
+    variant_blocks: Vec<VariantBlock>,
     dim: Dimensions,
     block: config::EnumBlock<String>,
     event_handlers: config::EventHandlers,
@@ -501,22 +507,28 @@ impl EnumBlock {
         let mut width: f64 = 0.0;
         let active: usize = block.active.parse().unwrap_or_default();
         for (index, item) in block.variants_vec.iter().enumerate() {
+            if item.is_empty() {
+                continue;
+            }
             let mut display_options = if index == active {
                 block.active_display.clone()
             } else {
                 block.display.clone()
             };
             display_options.value = item.clone();
-            let variant_block = TextBlock::new_in_base_block(
-                "".into(),
-                drawing_context,
-                display_options.clone(),
-                height,
-                None,
-                None,
-                event_handlers.clone(),
-            );
-            width += variant_block.get_dimensions().width;
+            let variant_block = VariantBlock {
+                index,
+                block: TextBlock::new_in_base_block(
+                    "".into(),
+                    drawing_context,
+                    display_options.clone(),
+                    height,
+                    None,
+                    None,
+                    event_handlers.clone(),
+                ),
+            };
+            width += variant_block.block.get_dimensions().width;
             variant_blocks.push(variant_block);
         }
         let dim = Dimensions { width, height };
@@ -537,13 +549,13 @@ impl Block for EnumBlock {
         match event {
             BlockEvent::ButtonPress { x, .. } => {
                 let mut pos: f64 = 0.0;
-                for (index, block) in self.variant_blocks.iter().enumerate() {
-                    let next_pos = pos + block.get_dimensions().width;
+                for variant_block in self.variant_blocks.iter() {
+                    let next_pos = pos + variant_block.block.get_dimensions().width;
                     if pos <= *x && *x <= next_pos {
                         handle_button_press(
                             &self.event_handlers,
                             self.name(),
-                            &format!("{}", index),
+                            &format!("{}", variant_block.index),
                         )?;
                         break;
                     }
@@ -569,9 +581,9 @@ impl Block for EnumBlock {
         for variant_block in self.variant_blocks.iter() {
             context.save()?;
             context.translate(x_offset, 0.0);
-            variant_block.render(drawing_context)?;
+            variant_block.block.render(drawing_context)?;
             context.restore()?;
-            x_offset += variant_block.get_dimensions().width;
+            x_offset += variant_block.block.get_dimensions().width;
         }
         Ok(())
     }
