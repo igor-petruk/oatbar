@@ -141,7 +141,7 @@ type = 'text'
 value = '<b>/home</b> ${home_free:value}'
 ```
 
-## `i3status`
+## Data from `i3status`
 
 `i3status` is a great cross-platform source of information about the system. It supports:
 
@@ -201,4 +201,62 @@ If you prefer a progress bar:
 [block.number_display]
 type="progress_bar"
 bar_format="<b>CPU:</b> {}"
+```
+
+## Data from `conky`
+
+As `i3status`, `conky` can also be a great source of system data.
+
+`conky` can print it's [variables](https://conky.sourceforge.net/variables.html) as plain text
+and `oatbar` can consume it as multi-line plain text. Example `~/.oatconkyrc`:
+
+```lua
+conky.config = {
+    out_to_console = true,
+    out_to_x = false,
+    update_interval = 1.0,
+}
+
+conky.text = [[
+$memperc%
+$cpu%
+]]
+```
+
+If you run `conky -c ~/.oatconkyrc` you will see repeating groups of numbers:
+
+```
+2%
+10%
+5%
+10%
+```
+
+In `oatbar` config:
+
+```toml
+[[command]]
+name="conky"
+command="conky -c ~/.oatconkyrc"
+line_names=["mem","cpu"]
+
+[[block]]
+name='cpu'
+type = 'number'
+value = "${conky:cpu}"
+number_type = "percent"
+
+[block.number_display]
+type="text"
+output_format="<b>CPU:</b>{}"
+
+[[block]]
+name='mem'
+type = 'number'
+value = "${conky:mem}"
+number_type = "percent"
+
+[block.number_display]
+type="text"
+output_format="<b>MEM:</b>{}"
 ```
