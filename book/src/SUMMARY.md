@@ -11,7 +11,8 @@
   - [Command](./configuration/command.md)
   - [Block](./configuration/block.md)
   - [Variable](./configuration/variable.md)
-- [Cookbook](./configuration/cookbook.md)
+- [Cookbook](./configuration/cookbook/README.md)
+  - [Basic Blocks](./configuration/cookbook/block.md)
 
 # Other 
 

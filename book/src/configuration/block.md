@@ -16,7 +16,7 @@ more than they initially seem. Consider that the most of the string properties
 of blocks support variable substitution, directly controlled by your scripts.
 
 The reference below explains properties of these blocks and the
-[Cookbock](./cookbook.md) shows how to use them in a very clever way.
+[Cookbook](./cookbook/) shows how to use them in a very clever way.
 
 ## Common properties
 
