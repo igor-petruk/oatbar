@@ -4,6 +4,6 @@
 Instead it offers easy ways of achieving the same by integrating
 external data sources, tools or modules from ecosystems of other bars.
 
-Next steps:
+## Next
 
-1. Learn where to get [**data**](./data.md) to show it on the bar.
+* Learn where to get [**data**](./data.md) to show it on the bar.
