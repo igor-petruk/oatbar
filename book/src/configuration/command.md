@@ -63,7 +63,7 @@ It supports multiple streams of data across multiple "instances" of these stream
 In [`i3wm`](i3wm.org) this format fully controls the display of `i3bar`, where
 for `oatbar` it is a yet another data source that needs to be explicitly
 connected to properties of the blocks. For example instead of coloring 
-the block, you color the entire bar. Or you can use color `red` coming 
+the block, you can choose to color the entire bar. Or you can use color `red` coming 
 from an `i3bar` plugin as a signal to show a hidden block.
 
 Plugins that `oatbar` ships with use this format.
