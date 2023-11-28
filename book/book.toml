@@ -8,3 +8,7 @@ title = "Oatbar"
 [output.html]
 git-repository-url = "https://github.com/igor-petruk/oatbar/tree/main"
 edit-url-template = "https://github.com/igor-petruk/oatbar/edit/main/book/{path}"
+
+[preprocessor.toc]
+command = "mdbook-toc"
+renderer = ["html"]

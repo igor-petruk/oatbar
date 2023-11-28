@@ -1,5 +1,7 @@
 # Basic Blocks
 
+<!-- toc -->
+
 ## Separator
 
 Separator is just a text block.
