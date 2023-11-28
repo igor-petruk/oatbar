@@ -92,7 +92,7 @@ and `window_title`. Multiple entries with the same `name`, but different
 `instance` field to represent further breakdown (e.g. names of 
 network interfaces from a network plugin).
 
-All other values are individual data streams. The output from above will set
+The output from above will set
 the following variables.
 
 ```ini
@@ -106,7 +106,3 @@ desktop:window_title.full_text=window: Alacritty
 
 If `instance` is present in the entry, then the name of the variable is 
 `command_name:name.instance.variable`.
-
-`i3status` from `i3wm.org` is a great `i3bar` format command, that contains
-a lot of useful data for your bar.
-
