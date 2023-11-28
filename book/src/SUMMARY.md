@@ -12,7 +12,7 @@
   - [Block](./configuration/block.md)
   - [Variable](./configuration/variable.md)
 - [Cookbook](./configuration/cookbook/README.md)
-  - [Basic Blocks](./configuration/cookbook/block.md)
+  - [Data](./configuration/cookbook/data.md)
 
 # Other 
 

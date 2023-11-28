@@ -6,4 +6,4 @@ external data sources, tools or modules from ecosystems of other bars.
 
 Next steps:
 
-1. See how to configure [**basic blocks**](./block.md) displaying various sources of information.
+1. Learn where to get [**data**](./data.md) to show it on the bar.
