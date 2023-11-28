@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
             }),
             None => return Err(anyhow!("--name must be in the 'command:name' format")),
         },
-        Commands::GetVar { name } => ipc::send_request(ipc::Request::GetVar { name: name.into() }),
+        Commands::GetVar { name } => ipc::send_request(ipc::Request::GetVar { name }),
     }?;
     if let Some(error) = response.error {
         return Err(anyhow!("{}", error));
