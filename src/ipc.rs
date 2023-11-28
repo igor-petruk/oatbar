@@ -14,11 +14,17 @@ pub enum Request {
         name: String,
         value: String,
     },
+    #[serde(rename = "get-var")]
+    GetVar {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct Response {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }

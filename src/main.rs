@@ -57,7 +57,9 @@ fn main() -> anyhow::Result<()> {
 
     wmready::wait().context("Unable to connect to WM")?;
 
-    let state: state::State = state::State::new(config.clone());
+    let (ipc_server_tx, ipc_server_rx) = crossbeam_channel::unbounded();
+
+    let state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
     let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
     let mut engine = engine::Engine::new(config, state)?;
@@ -68,7 +70,7 @@ fn main() -> anyhow::Result<()> {
         command.spawn(state_update_tx.clone(), poker.add())?;
     }
 
-    ipcserver::spawn_listener(poker, state_update_tx)?;
+    ipcserver::Server::spawn(poker, state_update_tx, ipc_server_rx)?;
 
     #[cfg(feature = "profile")]
     std::thread::spawn(move || loop {

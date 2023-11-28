@@ -100,7 +100,6 @@ impl<'de> Visitor<'de> for RowVisitor {
                 .send(state::Update {
                     command_name: self.command_name.clone(),
                     entries,
-                    reset_command_vars: true,
                     ..Default::default()
                 })
                 .unwrap();

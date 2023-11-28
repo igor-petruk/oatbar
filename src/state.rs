@@ -52,6 +52,7 @@ pub struct State {
     pub blocks: HashMap<String, BlockData>,
     pub error: Option<String>,
     pub command_errors: BTreeMap<String, String>,
+    pub var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
     config: config::Config<config::Placeholder>,
 }
 
@@ -88,9 +89,13 @@ fn format_error_str(error_str: &str) -> String {
 }
 
 impl State {
-    pub fn new(config: config::Config<config::Placeholder>) -> Self {
+    pub fn new(
+        config: config::Config<config::Placeholder>,
+        var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
+    ) -> Self {
         Self {
             config,
+            var_updates_tx,
             ..Default::default()
         }
     }
@@ -429,10 +434,9 @@ impl State {
     }
 
     pub fn handle_state_update(&mut self, state_update: Update) {
-        if state_update.reset_command_vars {
-            let prefix = format!("{}:", state_update.command_name);
-            self.vars.retain(|k, _| !k.starts_with(&prefix));
-        }
+        let mut var_update = VarUpdate {
+            vars: Default::default(),
+        };
 
         for update in state_update.entries.into_iter() {
             let mut var = Vec::with_capacity(3);
@@ -443,10 +447,15 @@ impl State {
                 var.push(instance);
             }
             var.push(update.var);
-            self.vars.insert(
-                format!("{}:{}", state_update.command_name, var.join(".")),
-                update.value,
-            );
+            let name = format!("{}:{}", state_update.command_name, var.join("."));
+
+            let old_value = self
+                .vars
+                .insert(name.clone(), update.value.clone())
+                .unwrap_or_default();
+            if old_value != update.value {
+                var_update.vars.insert(name, update.value);
+            }
         }
 
         self.error = None;
@@ -458,7 +467,13 @@ impl State {
             match var_value {
                 Ok(value) => {
                     let processed = var.processing_options.process(&value);
-                    self.vars.insert(var.name.clone(), processed);
+                    let old_value = self
+                        .vars
+                        .insert(var.name.clone(), processed.clone())
+                        .unwrap_or_default();
+                    if old_value != processed {
+                        var_update.vars.insert(var.name.clone(), processed);
+                    }
                 }
                 Err(e) => {
                     self.error = Some(format_error_str(&format!("{:?}", e)));
@@ -478,6 +493,14 @@ impl State {
         } else {
             self.command_errors.remove(&state_update.command_name);
         }
+
+        if !var_update.vars.is_empty() {
+            for rx in self.var_updates_tx.iter() {
+                if let Err(e) = rx.send(var_update.clone()) {
+                    tracing::error!("Failed to send var update: {:?}: {:?}", var_update, e);
+                }
+            }
+        }
     }
 }
 
@@ -485,7 +508,6 @@ impl State {
 pub struct Update {
     pub command_name: String,
     pub entries: Vec<UpdateEntry>,
-    pub reset_command_vars: bool,
     pub error: Option<String>,
 }
 
@@ -495,4 +517,9 @@ pub struct UpdateEntry {
     pub instance: Option<String>,
     pub var: String,
     pub value: String,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct VarUpdate {
+    pub vars: HashMap<String, String>,
 }
