@@ -98,7 +98,7 @@ impl<'de> Visitor<'de> for RowVisitor {
                 .collect();
             self.tx
                 .send(state::Update {
-                    command_name: self.command_name.clone(),
+                    command_name: Some(self.command_name.clone()),
                     entries,
                     ..Default::default()
                 })
@@ -145,7 +145,7 @@ impl PlainSender {
             let entries =
                 std::mem::replace(&mut self.entries, Vec::with_capacity(self.line_names.len()));
             self.tx.send(state::Update {
-                command_name: self.command_name.clone(),
+                command_name: Some(self.command_name.clone()),
                 entries,
                 ..Default::default()
             })?;
@@ -294,7 +294,7 @@ impl Command {
                 let result = self.run_command(&command_name, &tx);
                 if let Err(e) = result {
                     tx.send(state::Update {
-                        command_name: command_name.clone(),
+                        command_name: Some(command_name.clone()),
                         error: Some(format!("Command failed: {:?}", e)),
                         ..Default::default()
                     })?;
@@ -307,7 +307,7 @@ impl Command {
         };
         if let Err(e) = result {
             tx.send(state::Update {
-                command_name: command_name.clone(),
+                command_name: Some(command_name.clone()),
                 error: Some(format!("Spawning thread failed: {:?}", e)),
                 ..Default::default()
             })?;

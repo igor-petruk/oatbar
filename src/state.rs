@@ -447,7 +447,10 @@ impl State {
                 var.push(instance);
             }
             var.push(update.var);
-            let name = format!("{}:{}", state_update.command_name, var.join("."));
+            let name = match state_update.command_name {
+                Some(ref command_name) => format!("{}:{}", command_name, var.join(".")),
+                None => var.join("."),
+            };
 
             let old_value = self
                 .vars
@@ -485,13 +488,15 @@ impl State {
             self.error = Some(format_error_str(&format!("{:?}", e)));
         }
 
-        if let Some(error) = state_update.error {
-            self.command_errors.insert(
-                state_update.command_name,
-                format_error_str(&format!("State error: {}", error)),
-            );
-        } else {
-            self.command_errors.remove(&state_update.command_name);
+        if let Some(command_name) = state_update.command_name {
+            if let Some(error) = state_update.error {
+                self.command_errors.insert(
+                    command_name,
+                    format_error_str(&format!("State error: {}", error)),
+                );
+            } else {
+                self.command_errors.remove(&command_name);
+            }
         }
 
         if !var_update.vars.is_empty() {
@@ -506,7 +511,7 @@ impl State {
 
 #[derive(Debug, Default)]
 pub struct Update {
-    pub command_name: String,
+    pub command_name: Option<String>,
     pub entries: Vec<UpdateEntry>,
     pub error: Option<String>,
 }

@@ -23,14 +23,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let response = match cli.command {
         Commands::Poke => ipc::send_request(ipc::Request::Poke),
-        Commands::SetVar { name, value } => match name.split_once(':') {
-            Some((command_name, name)) => ipc::send_request(ipc::Request::SetVar {
-                command_name: command_name.into(),
-                name: name.into(),
-                value,
-            }),
-            None => return Err(anyhow!("--name must be in the 'command:name' format")),
-        },
+        Commands::SetVar { name, value } => ipc::send_request(ipc::Request::SetVar { name, value }),
         Commands::GetVar { name } => ipc::send_request(ipc::Request::GetVar { name }),
     }?;
     if let Some(error) = response.error {

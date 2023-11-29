@@ -20,12 +20,11 @@ impl Server {
         Ok(Default::default())
     }
 
-    fn handle_set_var(
-        &self,
-        command_name: String,
-        name: String,
-        value: String,
-    ) -> anyhow::Result<ipc::Response> {
+    fn sent_set_var(&self, name: String, value: String) -> anyhow::Result<()> {
+        let (command_name, name): (Option<String>, String) = match name.split_once(':') {
+            Some((command_name, name)) => (Some(command_name.into()), name.into()),
+            None => (None, name),
+        };
         self.state_update_tx.send(state::Update {
             command_name,
             entries: vec![state::UpdateEntry {
@@ -35,6 +34,11 @@ impl Server {
             }],
             ..Default::default()
         })?;
+        Ok(())
+    }
+
+    fn handle_set_var(&self, name: String, value: String) -> anyhow::Result<ipc::Response> {
+        self.sent_set_var(name, value)?;
         Ok(Default::default())
     }
 
@@ -53,11 +57,7 @@ impl Server {
             tracing::info!("IPC request {:?}", request);
             let response = match request {
                 ipc::Request::Poke => self.handle_poke(),
-                ipc::Request::SetVar {
-                    command_name,
-                    name,
-                    value,
-                } => self.handle_set_var(command_name, name, value),
+                ipc::Request::SetVar { name, value } => self.handle_set_var(name, value),
                 ipc::Request::GetVar { name } => self.handle_get_var(&name),
             }?;
             serde_json::to_writer(stream, &response)?;

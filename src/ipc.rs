@@ -10,7 +10,6 @@ pub enum Request {
     Poke,
     #[serde(rename = "set-var")]
     SetVar {
-        command_name: String,
         name: String,
         value: String,
     },
