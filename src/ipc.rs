@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
@@ -6,24 +7,31 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
-pub enum Request {
+pub enum Command {
     Poke,
-    #[serde(rename = "set-var")]
-    SetVar {
-        name: String,
-        value: String,
-    },
-    #[serde(rename = "get-var")]
-    GetVar {
-        name: String,
-    },
+    SetVar { name: String, value: String },
+    GetVar { name: String },
+    ListVars {},
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseData {
+    Value(String),
+    Vars(BTreeMap<String, String>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub struct Request {
+    pub command: Command,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct Response {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
+    pub data: Option<ResponseData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -36,9 +44,10 @@ pub fn socket_path() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-pub fn send_request(request: Request) -> anyhow::Result<Response> {
+pub fn send_command(command: Command) -> anyhow::Result<Response> {
     let path = socket_path()?;
     let mut stream = UnixStream::connect(path)?;
+    let request = Request { command };
     serde_json::to_writer(&mut stream, &request)?;
     stream.shutdown(std::net::Shutdown::Write);
     let mut vec = Vec::with_capacity(10 * 1024);

@@ -32,6 +32,8 @@ enum VarSubcommand {
         direction: Direction,
         values: Vec<String>,
     },
+    #[command(name = "ls")]
+    List {},
 }
 
 #[derive(Subcommand)]
@@ -51,11 +53,18 @@ fn var_rotate(
     if values.is_empty() {
         return Err(anyhow::anyhow!("Values list must be not empty"));
     }
-    let current_value = ipc::send_request(ipc::Request::GetVar { name: name.clone() })?;
+    let response = ipc::send_command(ipc::Command::GetVar { name: name.clone() })?;
+    if let Some(error) = response.error {
+        return Err(anyhow!("{}", error));
+    }
+    let value = match response.data {
+        Some(ipc::ResponseData::Value(value)) => value,
+        x => return Err(anyhow!("Unexpected response: {:?}", x)),
+    };
     let position = values
         .iter()
         .enumerate()
-        .find(|(_, v)| Some(*v) == current_value.value.as_ref())
+        .find(|(_, v)| *v == &value)
         .map(|(idx, _)| idx);
     let last_idx = values.len() - 1;
     use Direction::*;
@@ -68,7 +77,7 @@ fn var_rotate(
         (Right, Some(l)) => l + 1,
     };
     let new_value = values.get(new_idx).expect("new_idx should be within range");
-    ipc::send_request(ipc::Request::SetVar {
+    ipc::send_command(ipc::Command::SetVar {
         name,
         value: new_value.clone(),
     })
@@ -77,24 +86,32 @@ fn var_rotate(
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let response = match cli.command {
-        Commands::Poke => ipc::send_request(ipc::Request::Poke),
+        Commands::Poke => ipc::send_command(ipc::Command::Poke),
         Commands::Var { var } => match var {
             VarSubcommand::Set { name, value } => {
-                ipc::send_request(ipc::Request::SetVar { name, value })
+                ipc::send_command(ipc::Command::SetVar { name, value })
             }
-            VarSubcommand::Get { name } => ipc::send_request(ipc::Request::GetVar { name }),
+            VarSubcommand::Get { name } => ipc::send_command(ipc::Command::GetVar { name }),
             VarSubcommand::Rotate {
                 name,
                 direction,
                 values,
             } => var_rotate(name, direction, values),
+            VarSubcommand::List {} => ipc::send_command(ipc::Command::ListVars {}),
         },
     }?;
     if let Some(error) = response.error {
         return Err(anyhow!("{}", error));
     }
-    if let Some(value) = response.value {
-        println!("{}", value);
+    if let Some(response_data) = response.data {
+        match response_data {
+            ipc::ResponseData::Value(value) => println!("{}", value),
+            ipc::ResponseData::Vars(vars) => {
+                for (k, v) in vars {
+                    println!("{}={}", k, v);
+                }
+            }
+        }
     }
     Ok(())
 }

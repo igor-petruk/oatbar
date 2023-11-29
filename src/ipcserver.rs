@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::{Arc, RwLock};
@@ -11,7 +11,7 @@ use crate::{ipc, source, state, thread};
 pub struct Server {
     poker: source::Poker,
     state_update_tx: crossbeam_channel::Sender<state::Update>,
-    vars: Arc<RwLock<HashMap<String, String>>>,
+    vars: Arc<RwLock<BTreeMap<String, String>>>,
 }
 
 impl Server {
@@ -45,7 +45,17 @@ impl Server {
     fn handle_get_var(&self, name: &str) -> anyhow::Result<ipc::Response> {
         let vars = self.vars.read().unwrap();
         Ok(ipc::Response {
-            value: Some(vars.get(name).cloned().unwrap_or_default()),
+            data: Some(ipc::ResponseData::Value(
+                vars.get(name).cloned().unwrap_or_default(),
+            )),
+            ..Default::default()
+        })
+    }
+
+    fn handle_list_vars(&self) -> anyhow::Result<ipc::Response> {
+        let vars = self.vars.read().unwrap();
+        Ok(ipc::Response {
+            data: Some(ipc::ResponseData::Vars(vars.clone())),
             ..Default::default()
         })
     }
@@ -55,10 +65,11 @@ impl Server {
         if stream.read_to_end(&mut vec).is_ok() {
             let request: ipc::Request = serde_json::from_slice(&vec)?;
             tracing::info!("IPC request {:?}", request);
-            let response = match request {
-                ipc::Request::Poke => self.handle_poke(),
-                ipc::Request::SetVar { name, value } => self.handle_set_var(name, value),
-                ipc::Request::GetVar { name } => self.handle_get_var(&name),
+            let response = match request.command {
+                ipc::Command::Poke => self.handle_poke(),
+                ipc::Command::SetVar { name, value } => self.handle_set_var(name, value),
+                ipc::Command::GetVar { name } => self.handle_get_var(&name),
+                ipc::Command::ListVars {} => self.handle_list_vars(),
             }?;
             serde_json::to_writer(stream, &response)?;
         }
