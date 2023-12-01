@@ -84,6 +84,7 @@ padding=5.0
 # A command to run on click.
 # It is run with `sh -c "... disown"` and `&` is required to detach the process.
 # BLOCK_NAME and BLOCK_VALUE environment variables are set.
+# For `enum` blocks, BLOCK_INDEX is set too.
 on_click_command = 'chrome &'
 ```
 

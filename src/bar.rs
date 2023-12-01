@@ -56,6 +56,7 @@ fn handle_button_press(
     event_handlers: &config::EventHandlers,
     name: &str,
     value: &str,
+    extra_envs: Vec<(String, String)>,
 ) -> anyhow::Result<()> {
     if let Some(on_click_command) = &event_handlers.on_click_command {
         let mut child = std::process::Command::new("bash") // relying on bash+disown for now.
@@ -63,6 +64,7 @@ fn handle_button_press(
             .arg(format!("{} disown", &on_click_command))
             .env("BLOCK_NAME", name)
             .env("BLOCK_VALUE", value)
+            .envs(extra_envs)
             .stdout(std::process::Stdio::piped())
             .spawn()
             .context("Failed spawning")?;
@@ -332,6 +334,7 @@ impl Block for TextBlock {
             &self.event_handlers,
             self.name(),
             &self.display_options.value,
+            vec![],
         )
     }
 
@@ -483,6 +486,7 @@ impl Block for TextNumberBlock {
 #[derive(Debug)]
 struct VariantBlock {
     index: usize,
+    original_value: String,
     block: Box<dyn DebugBlock>,
 }
 
@@ -527,6 +531,7 @@ impl EnumBlock {
                     None,
                     event_handlers.clone(),
                 ),
+                original_value: item.clone(),
             };
             width += variant_block.block.get_dimensions().width;
             variant_blocks.push(variant_block);
@@ -555,7 +560,8 @@ impl Block for EnumBlock {
                         handle_button_press(
                             &self.event_handlers,
                             self.name(),
-                            &format!("{}", variant_block.index),
+                            &variant_block.original_value,
+                            vec![("BLOCK_INDEX".into(), format!("{}", variant_block.index))],
                         )?;
                         break;
                     }
@@ -638,7 +644,7 @@ impl ImageBlock {
 
 impl Block for ImageBlock {
     fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        handle_button_press(&self.event_handlers, self.name(), "")
+        handle_button_press(&self.event_handlers, self.name(), "", vec![])
     }
 
     fn name(&self) -> &str {
