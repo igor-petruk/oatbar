@@ -16,3 +16,9 @@ value = '${clock:value}'
 name="clock"
 command="date '+%a %b %e %H:%M:%S'"
 ```
+
+The `oatctl` tool can be used to interact with `oatbar`. For more info:
+
+```console
+oatctl help
+```

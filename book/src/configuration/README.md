@@ -16,6 +16,8 @@ the particular problem.
 The configuration is unstable.
 
 Until 1.0 release, the configuration change is unstable and
-can change between minor releases.
+can change between minor releases. Community feedback is needed
+to make sure that when configuration stabilizes, it is the best
+possible.
 
 </div>
