@@ -25,6 +25,7 @@ mod ipc;
 mod ipcserver;
 #[allow(unused_macros)]
 mod parse;
+mod process;
 mod protocol;
 mod source;
 mod state;

@@ -82,10 +82,10 @@ margin=3.0
 padding=5.0
 
 # A command to run on click.
-# It is run with `sh -c "... disown"` and `&` is required to detach the process.
+# It is run with `sh -c "..."` and the process will be detached from oatbar.
 # BLOCK_NAME and BLOCK_VALUE environment variables are set.
 # For `enum` blocks, BLOCK_INDEX is set too.
-on_click_command = 'chrome &'
+on_click_command = 'chrome'
 ```
 
 To avoid repetition, consider using `default_block`, that
@@ -242,7 +242,7 @@ Text processing via `replace` is done per item of the `variants` separately,
 not together. If an variant becomes empty as a result of processing, it will
 not be displayed, but it won't impact the meaning of `active` index.
 
-`BLOCK_VALUE` environment variable set for `on_click_handler` command is set to
+`BLOCK_INDEX` environment variable set for `on_click_handler` command is set to
 the index of the variant that was clicked on.
 
 ## Image block

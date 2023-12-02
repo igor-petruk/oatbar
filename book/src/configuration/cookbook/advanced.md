@@ -35,7 +35,7 @@ replace = [
    ["show", "circle-left"],
    ["(.+)","<span font='IcoMoon-Free 12' weight='bold' color='#53e2ae'>$1</span>"],
 ]
-on_click_command = "oatctl var rotate show_menu right '' show &"
+on_click_command = "oatctl var rotate show_menu right '' show"
 
 [[block]]
 name='launch_chrome'
@@ -43,7 +43,7 @@ type = 'text'
 inherit="menu_child"
 value = "<span font='IcoMoon-Free 12'></span> "
 show_if_set="${show_menu}"
-on_click_command = "oatctl var set show_menu ''; chrome &"
+on_click_command = "oatctl var set show_menu ''; chrome"
 
 [[block]]
 name='launch_terminal'
@@ -51,7 +51,7 @@ type = 'text'
 inherit="menu_child"
 value = "<span font='IcoMoon-Free 12'></span> "
 show_if_set="${show_menu}"
-on_click_command = "oatctl var set show_menu ''; alacritty &"
+on_click_command = "oatctl var set show_menu ''; alacritty"
 ```
 
 Let's take a closer look:

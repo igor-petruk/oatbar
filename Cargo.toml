@@ -65,5 +65,7 @@ thiserror = "1.0.40"
 macro_rules_attribute = "0.2.0"
 crossbeam-channel = "0.5.8"
 clap = {version="4.4.8", features=["derive"]}
+fork = "0.1.22"
+libc = "0.2.150"
 
 

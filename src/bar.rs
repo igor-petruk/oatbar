@@ -24,7 +24,7 @@ use anyhow::Context;
 use pangocairo::pango;
 use tracing::error;
 
-use crate::{config, drawing, state};
+use crate::{config, drawing, process, state};
 
 const ERROR_BLOCK_NAME: &str = "__error";
 
@@ -59,17 +59,10 @@ fn handle_button_press(
     extra_envs: Vec<(String, String)>,
 ) -> anyhow::Result<()> {
     if let Some(on_click_command) = &event_handlers.on_click_command {
-        let mut child = std::process::Command::new("bash") // relying on bash+disown for now.
-            .arg("-c")
-            .arg(format!("{} disown", &on_click_command))
-            .env("BLOCK_NAME", name)
-            .env("BLOCK_VALUE", value)
-            .envs(extra_envs)
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .context("Failed spawning")?;
-        let _ = child.wait();
-        tracing::info!("{:?} spawned", on_click_command);
+        let mut envs = extra_envs;
+        envs.push(("BLOCK_NAME".into(), name.into()));
+        envs.push(("BLOCK_VALUE".into(), value.into()));
+        process::run_detached(on_click_command, envs)?;
     }
     Ok(())
 }

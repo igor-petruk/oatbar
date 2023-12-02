@@ -14,7 +14,7 @@ data for your blocks.
 name='browser'
 type = 'text'
 value = "<span font='Font Awesome 6 Free 22'></span> "
-on_click_command = 'chrome &'
+on_click_command = 'chrome'
 ```
 
 ### Clock
@@ -64,7 +64,7 @@ name = 'layout'
 type = 'enum'
 active = '${keyboard:layout.active}'
 variants = '${keyboard:layout.variants}'
-on_click_command = "oatbar-keyboard $BLOCK_INDEX &"
+on_click_command = "oatbar-keyboard $BLOCK_INDEX"
 ```
 
 ### Active workspaces and windows
@@ -97,7 +97,7 @@ replace = [
    ["3",""]
 ]
 font="Font Awesome 6 Free 13"
-on_click_command = "oatbar-desktop $BLOCK_INDEX &"
+on_click_command = "oatbar-desktop $BLOCK_INDEX"
 
 [[block]]
 name='window'
