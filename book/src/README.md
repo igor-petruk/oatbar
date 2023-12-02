@@ -12,7 +12,7 @@ on customizability.
 ![Panel Left](panel-sample-left.png)
 ![Panel Right](panel-sample-right.png)
 
-[![Screenshot](https://raw.githubusercontent.com/igor-petruk/oatbar-media/main/screenshot-mini.png)](https://raw.githubusercontent.com/igor-petruk/oatbar-media/main/screenshot.png)
+[![Screenshot](main.png)](main.png)
 
 If you have experience with bars like `i3bar`, you are familiar with the protocols 
 through which bar plugins stream data to be displayed on the bar. 

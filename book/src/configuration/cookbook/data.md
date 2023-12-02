@@ -1,33 +1,13 @@
-# Basic Blocks
+# Data
+
+This chapter contains examples of common sources and methods of ingesting
+data for your blocks.
 
 <!-- toc -->
 
-## Separator
+## Common Blocks
 
-Separator is just a text block.
-
-```toml
-[[bar]]
-blocks_left=["foo", "S", "bar", "S", "baz"]
-
-[[block]]
-name="S"
-type = 'text'
-separator_type = 'gap'
-value = '|'
-foreground = "#53e2ae"
-```
-
-This approach offers maximum flexibility: 
-* Multiple separator types and styles
-* Dynamically separators based on conditions
-* Disappearing separators via `show_if_set`
-
-Yet, specifying `separator_type` gives `oatbar` a hint that the block is
-a separator. For example multiple separators in a row do not make sense and
-they will collapse if real blocks between them become hidden.
-
-## App Launcher
+### App Launcher
 
 ```toml
 [[block]]
@@ -37,7 +17,7 @@ value = "<span font='Font Awesome 6 Free 22'></span> "
 on_click_command = 'chrome &'
 ```
 
-## Clock
+### Clock
 
 ```toml
 [[command]]
@@ -53,7 +33,7 @@ value = '${clock:value}'
 
 If you do not need to show seconds, you can make `interval` smaller.
 
-## Keyboard layout
+### Keyboard layout
 
 `oatbar-keyboard` outputs `setxkbmap`-compatible
 layout stream in `i3bar` format. For example you set up
@@ -87,7 +67,7 @@ variants = '${keyboard:layout.variants}'
 on_click_command = "oatbar-keyboard $BLOCK_INDEX &"
 ```
 
-## Active workspaces and windows
+### Active workspaces and windows
 
 ```oatbar-desktop``` talks to your WM via EWMH protocol to obtain
 the information about active workspaces and windows.
@@ -127,7 +107,7 @@ pango_markup = false  # Window title can happen to have HTML.
 max_length = 100
 ```
 
-## Disk space
+### Disk space
 
 Example for `/home` directory partition:
 
@@ -143,7 +123,12 @@ type = 'text'
 value = '<b>/home</b> ${home_free:value}'
 ```
 
-## Data from `i3status`
+## Third-party sources
+
+Existing bar ecosystems already can provide large mount of useful information.
+`oatbar` by-design focuses on making it possible to adapt third-party data sources.
+
+### `i3status`
 
 `i3status` is a great cross-platform source of information about the system. It supports:
 
@@ -205,7 +190,7 @@ type="progress_bar"
 bar_format="<b>CPU:</b> {}"
 ```
 
-## Data from `conky`
+### `conky`
 
 As `i3status`, `conky` can also be a great source of system data.
 
@@ -263,7 +248,7 @@ type="text"
 output_format="<b>MEM:</b>{}"
 ```
 
-## Data from `i3blocks`
+### `i3blocks`
 
 `i3blocks` in a drop-in replacement for `i3status` to be used in
 `i3bar`. If you have existingi `i3blocks` configs, feel free to plug it
@@ -307,7 +292,7 @@ type="text"
 value="${cpu_usage2:value}"
 ```
 
-## Data from HTTP APIs
+### HTTP APIs
 
 HTTP JSON APIs that do not require complicated login are extremely
 easy to integrate using `curl` and `jq`.

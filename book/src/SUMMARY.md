@@ -13,6 +13,8 @@
   - [Variable](./configuration/variable.md)
 - [Cookbook](./configuration/cookbook/README.md)
   - [Data](./configuration/cookbook/data.md)
+  - [Appearance](./configuration/cookbook/appearance.md)
+  - [Advanced](./configuration/cookbook/advanced.md)
 
 # Other 
 
