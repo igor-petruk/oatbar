@@ -426,8 +426,6 @@ impl Window {
             .layout_blocks(self.back_buffer_context.width, &show_only);
 
         if visible && redraw != bar::RedrawScope::None {
-            tracing::info!("Redraw: {:?}", redraw);
-
             if let Err(e) = self.render_bar(redraw) {
                 tracing::error!("Failed to render bar: {:?}", e);
             }
