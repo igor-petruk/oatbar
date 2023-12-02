@@ -1067,6 +1067,9 @@ impl Bar {
                         if o.get().get_dimensions() != block.get_dimensions() {
                             redraw_all = true
                         }
+                        if o.get().is_visible() != block.is_visible() {
+                            redraw_all = true
+                        }
                         o.insert(block.into());
                     }
                     Entry::Vacant(v) => {
