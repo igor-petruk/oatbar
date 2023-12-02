@@ -66,7 +66,8 @@ pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
     pub margin: Option<f64>,
     pub padding: Option<f64>,
     pub line_width: Option<f64>,
-    pub show_if_set: Dynamic,
+    #[serde(default)]
+    pub show_if_matches: Vec<(String, Regex)>,
     pub popup: Option<PopupMode>,
 }
 
@@ -99,9 +100,11 @@ impl DisplayOptions<Option<Placeholder>> {
             margin: self.margin.or(default.margin),
             padding: self.padding.or(default.padding),
             line_width: self.line_width.or(default.line_width),
-            show_if_set: self
-                .show_if_set
-                .unwrap_or_else(|| default.show_if_set.clone()),
+            show_if_matches: if self.show_if_matches.is_empty() {
+                default.show_if_matches.clone()
+            } else {
+                self.show_if_matches
+            },
             popup: self.popup.or(default.popup),
             pango_markup: Some(self.pango_markup.unwrap_or(true)),
         }
@@ -142,10 +145,18 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
             margin: self.margin,
             padding: self.padding,
             line_width: self.line_width,
-            show_if_set: self
-                .show_if_set
-                .resolve_placeholders(vars)
-                .context("show_if_set")?,
+            show_if_matches: self
+                .show_if_matches
+                .iter()
+                .map(|(p, r)| {
+                    Ok((
+                        p.resolve_placeholders(vars)
+                            .with_context(|| format!("{:?}", p))?,
+                        r.clone(),
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()
+                .context("show_if_matches")?,
             popup: self.popup,
             pango_markup: self.pango_markup,
         })
@@ -155,9 +166,25 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Regex(#[serde(with = "serde_regex")] regex::Regex);
 
+impl Regex {
+    pub fn is_match(&self, haystack: &str) -> bool {
+        self.0.is_match(haystack)
+    }
+}
+
 impl PartialEq for Regex {
     fn eq(&self, other: &Self) -> bool {
         self.0.as_str() == other.0.as_str()
+    }
+}
+
+pub trait VecStringRegexEx {
+    fn all_match(&self) -> bool;
+}
+
+impl VecStringRegexEx for Vec<(String, Regex)> {
+    fn all_match(&self) -> bool {
+        !self.iter().any(|(s, r)| !r.is_match(s))
     }
 }
 
@@ -964,7 +991,7 @@ pub fn default_display() -> DisplayOptions<Placeholder> {
         margin: Some(0.0),
         padding: Some(8.0),
         line_width: Some(1.1),
-        show_if_set: "visible".into(),
+        show_if_matches: vec![],
         popup: None,
     }
 }

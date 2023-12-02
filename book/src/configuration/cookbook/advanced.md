@@ -25,6 +25,7 @@ background="#111111e6"
 line_width=3
 overline_color="#191919e6"
 underline_color="#191919e6"
+show_if_matches=[["${show_menu}","show"]]
 
 [[block]]
 name='menu'
@@ -42,7 +43,6 @@ name='launch_chrome'
 type = 'text'
 inherit="menu_child"
 value = "<span font='IcoMoon-Free 12'></span> "
-show_if_set="${show_menu}"
 on_click_command = "oatctl var set show_menu ''; chrome"
 
 [[block]]
@@ -50,7 +50,6 @@ name='launch_terminal'
 type = 'text'
 inherit="menu_child"
 value = "<span font='IcoMoon-Free 12'></span> "
-show_if_set="${show_menu}"
 on_click_command = "oatctl var set show_menu ''; alacritty"
 ```
 

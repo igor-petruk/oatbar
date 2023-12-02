@@ -26,6 +26,8 @@ use tracing::error;
 
 use crate::{config, drawing, process, state};
 
+use config::VecStringRegexEx;
+
 const ERROR_BLOCK_NAME: &str = "__error";
 
 #[derive(Debug, Clone, PartialEq)]
@@ -364,7 +366,7 @@ impl Block for TextBlock {
         Ok(())
     }
     fn is_visible(&self) -> bool {
-        !self.display_options.show_if_set.is_empty()
+        self.display_options.show_if_matches.all_match()
     }
 }
 
@@ -588,7 +590,7 @@ impl Block for EnumBlock {
     }
 
     fn is_visible(&self) -> bool {
-        !self.block.display.show_if_set.is_empty()
+        self.block.display.show_if_matches.all_match()
     }
 }
 
@@ -671,7 +673,7 @@ impl Block for ImageBlock {
         Ok(())
     }
     fn is_visible(&self) -> bool {
-        !self.display_options.show_if_set.is_empty()
+        self.display_options.show_if_matches.all_match()
     }
 }
 

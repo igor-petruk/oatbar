@@ -27,7 +27,7 @@ foreground = "#53e2ae"
 This approach offers maximum flexibility: 
 * Multiple separator types and styles
 * Dynamically separators based on conditions
-* Disappearing separators via `show_if_set`
+* Disappearing separators via `show_if_matches`
 
 Specifying `separator_type = "gap"` is recommended. It gives `oatbar` a hint that the block is
 a separator. For example multiple separators in a row do not make sense and

@@ -51,8 +51,9 @@ ellipsis="..."
 # HTML-like text to be displayed.
 pango_markup=true
 
-# If set, only show the block if this value is not empty.
-show_if_set="${clock:value}"
+# List of pairs [expression, regex].
+# Show the block only if all expressions match respective regexes.
+show_if_matches=[["${clock:value}",'.+']]
 
 # If set, and the bar has hidden=true, then this block
 # can pop up.
@@ -130,7 +131,7 @@ blocks_right=["L", "music", "R", "E", "L", "layout", "S", "clock", "R"]
 [[block]]
 name="music"
 ...
-show_if_set = '${player:now_playing.full_text}'
+show_if_matches = [['${player:now_playing.full_text}', '.+']]
 popup = "partial_bar"
 
 [[block]]
