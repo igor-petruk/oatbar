@@ -91,7 +91,7 @@ impl PopupControl {
                     popup_control.set_visible(true)?;
                     let popup_control_lock = popup_control_lock.clone();
                     timer::Timer::new(
-                        &format!("hidden-timer-{}", popup_control.name),
+                        &format!("pptimer-{}", popup_control.name),
                         reset_timer_at,
                         move || {
                             let mut popup_control = popup_control_lock.write().unwrap();
@@ -195,7 +195,7 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
-                x::Cw::OverrideRedirect(bar_config.hidden),
+                x::Cw::OverrideRedirect(bar_config.popup),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS | x::EventMask::BUTTON_PRESS,
                 ),
@@ -232,7 +232,7 @@ impl Window {
             &["_NET_WM_STATE_STICKY", "_NET_WM_STATE_ABOVE"],
         )?;
 
-        if !bar_config.hidden {
+        if !bar_config.popup {
             let top = bar_config.position == config::BarPosition::Top;
             let sp_result = xutils::replace_property(
                 &conn,
@@ -338,7 +338,7 @@ impl Window {
         )?;
         conn.flush()?;
 
-        if !bar_config.hidden {
+        if !bar_config.popup {
             xutils::send(&conn, &x::MapWindow { window: id })?;
         }
         xutils::send(
@@ -398,13 +398,13 @@ impl Window {
             updates.redraw = bar::RedrawScope::All;
         }
 
-        if self.bar_config.hidden && !updates.popup.is_empty() {
+        if self.bar_config.popup && !updates.popup.is_empty() {
             if let Err(e) = PopupControl::show_or_prolong_popup(&self.popup_control) {
                 tracing::error!("Showing popup failed: {:?}", e);
             }
         }
 
-        let (visible, show_only, redraw) = if self.bar_config.hidden {
+        let (visible, show_only, redraw) = if self.bar_config.popup {
             let mut popup_control = self.popup_control.write().unwrap();
             popup_control.extend_show_only(updates.popup);
             let redraw_mode = if popup_control.show_only.is_some() {
@@ -437,7 +437,7 @@ impl Window {
     }
 
     pub fn handle_raw_motion(&self, _x: i16, y: i16) -> anyhow::Result<()> {
-        if !self.bar_config.hidden || !self.bar_config.popup_at_edge {
+        if !self.bar_config.popup || !self.bar_config.popup_at_edge {
             return Ok(());
         }
         let edge_size: i16 = 3;

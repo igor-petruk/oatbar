@@ -55,11 +55,12 @@ pango_markup=true
 # Show the block only if all expressions match respective regexes.
 show_if_matches=[["${clock:value}",'.+']]
 
-# If set, and the bar has hidden=true, then this block
+# If set, and the bar has popup=true, then this block
 # can pop up.
 #   - block - the block itself pops up
 #   - partial_bar - the partial bar pops up
 #   - bar - the entire bar pops up.
+# The surrounding separators will appear as appropriate.
 popup="partial_bar"
 # If unset, the popup is triggered by any property change.
 # If set, the popup is triggered by change of this property.

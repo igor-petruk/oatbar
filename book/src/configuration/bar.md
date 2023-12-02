@@ -26,8 +26,8 @@ position="top"
 margin=5
 
 # A bar is normally hidden, unless pops up.
-hidden=true  
+popup=true  
 
-# Make a hidden bar pop up when the mouse is near the edge of the screen.
+# Make a popup bar pop up when the mouse is near the edge of the screen.
 popup_at_edge=true  
 ```

@@ -758,7 +758,7 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub margin: Margin,
     pub background: Dynamic,
     #[serde(default)]
-    pub hidden: bool,
+    pub popup: bool,
     #[serde(default = "default_popup_at_edge")]
     pub popup_at_edge: bool,
 }
@@ -779,7 +779,7 @@ impl Bar<Option<Placeholder>> {
             position: self.position.clone(),
             phantom_data: Default::default(),
             background: self.background.clone().unwrap_or_else(|| "#191919".into()),
-            hidden: self.hidden,
+            popup: self.popup,
             popup_at_edge: self.popup_at_edge,
         }
     }

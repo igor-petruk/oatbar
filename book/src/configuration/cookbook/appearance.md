@@ -118,9 +118,9 @@ underline_color = ""
 ```
 
 Setting `separator_type` correctly for all separators will make partial panel
-disappearing if all real blocks are hidden with `show_is_set`.
+disappearing if all real blocks are hidden via `show_if_matches`.
 
-## Block content
+## Blocks
 
 ### Pango markup
 
@@ -165,31 +165,31 @@ value = "<span ${green_icon}>music</span>  Symbolico - I'm free"
 
 If your icon does not perfectly vertically align with your text, experiment with font size and `rise` Pango parameter.
 
-## Hidden bars
+## Popup bars
 
 A bar can be hidden and appear when certain conditions are met.
 
 ```toml
 [[bar]]
-hidden=false
+popup=true
 ```
 
-Hidden bars appear on the top of the windows, unlike normal bars that
+Popup bars appear on the top of the windows, unlike normal bars that
 allocate dedicated space on the screen.
 
 ![Popup Edge](popup-edge.png)
 
 ### Popup at cursor
 
-Hidden bar can be shown when the cursor approaches the screen edge where the bar is located.
+Popup bar can be shown when the cursor approaches the screen edge where the bar is located.
 
 ```toml
 [[bar]]
-hidden=false
+popup=true
 popup_at_edge=true  
 ```
 
-### Temporary popup on change
+### Temporary popup on block change
 
 When *any property* of the block changes you can make it appear. Depending on a `popup`
 value you can show enclosing partial or entire bar.
@@ -214,7 +214,7 @@ Example layout switcher that appears in the middle of the screen when you change
 [[bar]]
 blocks_center=["L", "layout_enum_center", "R"]
 background="#00000000"
-hidden=true
+popup=true
 position="center"
 
 [[block]]
