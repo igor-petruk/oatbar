@@ -51,3 +51,5 @@ Let's take a closer look:
 1. The `on_click_command` rotates the values of `show_menu` between empty and `show`, effectively toggling it.
 1. Blocks are only displayed if `show_menu` is set.
 1. Blocks clear `show_menu` before launching the app to hide the menu.
+
+This example can be extended to build more layers of nesting by introducing additional variables.

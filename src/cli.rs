@@ -5,7 +5,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 mod ipc;
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author, version, 
+    about = "A cli tool to interact with oatbar.",
+    long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
     #[command(subcommand)]
@@ -20,25 +23,42 @@ enum Direction {
 
 #[derive(Subcommand)]
 enum VarSubcommand {
+    /// Set a variable value.
     Set {
+        /// Variable name.
         name: String,
+        /// New variable value.
         value: String,
     },
+    /// Get a current variable value.
     Get {
+        /// Variable name.
         name: String,
     },
+    /// Rotate a variable value through a list of values.
+    /// 
+    /// If a current value is not in the list, the variable is set
+    /// to the first value if direction is right, and to the last
+    /// value if the direction is left.
     Rotate {
+        /// Variable name.
         name: String,
+        /// Rotation direction in the list. When going off-limits, appears from the other side.
         direction: Direction,
+        /// List of values.
         values: Vec<String>,
     },
+    /// List all variables and their values. Useful for troubleshooting.
     #[command(name = "ls")]
     List {},
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Interrupt waiting on all pending command `intervals`,
+    /// forcing immediate restart.
     Poke,
+    /// Work with oatbar variables.
     Var {
         #[clap(subcommand)]
         var: VarSubcommand,
