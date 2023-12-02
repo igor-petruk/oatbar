@@ -165,6 +165,38 @@ value = "<span ${green_icon}>music</span>  Symbolico - I'm free"
 
 If your icon does not perfectly vertically align with your text, experiment with font size and `rise` Pango parameter.
 
+### Visibility
+
+`show_if_matches` combined with a powerful tool to build dynamic bars. 
+Here it is used to only show the block if the value is not empty.
+
+```toml
+[block]
+value = '${desktop:window_title.value}'
+show_if_matches = [['${desktop:window_title.value}', '.+']]
+```
+
+Custom variables, not only those coming from commands can be used. They can be
+set via `oatctl var set`, opening a huge number of possibilities. See some examples in
+the [Advanced](./advanced.md) chapter.
+
+If you are not an expert in regular expressions, here are some useful ones:
+
+|  Regex  |   Meaning |
+|---------|-----------|
+|  `foo`   |  Contains `foo` |
+|  `^foo`   |  Starts with `foo` |
+|  `foo$`   |  Ends with `foo` |
+|  `^foo$`   |  Exactly `foo` |
+|  `^$`   |  Empty string |
+|  `.+`    | Non empty string |
+| <code>(foo&#124;bar&#124;baz)</code> | Contains one of those words |
+| <code>^(foo&#124;bar&#124;baz)$</code> | Exactly one of those words |
+
+In the examples above `foo` works because it only contains alpha-numeric characters,
+but be careful with including characters that have special meaning in regular expressions.
+For more info read `regex` crate [documentation](https://docs.rs/regex/latest/regex/#syntax).
+
 ## Popup bars
 
 A bar can be hidden and appear when certain conditions are met.
