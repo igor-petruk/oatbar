@@ -50,6 +50,7 @@ impl BlockData {
 pub struct State {
     pub vars: HashMap<String, String>,
     pub blocks: HashMap<String, BlockData>,
+    pub bars: Vec<config::Bar<String>>,
     pub error: Option<String>,
     pub command_errors: BTreeMap<String, String>,
     pub var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
@@ -411,7 +412,7 @@ impl State {
         })
     }
 
-    pub fn update_blocks(&mut self) -> anyhow::Result<()> {
+    pub fn update_resolved_data(&mut self) -> anyhow::Result<()> {
         for (name, block) in self.config.blocks.iter() {
             let block_data = match &block {
                 config::Block::Text(text_block) => {
@@ -429,6 +430,10 @@ impl State {
             }
             .with_context(|| format!("block: '{}'", name))?;
             self.blocks.insert(name.into(), block_data);
+        }
+        self.bars = Vec::with_capacity(self.config.bar.len());
+        for bar in self.config.bar.iter() {
+            self.bars.push(bar.resolve_placeholders(&self.vars)?);
         }
         Ok(())
     }
@@ -484,7 +489,7 @@ impl State {
             }
         }
 
-        if let Err(e) = self.update_blocks().context("update failed") {
+        if let Err(e) = self.update_resolved_data().context("update failed") {
             self.error = Some(format_error_str(&format!("{:?}", e)));
         }
 

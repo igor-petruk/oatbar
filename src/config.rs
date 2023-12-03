@@ -752,8 +752,6 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub height: u16,
     #[serde(default = "default_bar_position")]
     pub position: BarPosition,
-    #[serde(skip)]
-    phantom_data: PhantomData<Dynamic>,
     #[serde(default = "default_margin", deserialize_with = "int_or_struct")]
     pub margin: Margin,
     pub background: Dynamic,
@@ -761,6 +759,42 @@ pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
     pub popup: bool,
     #[serde(default = "default_popup_at_edge")]
     pub popup_at_edge: bool,
+    #[serde(default)]
+    pub show_if_matches: Vec<(String, Regex)>,
+}
+
+impl PlaceholderExt for Bar<Placeholder> {
+    type R = Bar<String>;
+
+    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R> {
+        Ok(Self::R {
+            blocks_left: self.blocks_left.clone(),
+            blocks_center: self.blocks_right.clone(),
+            blocks_right: self.blocks_right.clone(),
+            monitor: self.monitor.clone(),
+            height: self.height,
+            position: self.position.clone(),
+            margin: self.margin.clone(),
+            background: self
+                .background
+                .resolve_placeholders(vars)
+                .context("background")?,
+            popup: self.popup,
+            popup_at_edge: self.popup_at_edge,
+            show_if_matches: self
+                .show_if_matches
+                .iter()
+                .map(|(p, r)| {
+                    Ok((
+                        p.resolve_placeholders(vars)
+                            .with_context(|| format!("{:?}", p))?,
+                        r.clone(),
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()
+                .context("show_if_matches")?,
+        })
+    }
 }
 
 fn default_popup_at_edge() -> bool {
@@ -777,10 +811,10 @@ impl Bar<Option<Placeholder>> {
             height: self.height,
             margin: self.margin.clone(),
             position: self.position.clone(),
-            phantom_data: Default::default(),
             background: self.background.clone().unwrap_or_else(|| "#191919".into()),
             popup: self.popup,
             popup_at_edge: self.popup_at_edge,
+            show_if_matches: self.show_if_matches.clone(),
         }
     }
 }

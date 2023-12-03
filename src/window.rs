@@ -23,16 +23,18 @@ use xcb::{x, xinput, Xid};
 use crate::{bar, config, drawing, state, timer, wmready, xutils};
 use tracing::*;
 
-pub struct PopupControl {
+pub struct VisibilityControl {
     name: String,
     conn: Arc<xcb::Connection>,
     window_id: x::Window,
     timer: Option<timer::Timer>,
     show_only: Option<HashMap<config::PopupMode, HashSet<String>>>,
     visible: bool,
+    default_visibility: bool,
+    popped_up: bool,
 }
 
-impl PopupControl {
+impl VisibilityControl {
     fn is_poping_up(&self) -> bool {
         self.timer.is_some()
     }
@@ -73,37 +75,53 @@ impl PopupControl {
         }
     }
 
+    fn set_default_visibility(&mut self, value: bool) -> anyhow::Result<()> {
+        if value == self.default_visibility {
+            return Ok(());
+        }
+        self.default_visibility = value;
+        if !self.popped_up {
+            self.set_visible(self.default_visibility)?;
+        }
+        Ok(())
+    }
+
     fn reset_show_only(&mut self) {
         self.show_only = None
     }
 
-    fn show_or_prolong_popup(popup_control_lock: &Arc<RwLock<PopupControl>>) -> anyhow::Result<()> {
+    fn show_or_prolong_popup(
+        visibility_control_lock: &Arc<RwLock<VisibilityControl>>,
+    ) -> anyhow::Result<()> {
         let reset_timer_at = SystemTime::now()
             .checked_add(Duration::from_secs(1))
             .unwrap();
-        let mut popup_control = popup_control_lock.write().unwrap();
-        match &popup_control.timer {
+        let mut visibility_control = visibility_control_lock.write().unwrap();
+        match &visibility_control.timer {
             Some(timer) => {
                 timer.set_at(reset_timer_at);
             }
             None => {
                 let timer = {
-                    popup_control.set_visible(true)?;
-                    let popup_control_lock = popup_control_lock.clone();
+                    visibility_control.set_visible(true)?;
+                    visibility_control.popped_up = true;
+                    let visibility_control_lock = visibility_control_lock.clone();
                     timer::Timer::new(
-                        &format!("pptimer-{}", popup_control.name),
+                        &format!("pptimer-{}", visibility_control.name),
                         reset_timer_at,
                         move || {
-                            let mut popup_control = popup_control_lock.write().unwrap();
-                            popup_control.timer = None;
-                            popup_control.reset_show_only();
-                            if let Err(e) = popup_control.set_visible(false) {
+                            let mut visibility_control = visibility_control_lock.write().unwrap();
+                            visibility_control.timer = None;
+                            visibility_control.reset_show_only();
+                            let default_visibility = visibility_control.default_visibility;
+                            visibility_control.popped_up = false;
+                            if let Err(e) = visibility_control.set_visible(default_visibility) {
                                 tracing::error!("Failed to show window: {:?}", e);
                             }
                         },
                     )?
                 };
-                popup_control.timer = Some(timer);
+                visibility_control.timer = Some(timer);
             }
         }
         Ok(())
@@ -119,16 +137,18 @@ pub struct Window {
     shape_buffer_context: drawing::Context,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
+    bar_index: usize,
     bar_config: config::Bar<config::Placeholder>,
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
     window_height: u16,
-    popup_control: Arc<RwLock<PopupControl>>,
+    visibility_control: Arc<RwLock<VisibilityControl>>,
 }
 
 impl Window {
     pub fn create_and_show(
         name: String,
+        bar_index: usize,
         bar_config: config::Bar<config::Placeholder>,
         conn: Arc<xcb::Connection>,
         state: Arc<RwLock<state::State>>,
@@ -361,6 +381,8 @@ impl Window {
 
         let bar = bar::Bar::new(&bar_config)?;
 
+        let visible = !bar_config.popup;
+
         Ok(Self {
             conn: conn.clone(),
             id,
@@ -369,18 +391,21 @@ impl Window {
             back_buffer_context,
             shape_buffer_context,
             swap_gc,
+            bar_index,
             bar,
             state,
             screen,
             bar_config,
             window_height,
-            popup_control: Arc::new(RwLock::new(PopupControl {
+            visibility_control: Arc::new(RwLock::new(VisibilityControl {
                 name,
                 window_id: id,
                 timer: None,
                 conn,
                 show_only: None,
-                visible: false,
+                visible,
+                default_visibility: visible,
+                popped_up: false,
             })),
         })
     }
@@ -395,10 +420,17 @@ impl Window {
         Ok(())
     }
 
-    pub fn render(&mut self, from_os: bool) {
+    pub fn render(&mut self, from_os: bool) -> anyhow::Result<()> {
         let state = self.state.read().unwrap();
+        let bar_config = match state.bars.get(self.bar_index) {
+            Some(bar_config) => bar_config,
+            None => {
+                return Ok(());
+            }
+        };
         let mut updates = self.bar.update(
             &self.back_buffer_context,
+            bar_config,
             &state.blocks,
             &state.build_error_msg(),
         );
@@ -408,37 +440,40 @@ impl Window {
         }
 
         if self.bar_config.popup && !updates.popup.is_empty() {
-            if let Err(e) = PopupControl::show_or_prolong_popup(&self.popup_control) {
+            if let Err(e) = VisibilityControl::show_or_prolong_popup(&self.visibility_control) {
                 tracing::error!("Showing popup failed: {:?}", e);
             }
         }
-
-        let (visible, show_only, redraw) = if self.bar_config.popup {
-            let mut popup_control = self.popup_control.write().unwrap();
-            popup_control.extend_show_only(updates.popup);
-            let redraw_mode = if popup_control.show_only.is_some() {
-                bar::RedrawScope::All
+        let (visible, show_only, redraw) = {
+            let mut visibility_control = self.visibility_control.write().unwrap();
+            if let Some(visible_from_vars) = updates.visible_from_vars {
+                visibility_control.set_default_visibility(visible_from_vars)?;
+            }
+            if self.bar_config.popup {
+                visibility_control.extend_show_only(updates.popup);
+                let redraw_mode = if visibility_control.show_only.is_some() {
+                    bar::RedrawScope::All
+                } else {
+                    updates.redraw
+                };
+                // Maybe there is a race condition between visibility and rendering.
+                (
+                    visibility_control.visible,
+                    visibility_control.show_only.clone(),
+                    redraw_mode,
+                )
             } else {
-                updates.redraw
-            };
-            // Maybe there is a race condition between visibility and rendering.
-            (
-                popup_control.visible,
-                popup_control.show_only.clone(),
-                redraw_mode,
-            )
-        } else {
-            (true, None, updates.redraw)
+                (visibility_control.visible, None, updates.redraw)
+            }
         };
 
-        self.bar
-            .layout_blocks(self.back_buffer_context.width, &show_only);
-
         if visible && redraw != bar::RedrawScope::None {
-            if let Err(e) = self.render_bar(redraw) {
-                tracing::error!("Failed to render bar: {:?}", e);
-            }
+            self.bar
+                .layout_blocks(self.back_buffer_context.width, &show_only);
+
+            self.render_bar(redraw)?;
         }
+        Ok(())
     }
 
     pub fn handle_button_press(&self, x: i16, y: i16) -> anyhow::Result<()> {
@@ -462,13 +497,13 @@ impl Window {
             config::BarPosition::Center => false,
         };
 
-        let mut popup_control = self.popup_control.write().unwrap();
-        if !popup_control.is_poping_up() {
-            if !popup_control.visible && over_edge {
-                popup_control.set_visible(true)?;
-            } else if popup_control.visible && !over_window {
-                popup_control.set_visible(false)?;
-                popup_control.reset_show_only();
+        let mut visibility_control = self.visibility_control.write().unwrap();
+        if !visibility_control.is_poping_up() {
+            if !visibility_control.visible && over_edge {
+                visibility_control.set_visible(true)?;
+            } else if visibility_control.visible && !over_window {
+                visibility_control.set_visible(false)?;
+                visibility_control.reset_show_only();
             }
         }
         Ok(())

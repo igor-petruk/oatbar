@@ -829,6 +829,7 @@ impl BlockGroup {
 
 pub struct Bar {
     bar: config::Bar<config::Placeholder>,
+    resolved_bar_config: Option<config::Bar<String>>,
     block_data: HashMap<String, state::BlockData>,
     error: Option<String>,
     blocks: HashMap<String, Arc<dyn DebugBlock>>,
@@ -852,6 +853,7 @@ impl Bar {
         Ok(Self {
             all_blocks,
             bar: bar.clone(),
+            resolved_bar_config: None,
             block_data: HashMap::new(),
             error: None,
             blocks: HashMap::new(),
@@ -874,6 +876,7 @@ pub enum RedrawScope {
 pub struct Updates {
     pub popup: HashMap<config::PopupMode, HashSet<String>>,
     pub redraw: RedrawScope,
+    pub visible_from_vars: Option<bool>,
 }
 
 impl Bar {
@@ -1005,9 +1008,11 @@ impl Bar {
     pub fn update(
         &mut self,
         drawing_context: &drawing::Context,
+        resolved_bar_config: &config::Bar<String>,
         block_data: &HashMap<String, state::BlockData>,
         error: &Option<String>,
     ) -> Updates {
+        self.resolved_bar_config = Some(resolved_bar_config.clone());
         let mut redraw_all = false;
         if self.error.is_some() != error.is_some() {
             redraw_all = true;
@@ -1077,6 +1082,12 @@ impl Bar {
             }
         }
 
+        let visible_from_vars = if resolved_bar_config.show_if_matches.is_empty() {
+            None
+        } else {
+            Some(resolved_bar_config.show_if_matches.all_match())
+        };
+
         Updates {
             popup,
             redraw: if redraw_all || self.error.is_some() {
@@ -1086,6 +1097,7 @@ impl Bar {
             } else {
                 RedrawScope::None
             },
+            visible_from_vars,
         }
     }
 
@@ -1170,10 +1182,17 @@ impl Bar {
         let context = &drawing_context.context;
         let bar = &self.bar;
 
+        let background = match &self.resolved_bar_config {
+            Some(bar_config) => &bar_config.background,
+            None => {
+                return Ok(());
+            }
+        };
+
         if *redraw == RedrawScope::All {
             context.save()?;
             drawing_context
-                .set_source_rgba_background(&self.bar.background)
+                .set_source_rgba_background(background)
                 .context("bar.background")?;
             context.set_operator(cairo::Operator::Source);
             context.paint()?;

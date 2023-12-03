@@ -30,4 +30,8 @@ popup=true
 
 # Make a popup bar pop up when the mouse is near the edge of the screen.
 popup_at_edge=true  
+
+# List of pairs [expression, regex].
+# Show the block only if all expressions match respective regexes.
+show_if_matches=[["${clock:value}",'.+']]
 ```

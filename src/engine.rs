@@ -68,6 +68,7 @@ impl Engine {
         for (index, bar) in config.bar.iter().enumerate() {
             let window = window::Window::create_and_show(
                 format!("bar{}", index),
+                index,
                 bar.clone(),
                 conn.clone(),
                 state.clone(),
@@ -120,7 +121,10 @@ impl Engine {
         match event {
             xcb::Event::X(x::Event::Expose(ev)) => {
                 if let Some(window) = self.windows.get_mut(&ev.window()) {
-                    window.render(ev.width() != 1); // Hack for now to distinguish on-demand expose.
+                    // Hack for now to distinguish on-demand expose.
+                    if let Err(e) = window.render(ev.width() != 1) {
+                        tracing::error!("Failed to render bar {:?}", e);
+                    }
                 }
             }
             xcb::Event::Input(xinput::Event::RawMotion(_event)) => {
