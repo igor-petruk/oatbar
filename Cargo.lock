@@ -711,16 +711,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hex_color"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f48f4a77387174b3150765b66fbd04067799372afdb5099848a721578dac1f9"
-dependencies = [
- "arrayvec",
- "serde",
-]
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -961,10 +951,10 @@ dependencies = [
  "derive_builder",
  "dirs",
  "fork",
- "hex_color",
  "itertools",
  "libc",
  "macro_rules_attribute",
+ "pango",
  "pangocairo",
  "pprof",
  "regex",

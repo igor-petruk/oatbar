@@ -41,6 +41,26 @@ pub struct Context {
     pub font_cache: Arc<Mutex<FontCache>>,
 }
 
+pub struct Color {
+    pub r: f64,
+    pub g: f64,
+    pub b: f64,
+    pub a: f64,
+}
+
+impl Color {
+    pub fn parse(color: &str) -> anyhow::Result<Self> {
+        let (pango_color, alpha) = pango::Color::parse_with_alpha(color)?;
+        let scale = 65536.0;
+        Ok(Self {
+            r: pango_color.red() as f64 / scale,
+            g: pango_color.green() as f64 / scale,
+            b: pango_color.blue() as f64 / scale,
+            a: alpha as f64 / scale,
+        })
+    }
+}
+
 impl Context {
     pub fn new(
         font_cache: Arc<Mutex<FontCache>>,
@@ -70,22 +90,18 @@ impl Context {
         })
     }
 
-    pub fn set_source_hexcolor(&self, color: hex_color::HexColor) {
-        self.context.set_source_rgba(
-            color.r as f64 / 256.,
-            color.g as f64 / 256.,
-            color.b as f64 / 256.,
-            color.a as f64 / 256.,
-        );
+    pub fn set_source_color(&self, color: Color) {
+        self.context
+            .set_source_rgba(color.r, color.g, color.b, color.a);
     }
 
     pub fn set_source_rgba(&self, color: &str) -> anyhow::Result<()> {
         if color.is_empty() {
             return Ok(());
         }
-        match hex_color::HexColor::parse(color) {
+        match Color::parse(color) {
             Ok(color) => {
-                self.set_source_hexcolor(color);
+                self.set_source_color(color);
                 Ok(())
             }
             Err(e) => Err(anyhow::anyhow!(
@@ -100,18 +116,18 @@ impl Context {
         if color.is_empty() {
             return Ok(());
         }
-        match hex_color::HexColor::parse(color) {
+        match Color::parse(color) {
             Ok(color) if self.mode == Mode::Shape => {
-                self.set_source_hexcolor(hex_color::HexColor {
-                    r: 0,
-                    g: 0,
-                    b: 0,
-                    a: if color.a == 0 { 0 } else { 255 },
+                self.set_source_color(Color {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: if color.a == 0.0 { 0.0 } else { 1.0 },
                 });
                 Ok(())
             }
             Ok(color) => {
-                self.set_source_hexcolor(color);
+                self.set_source_color(color);
                 Ok(())
             }
             Err(e) => Err(anyhow::anyhow!(
