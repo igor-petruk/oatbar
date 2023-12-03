@@ -319,3 +319,36 @@ name="ip"
 type="text"
 value="my ip: ${ip:value}"
 ```
+
+### File
+
+You can use file watching utils to output file contents on any file change. 
+For example for Linux you can use `fswatch`.
+
+```toml
+[[command]]
+command="cat ./file; fswatch --event Updated ./file | xargs -I {} cat {}"
+```
+
+### Socket
+
+Use `socat` to read from sockets. TCP socket:
+
+```toml
+[[command]]
+command="socat TCP:localhost:7777 -"
+```
+
+SSL socket:
+
+```toml
+[[command]]
+command="socat OPENSSL:localhost:7777 -"
+```
+
+For Unix socket:
+
+```toml
+[[command]]
+command="socat UNIX-CONNECT:/path/to/socket -"
+```
