@@ -34,6 +34,10 @@ name="oatbar-desktop"
 path="src/desktop.rs"
 
 [[bin]]
+name="oatbar-stats"
+path="src/stats.rs"
+
+[[bin]]
 name="oatctl"
 path="src/cli.rs"
 
@@ -67,5 +71,6 @@ crossbeam-channel = "0.5.8"
 clap = {version="4.4.8", features=["derive"]}
 fork = "0.1.22"
 libc = "0.2.150"
+systemstat = "0.2.3"
 
 
