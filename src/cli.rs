@@ -6,7 +6,7 @@ mod ipc;
 
 #[derive(Parser)]
 #[command(
-    author, version, 
+    author, version,
     about = "A cli tool to interact with oatbar.",
     long_about = None)]
 #[command(propagate_version = true)]
@@ -36,7 +36,7 @@ enum VarSubcommand {
         name: String,
     },
     /// Rotate a variable value through a list of values.
-    /// 
+    ///
     /// If a current value is not in the list, the variable is set
     /// to the first value if direction is right, and to the last
     /// value if the direction is left.

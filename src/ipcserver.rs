@@ -63,6 +63,9 @@ impl Server {
     fn handle_client(&self, mut stream: UnixStream) -> anyhow::Result<()> {
         let mut vec = Vec::with_capacity(10 * 1024);
         if stream.read_to_end(&mut vec).is_ok() {
+            if vec.is_empty() {
+                return Ok(());
+            }
             let request: ipc::Request = serde_json::from_slice(&vec)?;
             tracing::info!("IPC request {:?}", request);
             let response = match request.command {
@@ -82,6 +85,13 @@ impl Server {
         var_updates_rx: crossbeam_channel::Receiver<state::VarUpdate>,
     ) -> anyhow::Result<()> {
         let path = ipc::socket_path().context("Unable to get socket path")?;
+        tracing::info!("IPC socket path: {:?}", path);
+        if UnixStream::connect(path.clone()).is_ok() {
+            return Err(anyhow::anyhow!(
+                "Unable to start oatbar, IPC socket {:?} is in use, probably another oatbar is running.", 
+                path));
+        }
+
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
