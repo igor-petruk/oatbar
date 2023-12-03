@@ -18,7 +18,7 @@ use std::sync::{Arc, RwLock};
 use xcb::{x, xinput};
 
 use crate::config::{Config, Placeholder};
-use crate::{state, thread, window, xutils};
+use crate::{state, thread, window, wmready, xutils};
 
 pub struct Engine {
     windows: HashMap<x::Window, window::Window>,
@@ -42,6 +42,8 @@ impl Engine {
         )
         .unwrap();
         let conn = Arc::new(conn);
+
+        let wm_info = wmready::wait().context("Unable to connect to WM")?;
 
         let screen = {
             let setup = conn.get_setup();
@@ -69,6 +71,7 @@ impl Engine {
                 bar.clone(),
                 conn.clone(),
                 state.clone(),
+                &wm_info,
             )?;
             windows.insert(window.id, window);
         }

@@ -36,8 +36,6 @@ mod wmready;
 mod xrandr;
 mod xutils;
 
-use anyhow::Context;
-
 fn main() -> anyhow::Result<()> {
     #[cfg(feature = "profile")]
     let guard = pprof::ProfilerGuardBuilder::default()
@@ -55,8 +53,6 @@ fn main() -> anyhow::Result<()> {
 
     let config = config::load()?;
     let commands = config.commands.clone();
-
-    wmready::wait().context("Unable to connect to WM")?;
 
     let (ipc_server_tx, ipc_server_rx) = crossbeam_channel::unbounded();
 

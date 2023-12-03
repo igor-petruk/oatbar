@@ -18,28 +18,33 @@ use xcb::x;
 use crate::xutils;
 use tracing::*;
 
+pub struct WMInfo {
+    pub name: String,
+    pub support: x::Window,
+}
+
 fn validate_wm(
     conn: &xcb::Connection,
     screen: &x::Screen,
     wm_support_atom: x::Atom,
     wm_name: x::Atom,
     wm_supported: x::Atom,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<WMInfo> {
     let reply = xutils::get_property(conn, screen.root(), wm_support_atom, x::ATOM_WINDOW, 2)?;
 
-    let wm_window = reply
+    let support = *reply
         .value::<x::Window>()
         .get(0)
         .ok_or_else(|| anyhow!("Failed to find wm window"))?;
 
-    let reply = xutils::get_property(conn, *wm_window, wm_name, x::ATOM_ANY, 256)?;
-    let wm_name = String::from_utf8_lossy(reply.value::<u8>());
+    let reply = xutils::get_property(conn, support, wm_name, x::ATOM_ANY, 256)?;
+    let name = String::from_utf8_lossy(reply.value::<u8>()).to_string();
 
     let reply = xutils::get_property(conn, screen.root(), wm_supported, x::ATOM_ATOM, 4096)?;
 
     info!("Supported EWMH: {:?}", reply);
 
-    Ok(wm_name.into_owned())
+    Ok(WMInfo { name, support })
 }
 
 fn refetch_atoms(conn: &xcb::Connection) -> anyhow::Result<(x::Atom, x::Atom, x::Atom)> {
@@ -53,7 +58,7 @@ fn refetch_atoms(conn: &xcb::Connection) -> anyhow::Result<(x::Atom, x::Atom, x:
     Ok((wm_support_atom, wm_name, wm_supported))
 }
 
-pub fn wait() -> anyhow::Result<()> {
+pub fn wait() -> anyhow::Result<WMInfo> {
     let (conn, screen_num) = xcb::Connection::connect(None)?;
     let screen = {
         let setup = conn.get_setup();
@@ -69,9 +74,9 @@ pub fn wait() -> anyhow::Result<()> {
     conn.flush()?;
 
     let (wm_support_atom, wm_name, wm_supported) = refetch_atoms(&conn)?;
-    if let Ok(wm) = validate_wm(&conn, screen, wm_support_atom, wm_name, wm_supported) {
-        info!("Detected WM: {:?}", wm);
-        return Ok(());
+    if let Ok(wm_info) = validate_wm(&conn, screen, wm_support_atom, wm_name, wm_supported) {
+        info!("Detected WM: {:?}", wm_info.name);
+        return Ok(wm_info);
     }
 
     info!("WM not detected on startup, waiting for it to initialize...");
@@ -82,10 +87,12 @@ pub fn wait() -> anyhow::Result<()> {
         let (wm_support_atom, wm_name, wm_supported) = refetch_atoms(&conn)?;
         match event {
             Some(xcb::Event::X(x::Event::PropertyNotify(pn))) if pn.atom() == wm_support_atom => {
-                if let Ok(wm) = validate_wm(&conn, screen, wm_support_atom, wm_name, wm_supported) {
-                    info!("Eventually detected WM: {:?}", wm);
+                if let Ok(wm_info) =
+                    validate_wm(&conn, screen, wm_support_atom, wm_name, wm_supported)
+                {
+                    info!("Eventually detected WM: {:?}", wm_info.name);
 
-                    return Ok(());
+                    return Ok(wm_info);
                 }
             }
             other => {
@@ -94,5 +101,7 @@ pub fn wait() -> anyhow::Result<()> {
         }
     }
 
-    Ok(())
+    Err(anyhow!(
+        "Unable to detect WM, maybe your WM does not support EWMH"
+    ))
 }

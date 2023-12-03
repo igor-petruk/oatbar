@@ -20,7 +20,7 @@ use std::{
 };
 use xcb::{x, xinput, Xid};
 
-use crate::{bar, config, drawing, state, timer, xutils};
+use crate::{bar, config, drawing, state, timer, wmready, xutils};
 use tracing::*;
 
 pub struct PopupControl {
@@ -132,6 +132,7 @@ impl Window {
         bar_config: config::Bar<config::Placeholder>,
         conn: Arc<xcb::Connection>,
         state: Arc<RwLock<state::State>>,
+        wm_info: &wmready::WMInfo,
     ) -> anyhow::Result<Self> {
         info!("Loading bar {:?}", name);
         let screen = {
@@ -195,7 +196,8 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
-                x::Cw::OverrideRedirect(bar_config.popup),
+                // x::Cw::OverrideRedirect(bar_config.popup),
+                x::Cw::OverrideRedirect(true),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS | x::EventMask::BUTTON_PRESS,
                 ),
@@ -338,14 +340,21 @@ impl Window {
         )?;
         conn.flush()?;
 
+        let mut config_value_list =
+            vec![x::ConfigWindow::X(x.into()), x::ConfigWindow::Y(y.into())];
         if !bar_config.popup {
             xutils::send(&conn, &x::MapWindow { window: id })?;
+            config_value_list.extend_from_slice(&[
+                x::ConfigWindow::Sibling(wm_info.support),
+                x::ConfigWindow::StackMode(x::StackMode::Below),
+            ]);
         }
+
         xutils::send(
             &conn,
             &x::ConfigureWindow {
                 window: id,
-                value_list: &[x::ConfigWindow::X(x.into()), x::ConfigWindow::Y(y.into())],
+                value_list: &config_value_list,
             },
         )?;
         conn.flush()?;
