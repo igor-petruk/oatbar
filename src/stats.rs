@@ -1,7 +1,7 @@
 mod protocol;
 use anyhow::Context;
 use protocol::i3bar;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use systemstat::Platform;
 
 fn try_extend(blocks: &mut Vec<i3bar::Block>, extra_blocks: anyhow::Result<Vec<i3bar::Block>>) {
@@ -52,9 +52,10 @@ fn memory<P: systemstat::Platform>(system: &P) -> anyhow::Result<Vec<i3bar::Bloc
 }
 
 fn network<P: systemstat::Platform>(
-    _system: &P,
+    system: &P,
     interface: &str,
     network: &systemstat::Network,
+    network_stats: &mut HashMap<String, systemstat::NetworkStats>,
 ) -> anyhow::Result<Vec<i3bar::Block>> {
     if network.addrs.is_empty() {
         return Ok(vec![]);
@@ -75,10 +76,19 @@ fn network<P: systemstat::Platform>(
             _ => {}
         }
     }
-    // if let Ok(stats) = system.network_stats(interface) {
-    //     other.insert("rx_bytes".into(), stats.rx_bytes.as_u64().into());
-    //     other.insert("tx_bytes".into(), stats.tx_bytes.as_u64().into());
-    // }
+    if let Ok(stats) = system.network_stats(interface) {
+        if let Some(old_stats) = network_stats.get(interface).cloned() {
+            other.insert(
+                "rx_per_sec".into(),
+                (stats.rx_bytes.as_u64() - old_stats.rx_bytes.as_u64()).into(),
+            );
+            other.insert(
+                "tx_per_sec".into(),
+                (stats.tx_bytes.as_u64() - old_stats.tx_bytes.as_u64()).into(),
+            );
+        }
+        network_stats.insert(interface.into(), stats);
+    }
     Ok(vec![i3bar::Block {
         name: Some("net".into()),
         instance: Some(interface.into()),
@@ -91,6 +101,7 @@ fn main() -> anyhow::Result<()> {
     println!("{}", serde_json::to_string(&i3bar::Header::default())?);
     println!("[");
     let system = systemstat::System::new();
+    let mut network_stats = HashMap::new();
     loop {
         let cpu_load = system.cpu_load_aggregate();
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -101,7 +112,7 @@ fn main() -> anyhow::Result<()> {
             for (interface, net) in networks.iter() {
                 try_extend(
                     &mut blocks,
-                    network(&system, interface, net).context("network"),
+                    network(&system, interface, net, &mut network_stats).context("network"),
                 );
             }
         }
