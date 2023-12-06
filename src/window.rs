@@ -216,8 +216,8 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
-                // x::Cw::OverrideRedirect(bar_config.popup),
-                x::Cw::OverrideRedirect(true),
+                x::Cw::OverrideRedirect(bar_config.popup),
+                //x::Cw::OverrideRedirect(true),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS | x::EventMask::BUTTON_PRESS,
                 ),
