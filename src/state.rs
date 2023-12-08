@@ -317,7 +317,7 @@ impl State {
                 value,
                 min_value,
                 max_value,
-                10,
+                text_progress_bar.progress_bar_size,
             )?,
             config::NumberDisplay::Text(number_text_display) => {
                 Self::number_text(number_text_display, value)?

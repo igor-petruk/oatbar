@@ -225,6 +225,8 @@ type="number"
 name="cpu"
 ...
 number_display="progress_bar"
+# How many characters to use for the progress bar.
+progress_bar_size=10
 # Progress bar characters. In this example would render: "━━━━雷     "
 empty=" "
 fill="━"

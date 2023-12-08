@@ -421,8 +421,14 @@ pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debu
         deserialize_with = "string_or_ramp"
     )]
     pub empty: Vec<(String, String)>,
+    #[serde(default = "default_progress_size")]
+    pub progress_bar_size: usize,
     #[serde(skip)]
     pub phantom_data: PhantomData<Dynamic>,
+}
+
+fn default_progress_size() -> usize {
+    10
 }
 
 fn default_progress_fill() -> Vec<(String, String)> {
@@ -443,6 +449,7 @@ impl TextProgressBarDisplay<Option<Placeholder>> {
             empty: self.empty,
             fill: self.fill,
             indicator: self.indicator,
+            progress_bar_size: self.progress_bar_size,
             phantom_data: PhantomData,
         }
     }
@@ -490,6 +497,7 @@ impl TextProgressBarDisplay<Placeholder> {
                     ))
                 })
                 .collect::<anyhow::Result<Vec<(_, _)>>>()?,
+            progress_bar_size: self.progress_bar_size,
             phantom_data: PhantomData,
         })
     }
