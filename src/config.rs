@@ -471,7 +471,7 @@ impl NumberTextDisplay<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-#[serde(tag = "type")]
+#[serde(tag = "number_display")]
 pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     Text(NumberTextDisplay<Dynamic>),
     ProgressBar(TextProgressBarDisplay<Dynamic>),
@@ -499,6 +499,7 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     #[serde(flatten)]
     pub processing_options: ProcessingOptions,
     pub number_type: NumberType,
+    #[serde(flatten)]
     pub number_display: Option<NumberDisplay<Dynamic>>,
     #[serde(skip)]
     pub parsed_data: NumberParsedData,

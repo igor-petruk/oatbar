@@ -1,15 +1,6 @@
 # Block
 
-Blocks are the widgets displaying pieces of information on the bar. Supported blocks types are:
-
-* [**Text**](#text-block) focuses on displaying text information.
-  * Fake text blocks can be used as separators, blank spaces or edges of the small partial bars within a bar.
-* [**Number**](#number-block) focuses on presenting numerical information.
-  * Support numerical units, such as bytes or percentages.
-  * Displayed as text or as progress bars.
-* [**Enum**](#enum-block) focuses on presenting a selection among multiple items.
-  * Active item and other items can be presented differently.
-* [**Image**](#image-block) focuses on rendering an image.
+Blocks are the widgets displaying pieces of information on the bar.
 
 `oatbar` provides a lot of hidden power via these widgets, as they can provide
 more than they initially seem. Consider that the most of the string properties
@@ -17,6 +8,8 @@ of blocks support variable substitution, directly controlled by your scripts.
 
 The reference below explains properties of these blocks and the
 [Cookbook](./cookbook/) shows how to use them in a very clever way.
+
+<!-- toc -->
 
 ## Common properties
 
@@ -194,24 +187,43 @@ max_value="1000"
 number_type="number"
 ```
 
-In addition a child block `number_display` can be used to add a progress bar.
+`number_display` can be used to select the widget that is going to display your
+number on the block.
+
+### Number as text
+
+You can display the number as text as you would have with a `text` block, but there
+is a benefit of additional functionality, such as unit conversions and ramp
+functionality.
+
 
 ```toml
 [[block]]
 type="number"
 name="cpu"
 ...
+number_display="progress_bar"
+# Right aligh the number by padding it with spaces.
+padded_width = 10
+# If set, wrap the padded number, which will be rendered in place of {}.
+output_format="cpu: {}"
+```
 
-# Note single brackets [...] after [[block]]
-[block.number_display]
-type="progress_bar"
+### Progress bar
 
+```toml
+[[block]]
+type="number"
+name="cpu"
+...
+number_display="progress_bar"
 # Progress bar characters. In this example would render: "━━━━雷     "
 empty=" "
 fill="━"
 indicator="雷"
 
 # If set, splits the bar into even chunks and colors them according to these values.
+# min_value and max_value are required, or must be obvious from the number_type like "percent".
 color_ramp=["#000000", "#000000", "#000000", "#ffff00", "#ff000"]
 
 # If set, an additional decoration for the bar, which will be rendered in place of {}.
