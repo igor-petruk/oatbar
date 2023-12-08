@@ -26,12 +26,31 @@ use xcb::{
 };
 
 #[derive(Debug)]
-struct LayoutState {
+struct KeyboardState {
     current: usize,
     variants: Vec<String>,
+    indicators: BTreeMap<String, bool>,
 }
 
-fn get_current_layout(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Result<LayoutState> {
+fn to_indicator_name(s: &str) -> String {
+    let mut result = String::with_capacity(s.len() * 2);
+    for (i, ch) in s.char_indices() {
+        if ch.is_whitespace() {
+            continue;
+        }
+        if ch.is_uppercase() {
+            if i > 0 {
+                result.push('_');
+            }
+            result.push(ch.to_ascii_lowercase());
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
+fn get_current_state(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Result<KeyboardState> {
     let reply = xutils::query(
         conn,
         &xkb::GetNames {
@@ -65,30 +84,93 @@ fn get_current_layout(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Resu
         xkb::Group::N3 => 2,
         xkb::Group::N4 => 3,
     };
-    debug!("atom={},layout_index={}", atom_name, layout_index);
 
-    Ok(LayoutState {
+    let indicator_atoms = get_indicator_atoms(conn)?;
+    let mut indicators = BTreeMap::new();
+    for atom in indicator_atoms {
+        let reply = xutils::query(conn, &x::GetAtomName { atom })?;
+        let name = to_indicator_name(&reply.name().to_utf8());
+        let reply = xutils::query(
+            conn,
+            &xkb::GetNamedIndicator {
+                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                indicator: atom,
+                led_class: xkb::LedClass::KbdFeedbackClass,
+                led_id: 0,
+            },
+        )?;
+        indicators.insert(name, reply.on());
+    }
+
+    debug!(
+        "atom={},layout_index={},indicators={:?}",
+        atom_name, layout_index, indicators
+    );
+
+    Ok(KeyboardState {
         current: layout_index,
         variants,
+        indicators,
     })
 }
 
-fn layout_to_blocks(layout: LayoutState) -> Vec<i3bar::Block> {
-    let value = layout
+fn get_indicator_atoms(conn: &xcb::Connection) -> anyhow::Result<Vec<x::Atom>> {
+    let reply = xutils::query(
+        conn,
+        &xkb::GetNames {
+            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+            which: xkb::NameDetail::INDICATOR_NAMES,
+        },
+    )?;
+    let one_value = reply
+        .value_list()
+        .first()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("More than one value"))?;
+    if let xkb::GetNamesReplyValueList::IndicatorNames(atoms) = one_value {
+        Ok(atoms)
+    } else {
+        Err(anyhow::anyhow!("Unexpected reply type"))
+    }
+}
+
+fn state_to_blocks(state: KeyboardState) -> Vec<i3bar::Block> {
+    let mut result = Vec::with_capacity(state.indicators.len() + 1);
+
+    let value = state
         .variants
-        .get(layout.current)
+        .get(state.current)
         .unwrap_or(&"?".to_string())
         .to_string();
     let mut other = BTreeMap::new();
-    other.insert("active".into(), layout.current.into());
-    other.insert("variants".into(), layout.variants.join(",").into());
+    other.insert("active".into(), state.current.into());
+    other.insert("variants".into(), state.variants.join(",").into());
     other.insert("value".into(), value.clone().into());
-    vec![i3bar::Block {
+    result.push(i3bar::Block {
         name: Some("layout".into()),
         full_text: format!("layout: {}", value),
         instance: None,
         other,
-    }]
+    });
+
+    let indicator_blocks: Vec<_> = state
+        .indicators
+        .into_iter()
+        .map(|(k, v)| {
+            let value = if v { "on" } else { "off" };
+            let mut other = BTreeMap::new();
+            other.insert("value".into(), value.into());
+            i3bar::Block {
+                name: Some("indicator".into()),
+                full_text: format!("{}:{:>3}", k, value),
+                instance: Some(k),
+                other,
+            }
+        })
+        .collect();
+    result.extend_from_slice(&indicator_blocks);
+
+    result
 }
 
 fn main() -> anyhow::Result<()> {
@@ -156,18 +238,20 @@ fn main() -> anyhow::Result<()> {
     println!("{}", serde_json::to_string(&i3bar::Header::default())?);
     println!("[");
 
-    let layout = get_current_layout(&conn, reply.group())?;
-    debug!("Initial: {:?}", layout);
-    println!("{},", serde_json::to_string(&layout_to_blocks(layout))?);
+    let state = get_current_state(&conn, reply.group())?;
+    debug!("Initial: {:?}", state);
+    println!("{},", serde_json::to_string(&state_to_blocks(state))?);
 
     loop {
         let event = xutils::get_event(&conn)?;
         match event {
             Some(xcb::Event::Xkb(xkb::Event::StateNotify(n))) => {
-                if n.changed().contains(StatePart::GROUP_STATE) {
-                    let layout = get_current_layout(&conn, n.group())?;
-                    debug!("Layout updated: {:?}", layout);
-                    println!("{},", serde_json::to_string(&layout_to_blocks(layout))?);
+                if n.changed().contains(StatePart::GROUP_STATE)
+                    || n.changed().contains(StatePart::MODIFIER_LOCK)
+                {
+                    let state = get_current_state(&conn, n.group())?;
+                    debug!("State updated: {:?}", state);
+                    println!("{},", serde_json::to_string(&state_to_blocks(state))?);
                 }
             }
             None => return Ok(()),
