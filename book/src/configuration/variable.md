@@ -17,5 +17,5 @@ replace = [["(.+)","foreground='$1'"]]
 value = "<span ${clock_color_attr}>${clock:value}</span>"
 ```
 
-Standalone variables are currently processed in unpredictable order,
-so standalone variables cannot use each other.
+Standalon Variables can use each other only in the order they are declared in the file,
+otherwise the result is undefined.

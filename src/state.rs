@@ -483,7 +483,12 @@ impl State {
         }
 
         self.error = None;
-        for var in self.config.vars.values() {
+        for var_name in self.config.var_order.iter() {
+            let var = self
+                .config
+                .vars
+                .get(var_name)
+                .expect("var from var_order should be present in the map");
             let var_value = var
                 .input
                 .resolve_placeholders(&self.vars)

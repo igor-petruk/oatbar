@@ -1024,6 +1024,8 @@ pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
     pub blocks: HashMap<String, Block<Dynamic>>,
     #[serde(skip)]
     pub vars: HashMap<String, Var<Dynamic>>,
+    #[serde(skip)]
+    pub var_order: Vec<String>,
     #[serde(default, rename = "block")]
     pub blocks_vec: Vec<Block<Dynamic>>,
     #[serde(default, rename = "var")]
@@ -1068,6 +1070,7 @@ impl Config<Option<Placeholder>> {
             bar: self.bar.iter().map(|b| b.with_default()).collect(),
             default_block: default_block_map,
             blocks,
+            var_order: self.vars_vec.iter().map(|v| v.name.clone()).collect(),
             vars: self
                 .vars_vec
                 .iter()
