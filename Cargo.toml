@@ -72,5 +72,6 @@ clap = {version="4.4.8", features=["derive"]}
 fork = "0.1.22"
 libc = "0.2.150"
 systemstat = "0.2.3"
+nix = { version = "0.27.1", features = ["net"] }
 
 

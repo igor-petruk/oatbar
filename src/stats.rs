@@ -51,33 +51,107 @@ fn memory<P: systemstat::Platform>(system: &P) -> anyhow::Result<Vec<i3bar::Bloc
     }])
 }
 
-fn network<P: systemstat::Platform>(
-    system: &P,
-    interface: &str,
-    network: &systemstat::Network,
-    network_stats: &mut HashMap<String, systemstat::NetworkStats>,
-) -> anyhow::Result<Vec<i3bar::Block>> {
-    if network.addrs.is_empty() {
-        return Ok(vec![]);
+#[derive(Debug)]
+struct Address {
+    up: bool,
+    running: bool,
+    address: Option<String>,
+    netmask: Option<String>,
+    broadcast: Option<String>,
+    destination: Option<String>,
+}
+
+#[derive(Debug, Default)]
+struct Interface {
+    mac: Vec<Address>,
+    ipv4: Vec<Address>,
+    ipv6: Vec<Address>,
+}
+
+fn sockaddr_to_str(addr: nix::sys::socket::SockaddrStorage) -> String {
+    let s: String = addr.to_string();
+    match s.strip_suffix(":0") {
+        Some(s) => s.to_owned(),
+        None => s,
     }
-    let mut other = BTreeMap::new();
-    let mut idx4 = 0;
-    let mut idx6 = 0;
-    for addr in &network.addrs {
-        match addr.addr {
-            systemstat::IpAddr::V4(a) => {
-                other.insert(format!("ipv4_{}", idx4), format!("{}", a).into());
-                idx4 += 1;
+}
+
+fn get_interfaces() -> anyhow::Result<BTreeMap<String, Interface>> {
+    let addrs = nix::ifaddrs::getifaddrs().context("getifaddrs")?;
+    let mut map: BTreeMap<String, Interface> = BTreeMap::new();
+    for ifaddr in addrs {
+        use nix::sys::socket::SockaddrLike;
+        let running = ifaddr
+            .flags
+            .contains(nix::net::if_::InterfaceFlags::IFF_RUNNING);
+        let up = ifaddr.flags.contains(nix::net::if_::InterfaceFlags::IFF_UP);
+        let address = Address {
+            running,
+            up,
+            address: ifaddr.address.map(sockaddr_to_str),
+            netmask: ifaddr.netmask.map(sockaddr_to_str),
+            broadcast: ifaddr.broadcast.map(sockaddr_to_str),
+            destination: ifaddr.destination.map(sockaddr_to_str),
+        };
+        if let Some(addr) = ifaddr.address {
+            use nix::sys::socket::AddressFamily;
+            let interface = map.entry(ifaddr.interface_name).or_default();
+            match addr.family() {
+                Some(AddressFamily::Link) => {
+                    interface.mac.push(address);
+                }
+                Some(AddressFamily::Inet) => {
+                    interface.ipv4.push(address);
+                }
+                Some(AddressFamily::Inet6) => {
+                    interface.ipv6.push(address);
+                }
+                _ => {}
             }
-            systemstat::IpAddr::V6(a) => {
-                other.insert(format!("ipv6_{}", idx6), format!("{}", a).into());
-                idx6 += 1;
-            }
-            _ => {}
         }
     }
-    if let Ok(stats) = system.network_stats(interface) {
-        if let Some(old_stats) = network_stats.get(interface).cloned() {
+    Ok(map)
+}
+
+fn insert_address(
+    other: &mut BTreeMap<String, serde_json::Value>,
+    prefix: &str,
+    address: &Address,
+) {
+    other.insert(format!("{}_run", prefix), address.running.into());
+    other.insert(format!("{}_up", prefix), address.up.into());
+    if let Some(v) = &address.address {
+        other.insert(format!("{}_addr", prefix), v.clone().into());
+    }
+    if let Some(v) = &address.netmask {
+        other.insert(format!("{}_mask", prefix), v.clone().into());
+    }
+    if let Some(v) = &address.broadcast {
+        other.insert(format!("{}_broadcast", prefix), v.clone().into());
+    }
+    if let Some(v) = &address.destination {
+        other.insert(format!("{}_dest", prefix), v.clone().into());
+    }
+}
+
+fn network<P: systemstat::Platform>(
+    system: &P,
+    name: &str,
+    interface: &Interface,
+    network_stats: &mut HashMap<String, systemstat::NetworkStats>,
+) -> anyhow::Result<Vec<i3bar::Block>> {
+    let mut other = BTreeMap::new();
+    for (idx, addr) in interface.ipv4.iter().enumerate() {
+        insert_address(&mut other, &format!("ipv4_{}", idx), addr);
+    }
+    for (idx, addr) in interface.ipv6.iter().enumerate() {
+        insert_address(&mut other, &format!("ipv6_{}", idx), addr);
+    }
+    for (idx, addr) in interface.mac.iter().enumerate() {
+        insert_address(&mut other, &format!("mac_{}", idx), addr);
+    }
+    if let Ok(stats) = system.network_stats(name) {
+        if let Some(old_stats) = network_stats.get(name).cloned() {
             other.insert(
                 "rx_per_sec".into(),
                 (stats.rx_bytes.as_u64() - old_stats.rx_bytes.as_u64()).into(),
@@ -87,12 +161,27 @@ fn network<P: systemstat::Platform>(
                 (stats.tx_bytes.as_u64() - old_stats.tx_bytes.as_u64()).into(),
             );
         }
-        network_stats.insert(interface.into(), stats);
+        network_stats.insert(name.into(), stats);
     }
+    let first_up = interface
+        .ipv4
+        .iter()
+        .find(|a| a.running && a.address.is_some())
+        .or_else(|| {
+            interface
+                .ipv6
+                .iter()
+                .find(|a| a.running && a.address.is_some())
+        })
+        .map(|up| up.address.clone().unwrap());
+    let full_text = match first_up {
+        Some(addr) => format!("{}: {}", name, addr),
+        None => format!("{}: down", name),
+    };
     Ok(vec![i3bar::Block {
         name: Some("net".into()),
-        instance: Some(interface.into()),
-        full_text: format!("{} up", interface),
+        instance: Some(name.into()),
+        full_text,
         other,
     }])
 }
@@ -108,13 +197,12 @@ fn main() -> anyhow::Result<()> {
         let mut blocks = vec![];
         try_extend(&mut blocks, memory(&system).context("memory"));
         try_extend(&mut blocks, cpu(&system, cpu_load).context("cpu"));
-        if let Ok(networks) = system.networks() {
-            for (interface, net) in networks.iter() {
-                try_extend(
-                    &mut blocks,
-                    network(&system, interface, net, &mut network_stats).context("network"),
-                );
-            }
+        let interfaces = get_interfaces()?;
+        for (name, interface) in interfaces {
+            try_extend(
+                &mut blocks,
+                network(&system, &name, &interface, &mut network_stats).context("network"),
+            );
         }
         println!("{},", serde_json::to_string(&blocks)?);
     }
