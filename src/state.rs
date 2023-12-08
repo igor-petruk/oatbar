@@ -127,27 +127,12 @@ impl State {
     }
 
     fn progress_bar_string(
-        number_block: &config::NumberBlock<String>,
         text_progress_bar: &config::TextProgressBarDisplay<String>,
+        value: Option<f64>,
+        min_value: Option<f64>,
+        max_value: Option<f64>,
         width: usize,
     ) -> anyhow::Result<String> {
-        let number_type = number_block.number_type;
-        let value = number_type
-            .parse_str(&number_block.display.value)
-            .context("value")?;
-
-        let (min_value, max_value) = match number_type {
-            config::NumberType::Percent => (Some(0.0), Some(100.0)),
-            _ => (
-                number_type
-                    .parse_str(&number_block.min_value)
-                    .context("min_value")?,
-                number_type
-                    .parse_str(&number_block.max_value)
-                    .context("max_value")?,
-            ),
-        };
-
         let empty_result = (0..width).map(|_| ' ');
         if max_value.is_none() || min_value.is_none() || value.is_none() {
             return Ok(empty_result.collect());
@@ -191,23 +176,29 @@ impl State {
         Ok(segments.join(""))
     }
 
-    fn ramp_pass(normalized_position: f64, ramp: &[String]) -> anyhow::Result<String> {
-        let position = (normalized_position * (ramp.len() - 1) as f64).floor() as usize;
-        Ok(ramp
-            .get(position)
-            .ok_or_else(|| anyhow::anyhow!("Out of index ramp pass: {}", position))?
-            .into())
+    fn ramp_pass(
+        number_type: config::NumberType,
+        text: &str,
+        value: f64,
+        ramp: &[(String, String)],
+    ) -> anyhow::Result<String> {
+        let mut format = "{}";
+        for (ramp, ramp_format) in ramp {
+            if let Some(ramp_number) = number_type.parse_str(ramp)? {
+                if value > ramp_number {
+                    format = ramp_format;
+                    continue;
+                }
+            }
+        }
+        Ok(format.replace("{}", text))
     }
 
-    fn number_text(
+    fn parse_min_max(
         number_block: &config::NumberBlock<String>,
-        number_text_display: &config::NumberTextDisplay<String>,
-    ) -> anyhow::Result<String> {
-        if number_block.display.value.is_empty() {
-            return Ok("".into());
-        }
+    ) -> anyhow::Result<(Option<f64>, Option<f64>)> {
         let number_type = number_block.number_type;
-        let (min_value, max_value) = match number_type {
+        Ok(match number_type {
             config::NumberType::Percent => (Some(0.0), Some(100.0)),
             _ => (
                 number_type
@@ -217,11 +208,19 @@ impl State {
                     .parse_str(&number_block.max_value)
                     .context("max_value")?,
             ),
-        };
-        let mut value = number_type
-            .parse_str(&number_block.display.value)
-            .context("value")?
-            .unwrap();
+        })
+    }
+
+    fn number_text(
+        number_text_display: &config::NumberTextDisplay<String>,
+        value: Option<f64>,
+        min_value: Option<f64>,
+        max_value: Option<f64>,
+    ) -> anyhow::Result<String> {
+        if value.is_none() {
+            return Ok("".into());
+        }
+        let mut value = value.unwrap();
 
         if let Some(min_value) = min_value {
             if let Some(max_value) = max_value {
@@ -239,24 +238,12 @@ impl State {
             }
         }
 
-        if !number_text_display.ramp.is_empty() {
-            match (min_value, max_value) {
-                (Some(min), Some(max)) => {
-                    let normalized_position = (value - min) / (max - min);
-                    return Self::ramp_pass(normalized_position, &number_text_display.ramp)
-                        .context("ramp_pass");
-                }
-                _ => {
-                    return Ok("ramp with no MIN/MAX".into()); // fix
-                }
-            }
-        }
-
-        Ok(match number_text_display.number_type.unwrap() {
+        let text = match number_text_display.number_type.unwrap() {
             config::NumberType::Percent => format!("{}%", value),
             config::NumberType::Number => format!("{}", value),
             config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
-        })
+        };
+        Ok(Self::pad(&text, number_text_display))
     }
 
     fn pad(text: &str, number_text_display: &config::NumberTextDisplay<String>) -> String {
@@ -315,23 +302,46 @@ impl State {
             },
             ..b.clone()
         };
+        let value = b
+            .number_type
+            .parse_str(&number_block.display.value)
+            .context("value")?;
 
-        let text_bar_string = match b.number_display.as_ref().unwrap() {
+        let (min_value, max_value) = Self::parse_min_max(&number_block)?;
+
+        let text = match b.number_display.as_ref().unwrap() {
             config::NumberDisplay::ProgressBar(text_progress_bar) => {
-                let progress_bar = Self::progress_bar_string(&number_block, text_progress_bar, 10)
-                    .unwrap_or_default();
-                let format = &text_progress_bar.bar_format;
-                format.replace("{}", &progress_bar)
+                Self::progress_bar_string(text_progress_bar, value, min_value, max_value, 10)?
             }
             config::NumberDisplay::Text(number_text_display) => {
-                let text =
-                    Self::number_text(&number_block, number_text_display).unwrap_or_default(); // Fix
-                let text = Self::pad(&text, number_text_display);
-                number_text_display.output_format.replace("{}", &text)
+                Self::number_text(number_text_display, value, min_value, max_value)?
             }
         };
 
-        number_block.parsed_data.text_bar_string = text_bar_string;
+        let text = if b.ramp.is_empty() {
+            text
+        } else if let Some(value) = value {
+            match (min_value, max_value) {
+                (Some(min), Some(max)) => {
+                    let value = if value < min {
+                        min
+                    } else if value > max {
+                        max
+                    } else {
+                        value
+                    };
+                    Self::ramp_pass(b.number_type, &text, value, &b.ramp)?
+                }
+                _ => {
+                    return Err(anyhow::anyhow!("ramp with no min_value or max_value"));
+                }
+            }
+        } else {
+            text
+        };
+        let text = b.output_format.replace("{}", &text);
+
+        number_block.parsed_data.text_bar_string = text;
         number_block.max_value = "".into();
         number_block.min_value = "".into();
         number_block.display.value = "".into();

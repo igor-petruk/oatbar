@@ -376,7 +376,6 @@ pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debu
     pub empty: Dynamic,
     pub fill: Dynamic,
     pub indicator: Dynamic,
-    pub bar_format: Dynamic,
     #[serde(default)]
     pub color_ramp: Vec<String>,
 }
@@ -392,7 +391,6 @@ impl TextProgressBarDisplay<Option<Placeholder>> {
             // indicator: self.indicator.unwrap_or_else(|| "\u{202D}ﭳ".into()),
             fill: self.fill.unwrap_or_else(|| "━".into()),
             indicator: self.indicator.unwrap_or_else(|| "雷".into()),
-            bar_format: self.bar_format.unwrap_or_else(|| "{}".into()),
             color_ramp: self.color_ramp,
         }
     }
@@ -410,10 +408,6 @@ impl TextProgressBarDisplay<Placeholder> {
                 .indicator
                 .resolve_placeholders(vars)
                 .context("indicator")?,
-            bar_format: self
-                .bar_format
-                .resolve_placeholders(vars)
-                .context("bar_format")?,
             color_ramp: self
                 .color_ramp
                 .iter()
@@ -428,9 +422,8 @@ impl TextProgressBarDisplay<Placeholder> {
 pub struct NumberTextDisplay<Dynamic: From<String> + Clone + Default + Debug> {
     pub number_type: Option<NumberType>,
     pub padded_width: Option<usize>,
-    pub output_format: Dynamic,
-    #[serde(default)]
-    pub ramp: Vec<String>,
+    #[serde(skip)]
+    pub phantom_data: PhantomData<Dynamic>,
 }
 
 impl NumberTextDisplay<Option<Placeholder>> {
@@ -442,8 +435,7 @@ impl NumberTextDisplay<Option<Placeholder>> {
                 _ => 0,
             })),
             number_type: Some(number_type),
-            output_format: self.output_format.unwrap_or("{}".into()),
-            ramp: self.ramp,
+            phantom_data: PhantomData,
         }
     }
 }
@@ -456,15 +448,7 @@ impl NumberTextDisplay<Placeholder> {
         Ok(NumberTextDisplay {
             number_type: self.number_type,
             padded_width: self.padded_width,
-            output_format: self
-                .output_format
-                .resolve_placeholders(vars)
-                .context("output_format")?,
-            ramp: self
-                .ramp
-                .iter()
-                .map(|ramp| ramp.resolve_placeholders(vars).context("ramp"))
-                .collect::<Result<Vec<_>, _>>()?,
+            phantom_data: PhantomData,
         })
     }
 }
@@ -501,6 +485,9 @@ pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
     pub number_type: NumberType,
     #[serde(flatten)]
     pub number_display: Option<NumberDisplay<Dynamic>>,
+    pub output_format: Dynamic,
+    #[serde(default)]
+    pub ramp: Vec<(String, Dynamic)>,
     #[serde(skip)]
     pub parsed_data: NumberParsedData,
     #[serde(flatten)]
@@ -518,6 +505,7 @@ impl NumberBlock<Option<Placeholder>> {
             min_value: self.min_value.clone().unwrap_or_else(|| "0".into()),
             max_value: self.max_value.clone().unwrap_or_else(|| "".into()),
             display: self.display.clone().with_default(&default_block.display),
+            output_format: self.output_format.unwrap_or("{}".into()),
             number_type: self.number_type,
             number_display: Some(match self.number_display {
                 Some(NumberDisplay::ProgressBar(t)) => NumberDisplay::ProgressBar(t.with_default()),
@@ -531,6 +519,11 @@ impl NumberBlock<Option<Placeholder>> {
                     .with_default(self.number_type),
                 ),
             }),
+            ramp: self
+                .ramp
+                .into_iter()
+                .map(|(r, v)| (r, v.unwrap_or_default()))
+                .collect(),
             processing_options: self.processing_options.with_defaults(),
             parsed_data: Default::default(),
             event_handlers: self.event_handlers,
@@ -566,11 +559,25 @@ impl NumberBlock<Placeholder> {
                 )),
                 None => None,
             },
+            output_format: self
+                .output_format
+                .resolve_placeholders(vars)
+                .context("output_format")?,
             parsed_data: self.parsed_data.clone(),
             event_handlers: self
                 .event_handlers
                 .resolve_placeholders(vars)
                 .context("event_handlers")?,
+            ramp: self
+                .ramp
+                .iter()
+                .map(|(ramp, format)| {
+                    Ok((
+                        ramp.clone(),
+                        format.resolve_placeholders(vars).context("ramp format")?,
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
         })
     }
 }

@@ -184,7 +184,17 @@ max_value="1000"
 #  - percent - a number from 0 to 100, '%' is ommitted from the input when parsing.
 #  - bytes - a number that supports byte unit suffixes, e.g. "GB", "kb",
 #      - See https://docs.rs/bytesize/latest/bytesize/
-number_type="number"
+number_type="percent"
+
+# If set, wrap the `number_display` output, which will be rendered in place of {}.
+output_format="cpu: {}"
+
+# A sorted list of ramp formats. If set, prior to wrapping with `output_format`,
+# wrap to the first format larger than `value`.
+ramp = [
+  ["80%", "<span foreground='yellow'>{}</span>"],
+  ["90%", "<span foreground='red'>{}</span>"],
+]
 ```
 
 `number_display` can be used to select the widget that is going to display your
@@ -205,8 +215,6 @@ name="cpu"
 number_display="progress_bar"
 # Right aligh the number by padding it with spaces.
 padded_width = 10
-# If set, wrap the padded number, which will be rendered in place of {}.
-output_format="cpu: {}"
 ```
 
 ### Progress bar

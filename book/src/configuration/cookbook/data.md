@@ -176,18 +176,14 @@ name='cpu'
 type = 'number'
 value = "${i3status:cpu_usage.full_text}"
 number_type = "percent"
-
-[block.number_display]
-type="text"
 output_format="<b>CPU:</b>{}"
+number_display="text"
 ```
 
 If you prefer a progress bar:
 
 ```toml
-[block.number_display]
-type="progress_bar"
-bar_format="<b>CPU:</b> {}"
+number_display="progress_bar"
 ```
 
 ### `conky`
