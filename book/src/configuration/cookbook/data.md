@@ -33,15 +33,10 @@ value = '${clock:value}'
 
 If you do not need to show seconds, you can make `interval` smaller.
 
-### Keyboard layout
+### Keyboard
 
-`oatbar-keyboard` outputs `setxkbmap`-compatible
-layout stream in `i3bar` format. For example you set up
-your layouts on each WM start like this:
-
-```shell
-setxkbmap -layout us,ua -option grp:alt_space_toggle
-```
+`oatbar` ships with keyboard status utility that streams keyboard layouts
+and indicator values in `i3bar` format.
 
 If you run it, you will see
 
@@ -49,22 +44,49 @@ If you run it, you will see
 ❯ oatbar-keyboard
 {"version":1}
 [
-[{"full_text":"layout: us","name":"layout","active":0,"value":"us","variants":"us,ua"}],
+[{"full_text":"layout: us","name":"layout","active":0,"value":"us","variants":"us,ua"},
+{"full_text":"caps_lock:off","name":"indicator","instance":"caps_lock","value":"off"},
+ ...],
 ```
 
-Use it as a command in your config and attack it to the `enum` block:
+Enable it with
 
 ```toml
 [[command]]
 name="keyboard"
 command="oatbar-keyboard"
+```
 
+#### Layout
+
+`oatbar-keyboard` is designed to work with `setxkbmap`. 
+For example you set up your layouts on each WM start like this:
+
+```shell
+setxkbmap -layout us,ua -option grp:alt_space_toggle
+```
+
+Enable `oatbar-keyboard` and use an `enum` block:
+
+```toml
 [[block]]
 name = 'layout'
 type = 'enum'
 active = '${keyboard:layout.active}'
 variants = '${keyboard:layout.variants}'
 on_click_command = "oatbar-keyboard $BLOCK_INDEX"
+```
+
+#### Indicators
+
+Show indicators, such as `caps_lock`, `scroll_lock` and `num_lock`
+as follows:
+
+```toml
+[[block]]
+name = 'caps_lock'
+type = 'text'
+value = '${keyboard:indicator.caps_lock.full_text}'
 ```
 
 ### Active workspaces and windows
