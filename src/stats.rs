@@ -63,7 +63,7 @@ struct Address {
 
 #[derive(Debug, Default)]
 struct Interface {
-    // mac: Vec<Address>,
+    mac: Vec<Address>,
     ipv4: Vec<Address>,
     ipv6: Vec<Address>,
 }
@@ -97,9 +97,26 @@ fn get_interfaces() -> anyhow::Result<BTreeMap<String, Interface>> {
             use nix::sys::socket::AddressFamily;
             let interface = map.entry(ifaddr.interface_name).or_default();
             match addr.family() {
-                // Some(AddressFamily::Link) => {
-                //     interface.mac.push(address);
-                // }
+                #[cfg(any(
+                    target_os = "dragonfly",
+                    target_os = "freebsd",
+                    target_os = "ios",
+                    target_os = "macos",
+                    target_os = "netbsd",
+                    target_os = "openbsd"
+                ))]
+                Some(AddressFamily::Link) => {
+                    interface.mac.push(address);
+                }
+                #[cfg(any(
+                    target_os = "android",
+                    target_os = "linux",
+                    target_os = "fuchsia",
+                    target_os = "solaris"
+                ))]
+                Some(AddressFamily::Packet) => {
+                    interface.mac.push(address);
+                }
                 Some(AddressFamily::Inet) => {
                     interface.ipv4.push(address);
                 }
@@ -147,9 +164,9 @@ fn network<P: systemstat::Platform>(
     for (idx, addr) in interface.ipv6.iter().enumerate() {
         insert_address(&mut other, &format!("ipv6_{}", idx), addr);
     }
-    // for (idx, addr) in interface.mac.iter().enumerate() {
-    //     insert_address(&mut other, &format!("mac_{}", idx), addr);
-    // }
+    for (idx, addr) in interface.mac.iter().enumerate() {
+        insert_address(&mut other, &format!("mac_{}", idx), addr);
+    }
     if let Ok(stats) = system.network_stats(name) {
         if let Some(old_stats) = network_stats.get(name).cloned() {
             other.insert(
