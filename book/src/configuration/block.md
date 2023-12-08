@@ -233,9 +233,6 @@ indicator="雷"
 # If set, splits the bar into even chunks and colors them according to these values.
 # min_value and max_value are required, or must be obvious from the number_type like "percent".
 color_ramp=["#000000", "#000000", "#000000", "#ffff00", "#ff000"]
-
-# If set, an additional decoration for the bar, which will be rendered in place of {}.
-bar_format="cpu: <span font='Iosevka Nerd Font Mono 12'>{}</span>"
 ```
 
 ## Enum block
