@@ -7,7 +7,13 @@ Command is an external program that provides data to `oatbar`.
 [[command]]
 name="disk_free"
 command="df -h / | tail -1 | awk '{print $5}'"
-interval=60
+interval=60  # Default is 10.
+
+# Runs once
+[[command]]
+name="uname"
+command="uname -a"
+once=true  # Default is false.
 
 # Streams continiously
 [[command]]

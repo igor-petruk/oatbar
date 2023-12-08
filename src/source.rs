@@ -171,6 +171,8 @@ pub struct CommandConfig {
     format: Format,
     #[serde(default)]
     line_names: Vec<String>,
+    #[serde(default)]
+    once: bool,
 }
 
 fn default_format() -> Format {
@@ -298,6 +300,9 @@ impl Command {
                         error: Some(format!("Command failed: {:?}", e)),
                         ..Default::default()
                     })?;
+                }
+                if self.config.once {
+                    return Ok(());
                 }
                 select! {
                     recv(poke_rx) -> _ => tracing::info!("Skipping interval for {} command", command_name),
