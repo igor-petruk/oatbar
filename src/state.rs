@@ -111,23 +111,26 @@ impl State {
         }
     }
 
-    fn color_ramp_pass(
-        normalized_position: f64,
-        color_ramp: &[String],
-        text: &str,
+    fn segment_ramp_pass(
+        number_type: config::NumberType,
+        i_value: f64,
+        ramp: &[(String, String)],
     ) -> anyhow::Result<String> {
-        if color_ramp.is_empty() {
-            return Ok(text.into());
+        let mut segment = " ";
+        for (ramp, ramp_format) in ramp {
+            if let Some(ramp_number) = number_type.parse_str(ramp)? {
+                if i_value < ramp_number {
+                    break;
+                }
+            }
+            segment = ramp_format;
         }
-        let color_position = (normalized_position * (color_ramp.len() - 1) as f64).floor() as usize;
-        let color = color_ramp
-            .get(color_position)
-            .ok_or_else(|| anyhow::anyhow!("Out of index color_position: {:?}", color_position))?;
-        Ok(format!("<span color='{}'>{}</span>", color, text))
+        Ok(segment.into())
     }
 
     fn progress_bar_string(
         text_progress_bar: &config::TextProgressBarDisplay<String>,
+        number_type: config::NumberType,
         value: Option<f64>,
         min_value: Option<f64>,
         max_value: Option<f64>,
@@ -157,19 +160,11 @@ impl State {
             ((value - min_value) / (max_value - min_value) * width as f64) as i32;
         let segments: Vec<String> = (0..(width + 1) as i32)
             .map(|i| {
-                let normalized_position = i as f64 / width as f64;
+                let i_value = (i as f64) / (width as f64) * (max_value - min_value) + min_value;
                 Ok(match i.cmp(&indicator_position) {
-                    Ordering::Less => Self::color_ramp_pass(
-                        normalized_position,
-                        &text_progress_bar.color_ramp,
-                        fill,
-                    )?,
-                    Ordering::Equal => Self::color_ramp_pass(
-                        normalized_position,
-                        &text_progress_bar.color_ramp,
-                        indicator,
-                    )?,
-                    Ordering::Greater => empty.into(),
+                    Ordering::Less => Self::segment_ramp_pass(number_type, i_value, fill)?,
+                    Ordering::Equal => Self::segment_ramp_pass(number_type, i_value, indicator)?,
+                    Ordering::Greater => Self::segment_ramp_pass(number_type, i_value, empty)?,
                 })
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
@@ -185,11 +180,11 @@ impl State {
         let mut format = "{}";
         for (ramp, ramp_format) in ramp {
             if let Some(ramp_number) = number_type.parse_str(ramp)? {
-                if value > ramp_number {
-                    format = ramp_format;
-                    continue;
+                if value < ramp_number {
+                    break;
                 }
             }
+            format = ramp_format;
         }
         Ok(format.replace("{}", text))
     }
@@ -214,29 +209,11 @@ impl State {
     fn number_text(
         number_text_display: &config::NumberTextDisplay<String>,
         value: Option<f64>,
-        min_value: Option<f64>,
-        max_value: Option<f64>,
     ) -> anyhow::Result<String> {
         if value.is_none() {
             return Ok("".into());
         }
-        let mut value = value.unwrap();
-
-        if let Some(min_value) = min_value {
-            if let Some(max_value) = max_value {
-                if min_value > max_value {
-                    return Ok("MIN>MAX".into()); // Fix
-                }
-            }
-            if value < min_value {
-                value = min_value;
-            }
-        }
-        if let Some(max_value) = max_value {
-            if value > max_value {
-                value = max_value;
-            }
-        }
+        let value = value.unwrap();
 
         let text = match number_text_display.number_type.unwrap() {
             config::NumberType::Percent => format!("{}%", value),
@@ -308,13 +285,42 @@ impl State {
             .context("value")?;
 
         let (min_value, max_value) = Self::parse_min_max(&number_block)?;
+        if let Some(min_value) = min_value {
+            if let Some(max_value) = max_value {
+                if min_value > max_value {
+                    return Err(anyhow::anyhow!(
+                        "min_value={}, max_value={}",
+                        min_value,
+                        max_value,
+                    ));
+                }
+            }
+        }
+        let value = value.map(|mut value| {
+            if let Some(min_value) = min_value {
+                if value < min_value {
+                    value = min_value;
+                }
+            }
+            if let Some(max_value) = max_value {
+                if value > max_value {
+                    value = max_value;
+                }
+            }
+            value
+        });
 
         let text = match b.number_display.as_ref().unwrap() {
-            config::NumberDisplay::ProgressBar(text_progress_bar) => {
-                Self::progress_bar_string(text_progress_bar, value, min_value, max_value, 10)?
-            }
+            config::NumberDisplay::ProgressBar(text_progress_bar) => Self::progress_bar_string(
+                text_progress_bar,
+                b.number_type,
+                value,
+                min_value,
+                max_value,
+                10,
+            )?,
             config::NumberDisplay::Text(number_text_display) => {
-                Self::number_text(number_text_display, value, min_value, max_value)?
+                Self::number_text(number_text_display, value)?
             }
         };
 

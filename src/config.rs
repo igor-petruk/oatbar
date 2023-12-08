@@ -370,28 +370,80 @@ impl NumberType {
     }
 }
 
+fn string_or_ramp<'de, D>(deserializer: D) -> Result<Vec<(String, String)>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct StringOrRamp;
+
+    impl<'de> de::Visitor<'de> for StringOrRamp {
+        type Value = Vec<(String, String)>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("fill string or ramp list")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Vec<(String, String)>, E>
+        where
+            E: de::Error,
+        {
+            Ok(vec![("".into(), value.into())])
+        }
+
+        fn visit_seq<A>(self, seq: A) -> Result<Vec<(String, String)>, A::Error>
+        where
+            A: de::SeqAccess<'de>,
+        {
+            Deserialize::deserialize(de::value::SeqAccessDeserializer::new(seq))
+        }
+    }
+
+    deserializer.deserialize_any(StringOrRamp)
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debug> {
-    pub empty: Dynamic,
-    pub fill: Dynamic,
-    pub indicator: Dynamic,
-    #[serde(default)]
-    pub color_ramp: Vec<String>,
+    // Known issue: RTL characters reverse the bar direction.
+    // Calling PangoContext::set_base_dir does nothing.
+    // Use \u202D (Left-To-Right Override) before your Unicode character.
+    // fill: self.fill.unwrap_or_else(|| "\u{202D}ﭳ".into()),
+    // indicator: self.indicator.unwrap_or_else(|| "\u{202D}ﭳ".into()),
+    #[serde(default = "default_progress_fill", deserialize_with = "string_or_ramp")]
+    pub fill: Vec<(String, String)>,
+    #[serde(
+        default = "default_progress_indicator",
+        deserialize_with = "string_or_ramp"
+    )]
+    pub indicator: Vec<(String, String)>,
+    #[serde(
+        default = "default_progress_empty",
+        deserialize_with = "string_or_ramp"
+    )]
+    pub empty: Vec<(String, String)>,
+    #[serde(skip)]
+    pub phantom_data: PhantomData<Dynamic>,
+}
+
+fn default_progress_fill() -> Vec<(String, String)> {
+    vec![("".into(), "━".into())]
+}
+
+fn default_progress_indicator() -> Vec<(String, String)> {
+    vec![("".into(), "雷".into())]
+}
+
+fn default_progress_empty() -> Vec<(String, String)> {
+    vec![("".into(), " ".into())]
 }
 
 impl TextProgressBarDisplay<Option<Placeholder>> {
     pub fn with_default(self) -> TextProgressBarDisplay<Placeholder> {
-        // Known issue: RTL characters reverse the bar direction.
-        // Calling PangoContext::set_base_dir does nothing.
-        // Use \u202D (Left-To-Right Override) before your Unicode character.
         TextProgressBarDisplay {
-            empty: self.empty.unwrap_or_else(|| " ".into()),
-            // fill: self.fill.unwrap_or_else(|| "\u{202D}ﭳ".into()),
-            // indicator: self.indicator.unwrap_or_else(|| "\u{202D}ﭳ".into()),
-            fill: self.fill.unwrap_or_else(|| "━".into()),
-            indicator: self.indicator.unwrap_or_else(|| "雷".into()),
-            color_ramp: self.color_ramp,
+            empty: self.empty,
+            fill: self.fill,
+            indicator: self.indicator,
+            phantom_data: PhantomData,
         }
     }
 }
@@ -402,17 +454,43 @@ impl TextProgressBarDisplay<Placeholder> {
         vars: &PlaceholderVars,
     ) -> anyhow::Result<TextProgressBarDisplay<String>> {
         Ok(TextProgressBarDisplay {
-            empty: self.empty.resolve_placeholders(vars).context("empty")?,
-            fill: self.fill.resolve_placeholders(vars).context("fill")?,
+            fill: self
+                .fill
+                .iter()
+                .map(|(ramp, format)| {
+                    Ok((
+                        ramp.clone(),
+                        format
+                            .resolve_placeholders(vars)
+                            .context("fill ramp format")?,
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
             indicator: self
                 .indicator
-                .resolve_placeholders(vars)
-                .context("indicator")?,
-            color_ramp: self
-                .color_ramp
                 .iter()
-                .map(|color| color.resolve_placeholders(vars).context("color_ramp"))
-                .collect::<Result<Vec<_>, _>>()?,
+                .map(|(ramp, format)| {
+                    Ok((
+                        ramp.clone(),
+                        format
+                            .resolve_placeholders(vars)
+                            .context("indicator ramp format")?,
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
+            empty: self
+                .empty
+                .iter()
+                .map(|(ramp, format)| {
+                    Ok((
+                        ramp.clone(),
+                        format
+                            .resolve_placeholders(vars)
+                            .context("empty ramp format")?,
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
+            phantom_data: PhantomData,
         })
     }
 }

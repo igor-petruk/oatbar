@@ -190,7 +190,7 @@ number_type="percent"
 output_format="cpu: {}"
 
 # A sorted list of ramp formats. If set, prior to wrapping with `output_format`,
-# wrap to the first format larger than `value`.
+# wrap to the format from the entry larger than `value`.
 ramp = [
   ["80%", "<span foreground='yellow'>{}</span>"],
   ["90%", "<span foreground='red'>{}</span>"],
@@ -229,10 +229,12 @@ number_display="progress_bar"
 empty=" "
 fill="━"
 indicator="雷"
-
-# If set, splits the bar into even chunks and colors them according to these values.
-# min_value and max_value are required, or must be obvious from the number_type like "percent".
-color_ramp=["#000000", "#000000", "#000000", "#ffff00", "#ff000"]
+# Each of the above can be a ramp
+# fill = [
+#  ["", "━"],
+#  ["60%", "<span foreground='yellow'>━</span>"],
+#  ["90%", "<span foreground='red'>━</span>"],
+# ]
 ```
 
 ## Enum block
