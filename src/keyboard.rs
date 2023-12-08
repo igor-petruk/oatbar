@@ -17,6 +17,7 @@ mod protocol;
 mod xutils;
 
 use anyhow::anyhow;
+use clap::{Parser, Subcommand};
 use protocol::i3bar;
 use std::collections::BTreeMap;
 use tracing::*;
@@ -173,7 +174,60 @@ fn state_to_blocks(state: KeyboardState) -> Vec<i3bar::Block> {
     result
 }
 
+#[derive(Parser)]
+#[command(
+    author, version,
+    about = "Keyboard util for oatbar",
+    long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum LayoutSubcommand {
+    /// Set a keyboard layout.
+    Set {
+        /// Layout index as returned by oatbar-keyboard stream.
+        layout: usize,
+    },
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Work with keyboard layouts.
+    Layout {
+        #[clap(subcommand)]
+        layout_cmd: LayoutSubcommand,
+    },
+}
+
+fn handle_set_layout(conn: &xcb::Connection, layout: usize) -> anyhow::Result<()> {
+    let group = match layout {
+        0 => xkb::Group::N1,
+        1 => xkb::Group::N2,
+        2 => xkb::Group::N3,
+        _ => xkb::Group::N4,
+    };
+    xutils::send(
+        conn,
+        &xkb::LatchLockState {
+            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+            group_lock: group,
+            lock_group: true,
+            latch_group: false,
+            group_latch: 0,
+            affect_mod_locks: x::ModMask::empty(),
+            affect_mod_latches: x::ModMask::empty(),
+            mod_locks: x::ModMask::empty(),
+        },
+    )?;
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
     let (conn, _) =
         xcb::Connection::connect_with_xlib_display_and_extensions(&[xcb::Extension::Xkb], &[])?;
 
@@ -189,28 +243,12 @@ fn main() -> anyhow::Result<()> {
         return Err(anyhow!("xkb-1.0 is not supported"));
     }
 
-    let args: Vec<String> = std::env::args().collect();
-    if let Some(layout) = args.get(1) {
-        let layout: usize = layout.parse()?;
-        let group = match layout {
-            0 => xkb::Group::N1,
-            1 => xkb::Group::N2,
-            2 => xkb::Group::N3,
-            _ => xkb::Group::N4,
-        };
-        xutils::send(
-            &conn,
-            &xkb::LatchLockState {
-                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-                group_lock: group,
-                lock_group: true,
-                latch_group: false,
-                group_latch: 0,
-                affect_mod_locks: x::ModMask::empty(),
-                affect_mod_latches: x::ModMask::empty(),
-                mod_locks: x::ModMask::empty(),
+    if let Some(command) = cli.command {
+        match command {
+            Commands::Layout { layout_cmd } => match layout_cmd {
+                LayoutSubcommand::Set { layout } => handle_set_layout(&conn, layout)?,
             },
-        )?;
+        }
         return Ok(());
     }
 

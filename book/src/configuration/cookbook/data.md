@@ -74,7 +74,7 @@ name = 'layout'
 type = 'enum'
 active = '${keyboard:layout.active}'
 variants = '${keyboard:layout.variants}'
-on_click_command = "oatbar-keyboard $BLOCK_INDEX"
+on_click_command = "oatbar-keyboard layout set $BLOCK_INDEX"
 ```
 
 #### Indicators
