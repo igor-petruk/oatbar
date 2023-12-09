@@ -129,6 +129,67 @@ pango_markup = false  # Window title can happen to have HTML.
 max_length = 100
 ```
 
+### System stats
+
+`oatbar` ships with a `oatbar-stats` utility that streams system stats in the `i3bar`
+format:
+
+* CPU
+* Memory
+* Network
+  * Interface names
+  * Running status
+  * Address
+  * Download and upload rates
+
+There is a lot of data you can display on your `blocks`. Enable `oatbar-stats`
+like this:
+
+```toml
+[[command]]
+name="stats"
+command="oatbar-stats"
+```
+
+Restart `oatbar` and examine the new variables.
+
+```shell
+oatctl var ls | grep '^stats:'
+```
+
+The example output below. 
+
+```ini
+stats:cpu.full_text=cpu:  2%
+stats:cpu.percent=2
+stats:memory.free=8744980480
+stats:memory.full_text=mem: 73% 32.9 GB
+stats:memory.percent=73
+stats:memory.total=32915705856
+stats:memory.used=24170725376
+stats:net.igc0.full_text=igc0: 192.168.0.160
+stats:net.igc0.ipv4_0_addr=192.168.0.160
+stats:net.igc0.ipv4_0_broadcast=192.168.0.255
+stats:net.igc0.ipv4_0_run=true
+stats:net.igc0.ipv4_0_up=true
+stats:net.igc0.mac_0_addr=48:21:0b:35:ca:08
+stats:net.igc0.mac_0_run=true
+stats:net.igc0.mac_0_up=true
+stats:net.igc0.rx_per_sec=1704
+stats:net.igc0.tx_per_sec=1110
+...
+```
+
+Entries with `full_text` are a good start to display directly,
+if you do not need more fine grained customizations.
+
+```toml
+[[block]]
+name="ethernet"
+type="text"
+value="${stats:net.igc0.full_text}"
+```
+
 ### Disk space
 
 Example for `/home` directory partition:
