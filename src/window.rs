@@ -362,6 +362,15 @@ impl Window {
 
         let mut config_value_list =
             vec![x::ConfigWindow::X(x.into()), x::ConfigWindow::Y(y.into())];
+        xutils::send(
+            &conn,
+            &x::ConfigureWindow {
+                window: id,
+                value_list: &config_value_list,
+            },
+        )?;
+        conn.flush()?;
+
         if !bar_config.popup {
             xutils::send(&conn, &x::MapWindow { window: id })?;
             config_value_list.extend_from_slice(&[
@@ -370,13 +379,15 @@ impl Window {
             ]);
         }
 
-        xutils::send(
+        if let Err(e) = xutils::send(
             &conn,
             &x::ConfigureWindow {
                 window: id,
                 value_list: &config_value_list,
             },
-        )?;
+        ) {
+            tracing::error!("Failed to restack: {:?}", e);
+        }
         conn.flush()?;
 
         let bar = bar::Bar::new(&bar_config)?;
