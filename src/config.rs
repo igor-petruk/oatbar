@@ -28,13 +28,27 @@ use serde::{de, de::DeserializeOwned, de::Deserializer, Deserialize};
 use tracing::{debug, warn};
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
-#[serde(transparent)]
-pub struct Placeholder(String);
+#[serde(try_from = "String")]
+pub struct Placeholder {
+    expr: String,
+}
 
-impl From<&str> for Placeholder {
-    fn from(expr: &str) -> Self {
-        Self(expr.into())
+impl Placeholder {
+    fn new(expr: String) -> anyhow::Result<Self> {
+        Ok(Self { expr })
     }
+}
+
+impl TryFrom<String> for Placeholder {
+    type Error = anyhow::Error;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+// TODO: move into method
+fn infallable_placeholder(value: &str) -> Placeholder {
+    Placeholder::new(value.to_owned()).unwrap()
 }
 
 pub trait PlaceholderExt {
@@ -46,7 +60,7 @@ pub trait PlaceholderExt {
 impl PlaceholderExt for Placeholder {
     type R = String;
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        vars.process(&self.0)
+        vars.process(&self.expr)
     }
 }
 
@@ -158,7 +172,7 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
                 .iter()
                 .map(|(p, r)| {
                     Ok((
-                        Placeholder(p.into())
+                        Placeholder::new(p.into())?
                             .resolve_placeholders(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),
@@ -235,11 +249,11 @@ impl PlaceholderExt for EventHandlers {
                 .on_click_command
                 .as_ref()
                 .map(|c| {
-                    Placeholder(c.into())
+                    Placeholder::new(c.into())?
                         .resolve_placeholders(vars)
                         .context("on_click_command")
                 })
-                .map_or(Ok(None), |r| r.map(Some))?,
+                .transpose()?, // .map_or(Ok(None), |r| r.map(Some))?,
         })
     }
 }
@@ -480,7 +494,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        Placeholder(format.into())
+                        Placeholder::new(format.into())?
                             .resolve_placeholders(vars)
                             .context("fill ramp format")?,
                     ))
@@ -492,7 +506,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        Placeholder(format.into())
+                        Placeholder::new(format.into())?
                             .resolve_placeholders(vars)
                             .context("indicator ramp format")?,
                     ))
@@ -504,7 +518,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        Placeholder(format.into())
+                        Placeholder::new(format.into())?
                             .resolve_placeholders(vars)
                             .context("empty ramp format")?,
                     ))
@@ -601,10 +615,16 @@ impl NumberBlock<Option<Placeholder>> {
         NumberBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
-            min_value: self.min_value.clone().unwrap_or_else(|| "0".into()),
-            max_value: self.max_value.clone().unwrap_or_else(|| "".into()),
+            min_value: self
+                .min_value
+                .clone()
+                .unwrap_or_else(|| infallable_placeholder("0")),
+            max_value: self
+                .max_value
+                .clone()
+                .unwrap_or_else(|| infallable_placeholder("")),
             display: self.display.clone().with_default(&default_block.display),
-            output_format: self.output_format.unwrap_or("{}".into()),
+            output_format: self.output_format.unwrap_or(infallable_placeholder("{}")),
             number_type: self.number_type,
             number_display: Some(match self.number_display {
                 Some(NumberDisplay::ProgressBar(t)) => NumberDisplay::ProgressBar(t.with_default()),
@@ -893,7 +913,7 @@ impl PlaceholderExt for Bar<Placeholder> {
                 .iter()
                 .map(|(p, r)| {
                     Ok((
-                        Placeholder(p.into())
+                        Placeholder::new(p.into())?
                             .resolve_placeholders(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),
@@ -919,7 +939,10 @@ impl Bar<Option<Placeholder>> {
             height: self.height,
             margin: self.margin.clone(),
             position: self.position.clone(),
-            background: self.background.clone().unwrap_or_else(|| "#191919".into()),
+            background: self
+                .background
+                .clone()
+                .unwrap_or_else(|| infallable_placeholder("#191919")),
             popup: self.popup,
             popup_at_edge: self.popup_at_edge,
             show_if_matches: self.show_if_matches.clone(),
@@ -1124,14 +1147,14 @@ fn default_margin() -> Margin {
 
 pub fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        value: "".into(),
-        popup_value: "".into(),
-        font: "monospace 12".into(),
-        foreground: "#dddddd".into(),
-        background: "#191919".into(),
-        overline_color: "".into(),
-        underline_color: "".into(),
-        edgeline_color: "".into(),
+        value: infallable_placeholder(""),
+        popup_value: infallable_placeholder(""),
+        font: infallable_placeholder("monospace 12"),
+        foreground: infallable_placeholder("#dddddd"),
+        background: infallable_placeholder("#191919"),
+        overline_color: infallable_placeholder(""),
+        underline_color: infallable_placeholder(""),
+        edgeline_color: infallable_placeholder(""),
         pango_markup: Some(true),
         margin: Some(0.0),
         padding: Some(8.0),
@@ -1162,7 +1185,7 @@ pub fn default_error_display() -> DisplayOptions<String> {
 
 fn default_active_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        foreground: "#ffffff".into(),
+        foreground: infallable_placeholder("#ffffff"),
         ..default_display()
     }
 }
@@ -1217,11 +1240,11 @@ mod tests {
         let mut block = Block::Enum(EnumBlock {
             name: "".into(),
             inherit: None,
-            active: "a ${foo} b".into(),
-            variants: "".into(),
+            active: infallable_placeholder("a ${foo} b"),
+            variants: infallable_placeholder(""),
             variants_vec: vec![],
             display: DisplayOptions {
-                foreground: "b ${foo} c".into(),
+                foreground: infallable_placeholder("b ${foo} c"),
                 ..Default::default()
             },
             active_display: DisplayOptions {

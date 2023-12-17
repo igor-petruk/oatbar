@@ -378,7 +378,7 @@ mod tests {
         map.insert("bar".into(), "world".into());
         map.insert("baz".into(), "unuzed".into());
         let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>";
-        let result = map.process(&value);
+        let result = map.process(value);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
     }
