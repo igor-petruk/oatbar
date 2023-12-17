@@ -58,20 +58,21 @@ pub struct State {
 }
 
 fn format_active_inactive(
-    config: &config::EnumBlock<config::Placeholder>,
+    display: &config::DisplayOptions<String>,
+    active_display: &config::DisplayOptions<String>,
     active: usize,
     index: usize,
     value: String,
 ) -> anyhow::Result<String> {
-    let value_placeholder = if config.display.value.is_empty() {
+    let value_placeholder = if display.value.is_empty() {
         "{}"
     } else {
-        &config.display.value
+        &display.value
     };
-    let active_value_placeholder = if config.active_display.value.is_empty() {
+    let active_value_placeholder = if active_display.value.is_empty() {
         value_placeholder
     } else {
-        &config.active_display.value
+        &active_display.value
     };
     let result = if index == active {
         active_value_placeholder.replace("{}", &value)
@@ -242,7 +243,12 @@ impl State {
         Ok(BlockData {
             config: config::Block::Text(config::TextBlock {
                 display: config::DisplayOptions { value, ..display },
-                ..b.clone()
+                separator_type: b.separator_type.clone(),
+                separator_radius: b.separator_radius,
+                name: b.name.clone(),
+                inherit: b.inherit.clone(),
+                event_handlers: b.event_handlers.clone(),
+                processing_options: b.processing_options.clone(),
             }),
         })
     }
@@ -255,12 +261,15 @@ impl State {
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
-        let value = b.processing_options.process_single(&b.display.value);
+        let value = b.processing_options.process_single(&display.value);
 
         Ok(BlockData {
             config: config::Block::Image(config::ImageBlock {
                 display: config::DisplayOptions { value, ..display },
-                ..b.clone()
+                name: b.name.clone(),
+                inherit: b.inherit.clone(),
+                event_handlers: b.event_handlers.clone(),
+                processing_options: b.processing_options.clone(),
             }),
         })
     }
@@ -374,13 +383,6 @@ impl State {
             .resolve_placeholders(&self.vars)
             .context("event_handlers")?;
 
-        let b = config::EnumBlock {
-            display: display.clone(),
-            active_display: active_display.clone(),
-            event_handlers,
-            ..b.clone()
-        };
-
         let active_str = &b
             .active
             .resolve_placeholders(&self.vars)
@@ -402,7 +404,9 @@ impl State {
             .split(enum_separator)
             .map(|value| b.processing_options.process_single(value))
             .enumerate()
-            .map(|(index, value)| format_active_inactive(&b, active, index, value))
+            .map(|(index, value)| {
+                format_active_inactive(&display, &active_display, active, index, value)
+            })
             .partition(|r| r.is_ok());
 
         if let Some(Err(err)) = errors.into_iter().next() {
@@ -423,7 +427,9 @@ impl State {
                 },
                 display,
                 active_display,
-                ..b.clone()
+                name: b.name.clone(),
+                inherit: b.inherit.clone(),
+                event_handlers,
             }),
         })
     }

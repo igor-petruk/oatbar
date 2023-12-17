@@ -27,7 +27,15 @@ use cairo::ffi::cairo_copy_clip_rectangle_list;
 use serde::{de, de::DeserializeOwned, de::Deserializer, Deserialize};
 use tracing::{debug, warn};
 
-pub type Placeholder = String;
+#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
+#[serde(transparent)]
+pub struct Placeholder(String);
+
+impl From<&str> for Placeholder {
+    fn from(expr: &str) -> Self {
+        Self(expr.into())
+    }
+}
 
 pub trait PlaceholderExt {
     type R;
@@ -35,10 +43,10 @@ pub trait PlaceholderExt {
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R>;
 }
 
-impl PlaceholderExt for String {
+impl PlaceholderExt for Placeholder {
     type R = String;
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        vars.process(self)
+        vars.process(&self.0)
     }
 }
 
@@ -53,7 +61,7 @@ pub enum PopupMode {
 }
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
-pub struct DisplayOptions<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
     pub font: Dynamic,
     pub foreground: Dynamic,
     pub value: Dynamic,
@@ -150,7 +158,8 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
                 .iter()
                 .map(|(p, r)| {
                     Ok((
-                        p.resolve_placeholders(vars)
+                        Placeholder(p.into())
+                            .resolve_placeholders(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),
                     ))
@@ -225,7 +234,11 @@ impl PlaceholderExt for EventHandlers {
             on_click_command: self
                 .on_click_command
                 .as_ref()
-                .map(|c| c.resolve_placeholders(vars).context("on_click_command"))
+                .map(|c| {
+                    Placeholder(c.into())
+                        .resolve_placeholders(vars)
+                        .context("on_click_command")
+                })
                 .map_or(Ok(None), |r| r.map(Some))?,
         })
     }
@@ -233,7 +246,7 @@ impl PlaceholderExt for EventHandlers {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub struct EnumBlock<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct EnumBlock<Dynamic: Clone + Default + Debug> {
     pub name: String,
     pub inherit: Option<String>,
     pub active: Dynamic,
@@ -297,7 +310,7 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
-pub struct TextBlock<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct TextBlock<Dynamic: Clone + Default + Debug> {
     pub name: String,
     pub inherit: Option<String>,
     #[serde(flatten)]
@@ -403,7 +416,7 @@ where
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub struct TextProgressBarDisplay<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct TextProgressBarDisplay<Dynamic: Clone + Default + Debug> {
     // Known issue: RTL characters reverse the bar direction.
     // Calling PangoContext::set_base_dir does nothing.
     // Use \u202D (Left-To-Right Override) before your Unicode character.
@@ -467,7 +480,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        format
+                        Placeholder(format.into())
                             .resolve_placeholders(vars)
                             .context("fill ramp format")?,
                     ))
@@ -479,7 +492,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        format
+                        Placeholder(format.into())
                             .resolve_placeholders(vars)
                             .context("indicator ramp format")?,
                     ))
@@ -491,7 +504,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        format
+                        Placeholder(format.into())
                             .resolve_placeholders(vars)
                             .context("empty ramp format")?,
                     ))
@@ -505,7 +518,7 @@ impl TextProgressBarDisplay<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub struct NumberTextDisplay<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct NumberTextDisplay<Dynamic: Clone + Default + Debug> {
     pub number_type: Option<NumberType>,
     pub padded_width: Option<usize>,
     #[serde(skip)]
@@ -542,7 +555,7 @@ impl NumberTextDisplay<Placeholder> {
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "number_display")]
-pub enum NumberDisplay<Dynamic: From<String> + Clone + Default + Debug> {
+pub enum NumberDisplay<Dynamic: Clone + Default + Debug> {
     Text(NumberTextDisplay<Dynamic>),
     ProgressBar(TextProgressBarDisplay<Dynamic>),
 }
@@ -558,7 +571,7 @@ pub struct NumberParsedData {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub struct NumberBlock<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct NumberBlock<Dynamic: Clone + Default + Debug> {
     pub name: String,
     pub inherit: Option<String>,
     pub min_value: Dynamic,
@@ -670,7 +683,7 @@ impl NumberBlock<Placeholder> {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub struct ImageBlock<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub name: String,
     pub inherit: Option<String>,
     #[serde(flatten)]
@@ -725,7 +738,7 @@ pub enum SeparatorType {
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
-pub enum Block<Dynamic: From<String> + Clone + Default + Debug> {
+pub enum Block<Dynamic: Clone + Default + Debug> {
     Text(TextBlock<Dynamic>),
     Enum(EnumBlock<Dynamic>),
     Number(NumberBlock<Dynamic>),
@@ -837,7 +850,7 @@ where
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
-pub struct Bar<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct Bar<Dynamic: Clone + Default + Debug> {
     pub blocks_left: Vec<String>,
     pub blocks_center: Vec<String>,
     pub blocks_right: Vec<String>,
@@ -880,7 +893,8 @@ impl PlaceholderExt for Bar<Placeholder> {
                 .iter()
                 .map(|(p, r)| {
                     Ok((
-                        p.resolve_placeholders(vars)
+                        Placeholder(p.into())
+                            .resolve_placeholders(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),
                     ))
@@ -915,7 +929,7 @@ impl Bar<Option<Placeholder>> {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
-pub struct DefaultBlock<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct DefaultBlock<Dynamic: Clone + Default + Debug> {
     pub name: Option<String>,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
@@ -998,7 +1012,7 @@ impl ProcessingOptions {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct Var<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct Var<Dynamic: Clone + Default + Debug> {
     pub name: String,
     pub input: Dynamic,
     #[serde(flatten)]
@@ -1016,7 +1030,7 @@ impl Var<Option<Placeholder>> {
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
-pub struct Config<Dynamic: From<String> + Clone + Default + Debug> {
+pub struct Config<Dynamic: Clone + Default + Debug> {
     pub bar: Vec<Bar<Dynamic>>,
     #[serde(skip)]
     pub default_block: HashMap<Option<String>, DefaultBlock<Dynamic>>,
@@ -1109,6 +1123,25 @@ fn default_margin() -> Margin {
 }
 
 pub fn default_display() -> DisplayOptions<Placeholder> {
+    DisplayOptions {
+        value: "".into(),
+        popup_value: "".into(),
+        font: "monospace 12".into(),
+        foreground: "#dddddd".into(),
+        background: "#191919".into(),
+        overline_color: "".into(),
+        underline_color: "".into(),
+        edgeline_color: "".into(),
+        pango_markup: Some(true),
+        margin: Some(0.0),
+        padding: Some(8.0),
+        line_width: Some(1.1),
+        show_if_matches: vec![],
+        popup: None,
+    }
+}
+
+pub fn default_error_display() -> DisplayOptions<String> {
     DisplayOptions {
         value: "".into(),
         popup_value: "".into(),

@@ -989,11 +989,11 @@ impl Bar {
 
     fn error_block(error: &str) -> (String, state::BlockData) {
         let name = ERROR_BLOCK_NAME.to_string();
-        let error_block = config::TextBlock {
+        let error_block: config::TextBlock<String> = config::TextBlock {
             name: name.clone(),
             display: config::DisplayOptions {
                 value: error.into(),
-                ..config::default_display()
+                ..config::default_error_display()
             },
             ..Default::default()
         };
