@@ -938,22 +938,12 @@ impl DefaultBlock<Option<Placeholder>> {
 }
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
-#[serde(default)]
-pub struct TextAlignment {
-    max_length: Option<usize>,
-}
-
-#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 pub struct ProcessingOptions {
     pub enum_separator: Option<String>,
     #[serde(default)]
     pub replace_first_match: bool,
     #[serde(default)]
     pub replace: Replace,
-    #[serde(flatten, default)]
-    pub text_alignment: TextAlignment,
-    #[serde(default = "default_ellipsis")]
-    pub ellipsis: String,
 }
 
 impl ProcessingOptions {
@@ -962,25 +952,11 @@ impl ProcessingOptions {
             enum_separator: self.enum_separator.clone(),
             replace_first_match: self.replace_first_match,
             replace: self.replace.clone(),
-            text_alignment: self.text_alignment.clone(),
-            ellipsis: self.ellipsis.clone(),
         }
     }
 
     pub fn process_single(&self, value: &str) -> String {
-        let value = self.replace.apply(self.replace_first_match, value);
-        let mut s_chars: Vec<char> = value.chars().collect();
-        match self.text_alignment.max_length {
-            Some(max_length) if s_chars.len() > max_length => {
-                let ellipsis: Vec<char> = self.ellipsis.chars().collect();
-                let truncate_len = std::cmp::max(max_length - ellipsis.len(), 0);
-                s_chars.truncate(truncate_len);
-                s_chars.extend_from_slice(&ellipsis);
-                s_chars.truncate(max_length);
-                s_chars.iter().collect()
-            }
-            _ => value,
-        }
+        self.replace.apply(self.replace_first_match, value)
     }
 
     pub fn process(&self, value: &str) -> String {
@@ -1089,10 +1065,6 @@ fn default_number_type() -> NumberType {
 
 fn default_bar_position() -> BarPosition {
     BarPosition::Bottom
-}
-
-fn default_ellipsis() -> String {
-    "...".into()
 }
 
 fn default_height() -> u16 {
