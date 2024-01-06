@@ -134,7 +134,7 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
                 .iter()
                 .map(|(p, r)| {
                     Ok((
-                        Placeholder::new(p.into())?
+                        Placeholder::new(p)?
                             .resolve_placeholders(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),
@@ -211,7 +211,7 @@ impl PlaceholderExt for EventHandlers {
                 .on_click_command
                 .as_ref()
                 .map(|c| {
-                    Placeholder::new(c.into())?
+                    Placeholder::new(c)?
                         .resolve_placeholders(vars)
                         .context("on_click_command")
                 })
@@ -456,7 +456,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        Placeholder::new(format.into())?
+                        Placeholder::new(format)?
                             .resolve_placeholders(vars)
                             .context("fill ramp format")?,
                     ))
@@ -468,7 +468,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        Placeholder::new(format.into())?
+                        Placeholder::new(format)?
                             .resolve_placeholders(vars)
                             .context("indicator ramp format")?,
                     ))
@@ -480,7 +480,7 @@ impl TextProgressBarDisplay<Placeholder> {
                 .map(|(ramp, format)| {
                     Ok((
                         ramp.clone(),
-                        Placeholder::new(format.into())?
+                        Placeholder::new(format)?
                             .resolve_placeholders(vars)
                             .context("empty ramp format")?,
                     ))
@@ -875,7 +875,7 @@ impl PlaceholderExt for Bar<Placeholder> {
                 .iter()
                 .map(|(p, r)| {
                     Ok((
-                        Placeholder::new(p.into())?
+                        Placeholder::new(p)?
                             .resolve_placeholders(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),

@@ -15,23 +15,23 @@ pub struct Placeholder {
 }
 
 impl Placeholder {
-    pub fn new(expr: String) -> anyhow::Result<Self> {
+    pub fn new(expr: &str) -> anyhow::Result<Self> {
         let tokens =
-            parse_expr(&expr).with_context(|| format!("Failed to parse expression: {:?}", expr))?;
+            parse_expr(expr).with_context(|| format!("Failed to parse expression: {:?}", expr))?;
         Ok(Self {
             tokens: Arc::new(tokens),
         })
     }
 
     pub fn infallable(value: &str) -> Self {
-        Self::new(value.to_owned()).unwrap()
+        Self::new(value).unwrap()
     }
 }
 
 impl TryFrom<String> for Placeholder {
     type Error = anyhow::Error;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
+        Self::new(&value)
     }
 }
 
@@ -147,7 +147,7 @@ mod tests {
         map.insert("bar".into(), "world".into());
         map.insert("baz".into(), "unuzed".into());
         let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>";
-        let result = map.process(value);
+        let result = Placeholder::new(&value).unwrap().resolve_placeholders(&map);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
     }
