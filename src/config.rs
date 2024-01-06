@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::parse::{parse_expr, ExpressionProcessor, Token};
+use crate::parse::{parse_expr, Placeholder, PlaceholderExt, PlaceholderVars};
 use crate::source;
 
 use std::borrow::Cow;
@@ -27,61 +27,6 @@ use anyhow::Context;
 use cairo::ffi::cairo_copy_clip_rectangle_list;
 use serde::{de, de::DeserializeOwned, de::Deserializer, Deserialize};
 use tracing::{debug, warn};
-
-#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
-#[serde(try_from = "String")]
-pub struct Placeholder {
-    tokens: Arc<Vec<Token>>,
-}
-
-impl Placeholder {
-    fn new(expr: String) -> anyhow::Result<Self> {
-        let tokens =
-            parse_expr(&expr).with_context(|| format!("Failed to parse expression: {:?}", expr))?;
-        Ok(Self {
-            tokens: Arc::new(tokens),
-        })
-    }
-}
-
-impl TryFrom<String> for Placeholder {
-    type Error = anyhow::Error;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-// TODO: move into method
-fn infallable_placeholder(value: &str) -> Placeholder {
-    Placeholder::new(value.to_owned()).unwrap()
-}
-
-pub trait PlaceholderExt {
-    type R;
-
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R>;
-}
-
-impl PlaceholderExt for Placeholder {
-    type R = String;
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        use itertools::Itertools;
-        Ok(self
-            .tokens
-            .iter()
-            .map(|token| match token {
-                Token::String(s) => s.clone(),
-                Token::Var(v) => vars
-                    .get(&v.name)
-                    .or(v.default_value.as_ref())
-                    .cloned()
-                    .unwrap_or_default(),
-            })
-            .join(""))
-    }
-}
-
-type PlaceholderVars = HashMap<String, String>;
 
 #[derive(Debug, Clone, Deserialize, Copy, Hash, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -635,13 +580,13 @@ impl NumberBlock<Option<Placeholder>> {
             min_value: self
                 .min_value
                 .clone()
-                .unwrap_or_else(|| infallable_placeholder("0")),
+                .unwrap_or_else(|| Placeholder::infallable("0")),
             max_value: self
                 .max_value
                 .clone()
-                .unwrap_or_else(|| infallable_placeholder("")),
+                .unwrap_or_else(|| Placeholder::infallable("")),
             display: self.display.clone().with_default(&default_block.display),
-            output_format: self.output_format.unwrap_or(infallable_placeholder("{}")),
+            output_format: self.output_format.unwrap_or(Placeholder::infallable("{}")),
             number_type: self.number_type,
             number_display: Some(match self.number_display {
                 Some(NumberDisplay::ProgressBar(t)) => NumberDisplay::ProgressBar(t.with_default()),
@@ -959,7 +904,7 @@ impl Bar<Option<Placeholder>> {
             background: self
                 .background
                 .clone()
-                .unwrap_or_else(|| infallable_placeholder("#191919")),
+                .unwrap_or_else(|| Placeholder::infallable("#191919")),
             popup: self.popup,
             popup_at_edge: self.popup_at_edge,
             show_if_matches: self.show_if_matches.clone(),
@@ -1164,14 +1109,14 @@ fn default_margin() -> Margin {
 
 pub fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        value: infallable_placeholder(""),
-        popup_value: infallable_placeholder(""),
-        font: infallable_placeholder("monospace 12"),
-        foreground: infallable_placeholder("#dddddd"),
-        background: infallable_placeholder("#191919"),
-        overline_color: infallable_placeholder(""),
-        underline_color: infallable_placeholder(""),
-        edgeline_color: infallable_placeholder(""),
+        value: Placeholder::infallable(""),
+        popup_value: Placeholder::infallable(""),
+        font: Placeholder::infallable("monospace 12"),
+        foreground: Placeholder::infallable("#dddddd"),
+        background: Placeholder::infallable("#191919"),
+        overline_color: Placeholder::infallable(""),
+        underline_color: Placeholder::infallable(""),
+        edgeline_color: Placeholder::infallable(""),
         pango_markup: Some(true),
         margin: Some(0.0),
         padding: Some(8.0),
@@ -1202,7 +1147,7 @@ pub fn default_error_display() -> DisplayOptions<String> {
 
 fn default_active_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        foreground: infallable_placeholder("#ffffff"),
+        foreground: Placeholder::infallable("#ffffff"),
         ..default_display()
     }
 }
@@ -1257,11 +1202,11 @@ mod tests {
         let mut block = Block::Enum(EnumBlock {
             name: "".into(),
             inherit: None,
-            active: infallable_placeholder("a ${foo} b"),
-            variants: infallable_placeholder(""),
+            active: Placeholder::infallable("a ${foo} b"),
+            variants: Placeholder::infallable(""),
             variants_vec: vec![],
             display: DisplayOptions {
-                foreground: infallable_placeholder("b ${foo} c"),
+                foreground: Placeholder::infallable("b ${foo} c"),
                 ..Default::default()
             },
             active_display: DisplayOptions {

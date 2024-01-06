@@ -20,7 +20,7 @@ use std::{
 };
 use xcb::{x, xinput, Xid};
 
-use crate::{bar, config, drawing, state, timer, wmready, xutils};
+use crate::{bar, config, drawing, parse, state, timer, wmready, xutils};
 use tracing::*;
 
 pub struct VisibilityControl {
@@ -138,7 +138,7 @@ pub struct Window {
     swap_gc: x::Gcontext,
     bar: bar::Bar,
     bar_index: usize,
-    bar_config: config::Bar<config::Placeholder>,
+    bar_config: config::Bar<parse::Placeholder>,
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
     window_height: u16,
@@ -149,7 +149,7 @@ impl Window {
     pub fn create_and_show(
         name: String,
         bar_index: usize,
-        bar_config: config::Bar<config::Placeholder>,
+        bar_config: config::Bar<parse::Placeholder>,
         conn: Arc<xcb::Connection>,
         state: Arc<RwLock<state::State>>,
         wm_info: &wmready::WMInfo,

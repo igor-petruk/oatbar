@@ -24,7 +24,7 @@ use anyhow::Context;
 use pangocairo::pango;
 use tracing::error;
 
-use crate::{config, drawing, process, state};
+use crate::{config, drawing, parse, process, state};
 
 use config::VecStringRegexEx;
 
@@ -828,7 +828,7 @@ impl BlockGroup {
 }
 
 pub struct Bar {
-    bar: config::Bar<config::Placeholder>,
+    bar: config::Bar<parse::Placeholder>,
     resolved_bar_config: Option<config::Bar<String>>,
     block_data: HashMap<String, state::BlockData>,
     error: Option<String>,
@@ -842,7 +842,7 @@ pub struct Bar {
 }
 
 impl Bar {
-    pub fn new(bar: &config::Bar<config::Placeholder>) -> anyhow::Result<Self> {
+    pub fn new(bar: &config::Bar<parse::Placeholder>) -> anyhow::Result<Self> {
         let all_blocks: HashSet<String> = bar
             .blocks_left
             .iter()

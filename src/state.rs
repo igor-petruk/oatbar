@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::config::{self, PlaceholderExt};
+use crate::config;
+use crate::parse::{self, PlaceholderExt};
 
 use anyhow::Context;
 
@@ -54,7 +55,7 @@ pub struct State {
     pub error: Option<String>,
     pub command_errors: BTreeMap<String, String>,
     pub var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
-    config: config::Config<config::Placeholder>,
+    config: config::Config<parse::Placeholder>,
 }
 
 fn format_active_inactive(
@@ -92,7 +93,7 @@ fn format_error_str(error_str: &str) -> String {
 
 impl State {
     pub fn new(
-        config: config::Config<config::Placeholder>,
+        config: config::Config<parse::Placeholder>,
         var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
     ) -> Self {
         Self {
@@ -234,7 +235,7 @@ impl State {
         format!("{}{}", pad_string, text)
     }
 
-    fn text_block(&self, b: &config::TextBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
+    fn text_block(&self, b: &config::TextBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         let display = b
             .display
             .resolve_placeholders(&self.vars)
@@ -253,10 +254,7 @@ impl State {
         })
     }
 
-    fn image_block(
-        &self,
-        b: &config::ImageBlock<config::Placeholder>,
-    ) -> anyhow::Result<BlockData> {
+    fn image_block(&self, b: &config::ImageBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         let display = b
             .display
             .resolve_placeholders(&self.vars)
@@ -276,7 +274,7 @@ impl State {
 
     fn number_block(
         &self,
-        b: &config::NumberBlock<config::Placeholder>,
+        b: &config::NumberBlock<parse::Placeholder>,
     ) -> anyhow::Result<BlockData> {
         let b = b.resolve_placeholders(&self.vars).context("number_block")?;
         let display = &b.display;
@@ -366,7 +364,7 @@ impl State {
         })
     }
 
-    fn enum_block(&self, b: &config::EnumBlock<config::Placeholder>) -> anyhow::Result<BlockData> {
+    fn enum_block(&self, b: &config::EnumBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         // Optimize this mess. It should just use normal resolve_placeholders for the entire config.
         let display = b
             .display

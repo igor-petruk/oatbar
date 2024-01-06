@@ -17,8 +17,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use xcb::{x, xinput};
 
-use crate::config::{Config, Placeholder};
-use crate::{state, thread, window, wmready, xutils};
+use crate::{config, parse, state, thread, window, wmready, xutils};
 
 pub struct Engine {
     windows: HashMap<x::Window, window::Window>,
@@ -29,7 +28,10 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(config: Config<Placeholder>, initial_state: state::State) -> anyhow::Result<Self> {
+    pub fn new(
+        config: config::Config<parse::Placeholder>,
+        initial_state: state::State,
+    ) -> anyhow::Result<Self> {
         let state = Arc::new(RwLock::new(initial_state));
 
         let (conn, _) = xcb::Connection::connect_with_xlib_display_and_extensions(
