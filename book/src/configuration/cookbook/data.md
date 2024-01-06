@@ -124,9 +124,8 @@ on_click_command = "oatbar-desktop $BLOCK_INDEX"
 [[block]]
 name='window'
 type = 'text'
-value = '${desktop:window_title.value}'
+value = '${desktop:window_title.value|max:100}'
 pango_markup = false  # Window title can happen to have HTML.
-max_length = 100
 ```
 
 ### System stats

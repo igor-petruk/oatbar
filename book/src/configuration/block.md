@@ -32,12 +32,6 @@ replace=[
 # If false, keep applying replaces to the end.
 replace_first_match=false
 
-# If set, max length of the block.
-max_length=40
-# If the displayed value is greater than max_length,
-# truncate it and add elliptis at the end.
-ellipsis="..."
-
 # If true (default), full Pango markup is supported.
 # https://docs.gtk.org/Pango/pango_markup.html
 # It may be desirable to turn it off if input has
