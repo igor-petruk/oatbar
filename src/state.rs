@@ -240,7 +240,11 @@ impl State {
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
-        let value = b.processing_options.process_single(&display.value);
+        let processing_options = b
+            .processing_options
+            .resolve_placeholders(&self.vars)
+            .context("processing_options")?;
+        let value = processing_options.process_single(&display.value);
         Ok(BlockData {
             config: config::Block::Text(config::TextBlock {
                 display: config::DisplayOptions { value, ..display },
@@ -249,7 +253,7 @@ impl State {
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
                 event_handlers: b.event_handlers.clone(),
-                processing_options: b.processing_options.clone(),
+                processing_options,
             }),
         })
     }
@@ -259,7 +263,11 @@ impl State {
             .display
             .resolve_placeholders(&self.vars)
             .context("display")?;
-        let value = b.processing_options.process_single(&display.value);
+        let processing_options = b
+            .processing_options
+            .resolve_placeholders(&self.vars)
+            .context("processing_options")?;
+        let value = processing_options.process_single(&display.value);
 
         Ok(BlockData {
             config: config::Block::Image(config::ImageBlock {
@@ -267,7 +275,7 @@ impl State {
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
                 event_handlers: b.event_handlers.clone(),
-                processing_options: b.processing_options.clone(),
+                processing_options,
             }),
         })
     }
@@ -366,6 +374,10 @@ impl State {
 
     fn enum_block(&self, b: &config::EnumBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         // Optimize this mess. It should just use normal resolve_placeholders for the entire config.
+        let processing_options = b
+            .processing_options
+            .resolve_placeholders(&self.vars)
+            .context("processing_options")?;
         let display = b
             .display
             .resolve_placeholders(&self.vars)
@@ -400,7 +412,7 @@ impl State {
             .resolve_placeholders(&self.vars)
             .context("cannot replace placeholders")?
             .split(enum_separator)
-            .map(|value| b.processing_options.process_single(value))
+            .map(|value| processing_options.process_single(value))
             .enumerate()
             .map(|(index, value)| {
                 format_active_inactive(&display, &active_display, active, index, value)
@@ -421,7 +433,7 @@ impl State {
                 active: active.to_string(),
                 processing_options: config::ProcessingOptions {
                     enum_separator: Some(enum_separator.into()),
-                    ..b.processing_options.clone()
+                    ..processing_options
                 },
                 display,
                 active_display,
@@ -499,13 +511,24 @@ impl State {
                 .with_context(|| format!("var: '{}'", var.name));
             match var_value {
                 Ok(value) => {
-                    let processed = var.processing_options.process(&value);
-                    let old_value = self
-                        .vars
-                        .insert(var.name.clone(), processed.clone())
-                        .unwrap_or_default();
-                    if old_value != processed {
-                        var_update.vars.insert(var.name.clone(), processed);
+                    match var
+                        .processing_options
+                        .resolve_placeholders(&self.vars)
+                        .context("processing_options")
+                    {
+                        Ok(processing_options) => {
+                            let processed = processing_options.process(&value);
+                            let old_value = self
+                                .vars
+                                .insert(var.name.clone(), processed.clone())
+                                .unwrap_or_default();
+                            if old_value != processed {
+                                var_update.vars.insert(var.name.clone(), processed);
+                            }
+                        }
+                        Err(e) => {
+                            self.error = Some(format_error_str(&format!("{:?}", e)));
+                        }
                     }
                 }
                 Err(e) => {
