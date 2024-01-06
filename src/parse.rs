@@ -38,12 +38,12 @@ impl TryFrom<String> for Placeholder {
 pub trait PlaceholderExt {
     type R;
 
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R>;
+    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R>;
 }
 
 impl PlaceholderExt for Placeholder {
     type R = String;
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
+    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
         Ok(self
             .tokens
             .iter()
@@ -271,14 +271,14 @@ mod tests {
             "( hello world )",
             Placeholder::new("( ${a|max:20} )")
                 .unwrap()
-                .resolve_placeholders(&map)
+                .resolve(&map)
                 .unwrap(),
         );
         assert_eq!(
             "( hello w... )",
             Placeholder::new("( ${a|max:10} )")
                 .unwrap()
-                .resolve_placeholders(&map)
+                .resolve(&map)
                 .unwrap(),
         );
     }
@@ -291,35 +291,35 @@ mod tests {
             "( hello )",
             Placeholder::new("( ${a|align:-<5} )")
                 .unwrap()
-                .resolve_placeholders(&map)
+                .resolve(&map)
                 .unwrap(),
         );
         assert_eq!(
             "( -----hello )",
             Placeholder::new("( ${a|align:->10} )")
                 .unwrap()
-                .resolve_placeholders(&map)
+                .resolve(&map)
                 .unwrap(),
         );
         assert_eq!(
             "( hello----- )",
             Placeholder::new("( ${a|align:-<10} )")
                 .unwrap()
-                .resolve_placeholders(&map)
+                .resolve(&map)
                 .unwrap(),
         );
         assert_eq!(
             "( --hello-- )",
             Placeholder::new("( ${a|align:-^9} )")
                 .unwrap()
-                .resolve_placeholders(&map)
+                .resolve(&map)
                 .unwrap(),
         );
         assert_eq!(
             "( --hello--- )",
             Placeholder::new("( ${a|align:-^10} )")
                 .unwrap()
-                .resolve_placeholders(&map)
+                .resolve(&map)
                 .unwrap(),
         );
     }
@@ -331,7 +331,7 @@ mod tests {
         map.insert("bar".into(), "world".into());
         map.insert("baz".into(), "unuzed".into());
         let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${not_found|def:default} </test>";
-        let result = Placeholder::new(&value).unwrap().resolve_placeholders(&map);
+        let result = Placeholder::new(&value).unwrap().resolve(&map);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
     }

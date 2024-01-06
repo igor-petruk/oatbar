@@ -66,9 +66,9 @@ fn format_active_inactive(
     index: usize,
 ) -> anyhow::Result<String> {
     let result = if index == active {
-        active_display.value.resolve_placeholders(vars)?
+        active_display.value.resolve(vars)?
     } else {
-        display.value.resolve_placeholders(vars)?
+        display.value.resolve(vars)?
     };
     Ok(result)
 }
@@ -226,13 +226,10 @@ impl State {
     }
 
     fn text_block(&self, b: &config::TextBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
-        let display = b
-            .display
-            .resolve_placeholders(&self.vars)
-            .context("display")?;
+        let display = b.display.resolve(&self.vars).context("display")?;
         let processing_options = b
             .processing_options
-            .resolve_placeholders(&self.vars)
+            .resolve(&self.vars)
             .context("processing_options")?;
         let value = processing_options.process_single(&display.value);
         Ok(BlockData {
@@ -249,13 +246,10 @@ impl State {
     }
 
     fn image_block(&self, b: &config::ImageBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
-        let display = b
-            .display
-            .resolve_placeholders(&self.vars)
-            .context("display")?;
+        let display = b.display.resolve(&self.vars).context("display")?;
         let processing_options = b
             .processing_options
-            .resolve_placeholders(&self.vars)
+            .resolve(&self.vars)
             .context("processing_options")?;
         let value = processing_options.process_single(&display.value);
 
@@ -275,7 +269,7 @@ impl State {
         b: &config::NumberBlock<parse::Placeholder>,
     ) -> anyhow::Result<BlockData> {
         let output_format = b.output_format.clone();
-        let b = b.resolve_placeholders(&self.vars).context("number_block")?;
+        let b = b.resolve(&self.vars).context("number_block")?;
         let display = &b.display;
         let value = b.processing_options.process_single(&display.value);
         let mut number_block = config::NumberBlock {
@@ -354,7 +348,7 @@ impl State {
         // TODO: avoid copying
         let mut vars = self.vars.clone();
         vars.insert("value".to_string(), text);
-        let text = output_format.resolve_placeholders(&vars)?;
+        let text = output_format.resolve(&vars)?;
 
         number_block.parsed_data.text_bar_string = text;
         number_block.max_value = "".into();
@@ -367,29 +361,26 @@ impl State {
     }
 
     fn enum_block(&self, b: &config::EnumBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
-        // Optimize this mess. It should just use normal resolve_placeholders for the entire config.
+        // Optimize this mess. It should just use normal resolve for the entire config.
         let processing_options = b
             .processing_options
-            .resolve_placeholders(&self.vars)
+            .resolve(&self.vars)
             .context("processing_options")?;
-        let display = b
-            .display
-            .resolve_placeholders(&self.vars)
-            .context("display")?;
+        let display = b.display.resolve(&self.vars).context("display")?;
 
         let active_display = b
             .active_display
-            .resolve_placeholders(&self.vars)
+            .resolve(&self.vars)
             .context("active_display")?;
 
         let event_handlers = b
             .event_handlers
-            .resolve_placeholders(&self.vars)
+            .resolve(&self.vars)
             .context("event_handlers")?;
 
         let active_str = &b
             .active
-            .resolve_placeholders(&self.vars)
+            .resolve(&self.vars)
             .context("cannot replace placeholders for active_str")?;
         let active: usize = if active_str.trim().is_empty() {
             0
@@ -405,7 +396,7 @@ impl State {
         let mut vars = self.vars.clone();
         let (variants, errors): (Vec<_>, Vec<_>) = b
             .variants
-            .resolve_placeholders(&self.vars)
+            .resolve(&self.vars)
             .context("cannot replace placeholders")?
             .split(enum_separator)
             .map(|value| processing_options.process_single(value))
@@ -462,7 +453,7 @@ impl State {
         }
         self.bars = Vec::with_capacity(self.config.bar.len());
         for bar in self.config.bar.iter() {
-            self.bars.push(bar.resolve_placeholders(&self.vars)?);
+            self.bars.push(bar.resolve(&self.vars)?);
         }
         Ok(())
     }
@@ -504,13 +495,13 @@ impl State {
                 .expect("var from var_order should be present in the map");
             let var_value = var
                 .value
-                .resolve_placeholders(&self.vars)
+                .resolve(&self.vars)
                 .with_context(|| format!("var: '{}'", var.name));
             match var_value {
                 Ok(value) => {
                     match var
                         .processing_options
-                        .resolve_placeholders(&self.vars)
+                        .resolve(&self.vars)
                         .context("processing_options")
                     {
                         Ok(processing_options) => {

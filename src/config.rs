@@ -98,33 +98,24 @@ impl DisplayOptions<Option<Placeholder>> {
 impl PlaceholderExt for DisplayOptions<Placeholder> {
     type R = DisplayOptions<String>;
 
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R> {
+    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R> {
         Ok(DisplayOptions {
-            font: self.font.resolve_placeholders(vars).context("font")?,
-            foreground: self
-                .foreground
-                .resolve_placeholders(vars)
-                .context("foreground")?,
-            background: self
-                .background
-                .resolve_placeholders(vars)
-                .context("background")?,
-            value: self.value.resolve_placeholders(vars).context("value")?,
-            popup_value: self
-                .popup_value
-                .resolve_placeholders(vars)
-                .context("popup_value")?,
+            font: self.font.resolve(vars).context("font")?,
+            foreground: self.foreground.resolve(vars).context("foreground")?,
+            background: self.background.resolve(vars).context("background")?,
+            value: self.value.resolve(vars).context("value")?,
+            popup_value: self.popup_value.resolve(vars).context("popup_value")?,
             overline_color: self
                 .overline_color
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("overline_color")?,
             underline_color: self
                 .underline_color
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("underline_color")?,
             edgeline_color: self
                 .edgeline_color
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("edgeline_color")?,
             margin: self.margin,
             padding: self.padding,
@@ -135,7 +126,7 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
                 .map(|(p, r)| {
                     Ok((
                         Placeholder::new(p)?
-                            .resolve_placeholders(vars)
+                            .resolve(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),
                     ))
@@ -177,7 +168,7 @@ impl VecStringRegexEx for Vec<(String, Regex)> {
 pub struct Replace<Dynamic: Clone + Default + Debug>(Vec<(Regex, Dynamic)>);
 
 impl Replace<Placeholder> {
-    pub fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Replace<String>> {
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<Replace<String>> {
         Err(anyhow::anyhow!("TODO"))
     }
 }
@@ -211,14 +202,14 @@ pub struct EventHandlers {
 impl PlaceholderExt for EventHandlers {
     type R = EventHandlers;
 
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<EventHandlers> {
+    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<EventHandlers> {
         Ok(EventHandlers {
             on_click_command: self
                 .on_click_command
                 .as_ref()
                 .map(|c| {
                     Placeholder::new(c)?
-                        .resolve_placeholders(vars)
+                        .resolve(vars)
                         .context("on_click_command")
                 })
                 .transpose()?, // .map_or(Ok(None), |r| r.map(Some))?,
@@ -266,28 +257,25 @@ impl EnumBlock<Option<Placeholder>> {
 impl PlaceholderExt for EnumBlock<Placeholder> {
     type R = EnumBlock<String>;
 
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<EnumBlock<String>> {
+    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<EnumBlock<String>> {
         Ok(EnumBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
-            active: self.active.resolve_placeholders(vars).context("active")?,
-            variants: self
-                .variants
-                .resolve_placeholders(vars)
-                .context("variants")?,
+            active: self.active.resolve(vars).context("active")?,
+            variants: self.variants.resolve(vars).context("variants")?,
             variants_vec: self.variants_vec.clone(),
             processing_options: self
                 .processing_options
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("processing_options")?,
-            display: self.display.resolve_placeholders(vars).context("display")?,
+            display: self.display.resolve(vars).context("display")?,
             active_display: self
                 .active_display
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("active_display")?,
             event_handlers: self
                 .event_handlers
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("event_handlers")?,
         })
     }
@@ -323,23 +311,20 @@ impl TextBlock<Option<Placeholder>> {
 }
 
 impl TextBlock<Placeholder> {
-    pub fn resolve_placeholders(
-        &self,
-        vars: &PlaceholderVars,
-    ) -> anyhow::Result<TextBlock<String>> {
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<TextBlock<String>> {
         Ok(TextBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
-            display: self.display.resolve_placeholders(vars).context("display")?,
+            display: self.display.resolve(vars).context("display")?,
             processing_options: self
                 .processing_options
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("processing_options")?,
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
             event_handlers: self
                 .event_handlers
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("event_handlers")?,
         })
     }
@@ -457,7 +442,7 @@ impl TextProgressBarDisplay<Option<Placeholder>> {
 }
 
 impl TextProgressBarDisplay<Placeholder> {
-    pub fn resolve_placeholders(
+    pub fn resolve(
         &self,
         vars: &PlaceholderVars,
     ) -> anyhow::Result<TextProgressBarDisplay<String>> {
@@ -469,7 +454,7 @@ impl TextProgressBarDisplay<Placeholder> {
                     Ok((
                         ramp.clone(),
                         Placeholder::new(format)?
-                            .resolve_placeholders(vars)
+                            .resolve(vars)
                             .context("fill ramp format")?,
                     ))
                 })
@@ -481,7 +466,7 @@ impl TextProgressBarDisplay<Placeholder> {
                     Ok((
                         ramp.clone(),
                         Placeholder::new(format)?
-                            .resolve_placeholders(vars)
+                            .resolve(vars)
                             .context("indicator ramp format")?,
                     ))
                 })
@@ -493,7 +478,7 @@ impl TextProgressBarDisplay<Placeholder> {
                     Ok((
                         ramp.clone(),
                         Placeholder::new(format)?
-                            .resolve_placeholders(vars)
+                            .resolve(vars)
                             .context("empty ramp format")?,
                     ))
                 })
@@ -528,10 +513,7 @@ impl NumberTextDisplay<Option<Placeholder>> {
 }
 
 impl NumberTextDisplay<Placeholder> {
-    pub fn resolve_placeholders(
-        &self,
-        vars: &PlaceholderVars,
-    ) -> anyhow::Result<NumberTextDisplay<String>> {
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<NumberTextDisplay<String>> {
         Ok(NumberTextDisplay {
             number_type: self.number_type,
             padded_width: self.padded_width,
@@ -625,53 +607,38 @@ impl NumberBlock<Option<Placeholder>> {
 }
 
 impl NumberBlock<Placeholder> {
-    pub fn resolve_placeholders(
-        &self,
-        vars: &PlaceholderVars,
-    ) -> anyhow::Result<NumberBlock<String>> {
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<NumberBlock<String>> {
         Ok(NumberBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
-            min_value: self
-                .min_value
-                .resolve_placeholders(vars)
-                .context("min_value")?,
-            max_value: self
-                .max_value
-                .resolve_placeholders(vars)
-                .context("max_value")?,
-            display: self.display.resolve_placeholders(vars).context("display")?,
+            min_value: self.min_value.resolve(vars).context("min_value")?,
+            max_value: self.max_value.resolve(vars).context("max_value")?,
+            display: self.display.resolve(vars).context("display")?,
             processing_options: self
                 .processing_options
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("processing_options")?,
             number_type: self.number_type,
             number_display: match &self.number_display {
                 Some(NumberDisplay::ProgressBar(t)) => Some(NumberDisplay::ProgressBar(
-                    t.resolve_placeholders(vars).context("progress_bar")?,
+                    t.resolve(vars).context("progress_bar")?,
                 )),
-                Some(NumberDisplay::Text(t)) => Some(NumberDisplay::Text(
-                    t.resolve_placeholders(vars).context("text_number")?,
-                )),
+                Some(NumberDisplay::Text(t)) => {
+                    Some(NumberDisplay::Text(t.resolve(vars).context("text_number")?))
+                }
                 None => None,
             },
-            output_format: self
-                .output_format
-                .resolve_placeholders(vars)
-                .context("output_format")?,
+            output_format: self.output_format.resolve(vars).context("output_format")?,
             parsed_data: self.parsed_data.clone(),
             event_handlers: self
                 .event_handlers
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("event_handlers")?,
             ramp: self
                 .ramp
                 .iter()
                 .map(|(ramp, format)| {
-                    Ok((
-                        ramp.clone(),
-                        format.resolve_placeholders(vars).context("ramp format")?,
-                    ))
+                    Ok((ramp.clone(), format.resolve(vars).context("ramp format")?))
                 })
                 .collect::<anyhow::Result<Vec<(_, _)>>>()?,
         })
@@ -707,21 +674,18 @@ impl ImageBlock<Option<Placeholder>> {
 }
 
 impl ImageBlock<Placeholder> {
-    pub fn resolve_placeholders(
-        &self,
-        vars: &PlaceholderVars,
-    ) -> anyhow::Result<ImageBlock<String>> {
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<ImageBlock<String>> {
         Ok(ImageBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
-            display: self.display.resolve_placeholders(vars).context("display")?,
+            display: self.display.resolve(vars).context("display")?,
             processing_options: self
                 .processing_options
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("processing_options")?,
             event_handlers: self
                 .event_handlers
-                .resolve_placeholders(vars)
+                .resolve(vars)
                 .context("event_handlers")?,
         })
     }
@@ -768,14 +732,12 @@ impl Block<Option<Placeholder>> {
 }
 
 impl Block<Placeholder> {
-    pub fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Block<String>> {
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<Block<String>> {
         Ok(match self {
-            Block::Enum(e) => Block::Enum(e.resolve_placeholders(vars).context("block::enum")?),
-            Block::Text(e) => Block::Text(e.resolve_placeholders(vars).context("block::text")?),
-            Block::Number(e) => {
-                Block::Number(e.resolve_placeholders(vars).context("block::number")?)
-            }
-            Block::Image(e) => Block::Image(e.resolve_placeholders(vars).context("block::image")?),
+            Block::Enum(e) => Block::Enum(e.resolve(vars).context("block::enum")?),
+            Block::Text(e) => Block::Text(e.resolve(vars).context("block::text")?),
+            Block::Number(e) => Block::Number(e.resolve(vars).context("block::number")?),
+            Block::Image(e) => Block::Image(e.resolve(vars).context("block::image")?),
         })
     }
 }
@@ -873,7 +835,7 @@ pub struct Bar<Dynamic: Clone + Default + Debug> {
 impl PlaceholderExt for Bar<Placeholder> {
     type R = Bar<String>;
 
-    fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R> {
+    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R> {
         Ok(Self::R {
             blocks_left: self.blocks_left.clone(),
             blocks_center: self.blocks_right.clone(),
@@ -882,10 +844,7 @@ impl PlaceholderExt for Bar<Placeholder> {
             height: self.height,
             position: self.position.clone(),
             margin: self.margin.clone(),
-            background: self
-                .background
-                .resolve_placeholders(vars)
-                .context("background")?,
+            background: self.background.resolve(vars).context("background")?,
             popup: self.popup,
             popup_at_edge: self.popup_at_edge,
             show_if_matches: self
@@ -894,7 +853,7 @@ impl PlaceholderExt for Bar<Placeholder> {
                 .map(|(p, r)| {
                     Ok((
                         Placeholder::new(p)?
-                            .resolve_placeholders(vars)
+                            .resolve(vars)
                             .with_context(|| format!("{:?}", p))?,
                         r.clone(),
                     ))
@@ -980,10 +939,7 @@ impl ProcessingOptions<Option<Placeholder>> {
 }
 
 impl ProcessingOptions<Placeholder> {
-    pub fn resolve_placeholders(
-        &self,
-        vars: &PlaceholderVars,
-    ) -> anyhow::Result<ProcessingOptions<String>> {
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<ProcessingOptions<String>> {
         Ok(ProcessingOptions {
             enum_separator: self.enum_separator.clone(),
             replace_first_match: self.replace_first_match,
@@ -991,7 +947,7 @@ impl ProcessingOptions<Placeholder> {
                 self.replace
                     .0
                     .iter()
-                    .map(|(k, v)| Ok((k.clone(), v.resolve_placeholders(vars)?)))
+                    .map(|(k, v)| Ok((k.clone(), v.resolve(vars)?)))
                     .collect::<anyhow::Result<Vec<_>>>()?,
             ),
         })
@@ -1231,7 +1187,7 @@ mod tests {
             processing_options: Default::default(),
             event_handlers: Default::default(),
         });
-        let block = block.resolve_placeholders(&map).unwrap();
+        let block = block.resolve(&map).unwrap();
         if let Block::Enum(e) = block {
             assert_eq!(e.active, "a hello b");
             assert_eq!(e.display.foreground, "b hello c");
