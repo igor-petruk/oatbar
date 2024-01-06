@@ -132,6 +132,7 @@ impl Align {
 #[derive(Debug, Clone, PartialEq)]
 enum Filter {
     DefaultValue(String),
+    Max(usize),
     Align(Align),
 }
 
@@ -140,6 +141,7 @@ impl Filter {
         match expression.trim_start().split_once(':') {
             Some(("def", v)) => Ok(Filter::DefaultValue(v.to_string())),
             Some(("align", v)) => Ok(Filter::Align(Align::parse(v)?)),
+            Some(("max", v)) => Ok(Filter::Max(v.parse()?)),
             Some((name, _)) => Err(anyhow::anyhow!("Unknown filter: {:?}", name)),
             None => Err(anyhow::anyhow!(
                 "Filter format must be filter:args..., found: {:?}",
@@ -153,6 +155,20 @@ impl Filter {
             Self::DefaultValue(v) => {
                 if input.is_empty() {
                     v.clone()
+                } else {
+                    input.to_string()
+                }
+            }
+            Self::Max(max_length) => {
+                if input.chars().count() > *max_length {
+                    let mut result = String::with_capacity(max_length * 2);
+                    let ellipsis = "...";
+                    let truncate_len = std::cmp::max(max_length - ellipsis.len(), 0);
+                    for ch in input.chars().take(truncate_len) {
+                        result.push(ch);
+                    }
+                    result.push_str(ellipsis);
+                    result
                 } else {
                     input.to_string()
                 }
@@ -246,6 +262,26 @@ pub fn parse_expr(expression: &str) -> anyhow::Result<Vec<Token>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_max() {
+        let mut map = HashMap::new();
+        map.insert("a".into(), "hello world".into());
+        assert_eq!(
+            "( hello world )",
+            Placeholder::new("( ${a|max:20} )")
+                .unwrap()
+                .resolve_placeholders(&map)
+                .unwrap(),
+        );
+        assert_eq!(
+            "( hello w... )",
+            Placeholder::new("( ${a|max:10} )")
+                .unwrap()
+                .resolve_placeholders(&map)
+                .unwrap(),
+        );
+    }
 
     #[test]
     fn test_align() {
