@@ -59,26 +59,16 @@ pub struct State {
 }
 
 fn format_active_inactive(
-    display: &config::DisplayOptions<String>,
-    active_display: &config::DisplayOptions<String>,
+    vars: &parse::PlaceholderVars,
+    display: &config::DisplayOptions<parse::Placeholder>,
+    active_display: &config::DisplayOptions<parse::Placeholder>,
     active: usize,
     index: usize,
-    value: String,
 ) -> anyhow::Result<String> {
-    let value_placeholder = if display.value.is_empty() {
-        "{}"
-    } else {
-        &display.value
-    };
-    let active_value_placeholder = if active_display.value.is_empty() {
-        value_placeholder
-    } else {
-        &active_display.value
-    };
     let result = if index == active {
-        active_value_placeholder.replace("{}", &value)
+        active_display.value.resolve_placeholders(vars)?
     } else {
-        value_placeholder.replace("{}", &value)
+        display.value.resolve_placeholders(vars)?
     };
     Ok(result)
 }
@@ -284,6 +274,7 @@ impl State {
         &self,
         b: &config::NumberBlock<parse::Placeholder>,
     ) -> anyhow::Result<BlockData> {
+        let output_format = b.output_format.clone();
         let b = b.resolve_placeholders(&self.vars).context("number_block")?;
         let display = &b.display;
         let value = b.processing_options.process_single(&display.value);
@@ -360,7 +351,10 @@ impl State {
         } else {
             text
         };
-        let text = b.output_format.replace("{}", &text);
+        // TODO: avoid copying
+        let mut vars = self.vars.clone();
+        vars.insert("value".to_string(), text);
+        let text = output_format.resolve_placeholders(&vars)?;
 
         number_block.parsed_data.text_bar_string = text;
         number_block.max_value = "".into();
@@ -407,6 +401,8 @@ impl State {
             .enum_separator
             .as_deref()
             .unwrap_or(",");
+        // TODO: maybe optimize to make a view, instead of copy.
+        let mut vars = self.vars.clone();
         let (variants, errors): (Vec<_>, Vec<_>) = b
             .variants
             .resolve_placeholders(&self.vars)
@@ -415,7 +411,8 @@ impl State {
             .map(|value| processing_options.process_single(value))
             .enumerate()
             .map(|(index, value)| {
-                format_active_inactive(&display, &active_display, active, index, value)
+                vars.insert("value".to_string(), value);
+                format_active_inactive(&vars, &b.display, &b.active_display, active, index)
             })
             .partition(|r| r.is_ok());
 

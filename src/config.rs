@@ -1125,7 +1125,7 @@ fn default_margin() -> Margin {
 
 pub fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        value: Placeholder::infallable(""),
+        value: Placeholder::infallable("${value}"),
         popup_value: Placeholder::infallable(""),
         font: Placeholder::infallable("monospace 12"),
         foreground: Placeholder::infallable("#dddddd"),
