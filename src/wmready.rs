@@ -34,7 +34,7 @@ fn validate_wm(
 
     let support = *reply
         .value::<x::Window>()
-        .get(0)
+        .first()
         .ok_or_else(|| anyhow!("Failed to find wm window"))?;
 
     let reply = xutils::get_property(conn, support, wm_name, x::ATOM_ANY, 256)?;

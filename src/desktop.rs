@@ -114,7 +114,7 @@ fn get_active_window_title(
 ) -> anyhow::Result<String> {
     let reply = xutils::get_property(conn, root, *active_window, x::ATOM_WINDOW, 1)
         .context("Getting active window")?;
-    let window: Option<&Window> = reply.value().get(0);
+    let window: Option<&Window> = reply.value().first();
     if window.is_none() {
         tracing::warn!(
             "Unable to get active window (maybe temporarily): {:?}",
