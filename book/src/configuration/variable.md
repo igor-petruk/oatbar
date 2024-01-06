@@ -15,7 +15,7 @@ pre-process data with [`replace` and `replace_first_match`](./block.md#common-pr
 ```toml
 [[var]]
 name="clock_color_attr"
-input = '${clock:color}'
+value = '${clock:color}'
 replace = [["(.+)","foreground='$1'"]]
 
 [[block]]

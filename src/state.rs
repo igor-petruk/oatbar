@@ -494,7 +494,7 @@ impl State {
                 .get(var_name)
                 .expect("var from var_order should be present in the map");
             let var_value = var
-                .input
+                .value
                 .resolve_placeholders(&self.vars)
                 .with_context(|| format!("var: '{}'", var.name));
             match var_value {

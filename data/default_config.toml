@@ -6,7 +6,7 @@ background="#191919dd"
 
 [[var]]
 name="theme_color"
-input="#facd5a"
+value="#facd5a"
 
 [[default_block]]
 background="#191919dd"

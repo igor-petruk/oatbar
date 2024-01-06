@@ -31,7 +31,7 @@ In this example, the bar on workspace `two` is a bit more red than usual.
 ```toml
 [[var]]
 name="default_block_bg"
-input="${desktop:workspace.value}"
+value="${desktop:workspace.value}"
 replace_first_match=true
 replace=[
   ["^two$","#301919e6"],

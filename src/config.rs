@@ -975,7 +975,7 @@ impl ProcessingOptions {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Var<Dynamic: Clone + Default + Debug> {
     pub name: String,
-    pub input: Dynamic,
+    pub value: Dynamic,
     #[serde(flatten)]
     pub processing_options: ProcessingOptions,
 }
@@ -984,7 +984,7 @@ impl Var<Option<Placeholder>> {
     fn with_defaults(&self) -> Var<Placeholder> {
         Var {
             name: self.name.clone(),
-            input: self.input.clone().unwrap_or_default(),
+            value: self.value.clone().unwrap_or_default(),
             processing_options: self.processing_options.with_defaults(),
         }
     }

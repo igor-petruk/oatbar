@@ -154,7 +154,7 @@ value = "<span ${green_icon}></span>  Symbolico - I'm free"
 
 [[var]]
 name="green_icon"
-input="font='Font Awesome 6 Free 13' foreground='#53e2ae'"
+value="font='Font Awesome 6 Free 13' foreground='#53e2ae'"
 ```
 
 Some icon fonts use ligatures instead of emojis, replacing words with icons like this:
