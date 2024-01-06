@@ -367,6 +367,75 @@ impl ExpressionProcessor for HashMap<String, String> {
         Ok(result.into_iter().collect())
     }
 }
+
+#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
+pub struct VarToken {
+    pub name: String,
+    pub default_value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub enum Token {
+    String(String),
+    Var(VarToken),
+}
+
+pub fn parse_expr(expression: &str) -> anyhow::Result<Vec<Token>> {
+    let mut result = Vec::<Token>::with_capacity(5);
+    let mut char_iter = expression.chars();
+    let mut string_buf = String::with_capacity(255);
+    while let Some(char) = char_iter.next() {
+        match char {
+            '$' => match char_iter.next() {
+                Some('{') => {
+                    let mut var = Vec::<char>::with_capacity(255);
+                    loop {
+                        match char_iter.next() {
+                            Some('}') => {
+                                if !string_buf.is_empty() {
+                                    result.push(Token::String(string_buf.clone()));
+                                    string_buf.clear();
+                                }
+
+                                let var: String = var.into_iter().collect();
+                                let (var, default_value) =
+                                    if let Some((var_name, default_value)) = var.split_once('|') {
+                                        (var_name.to_string(), Some(default_value.to_string()))
+                                    } else {
+                                        (var, None)
+                                    };
+                                let var_token = VarToken {
+                                    name: var,
+                                    default_value,
+                                };
+                                result.push(Token::Var(var_token));
+                                break;
+                            }
+                            Some(other) => {
+                                var.push(other);
+                            }
+                            None => return Err(anyhow::anyhow!("Non-closed placeholder")),
+                        }
+                    }
+                }
+                Some(other) => {
+                    string_buf.push('$');
+                    string_buf.push(other);
+                }
+                None => {
+                    return Err(anyhow::anyhow!("Unescaped $ at the end of the string"));
+                }
+            },
+            char => string_buf.push(char),
+        }
+    }
+    if !string_buf.is_empty() {
+        result.push(Token::String(string_buf.clone()));
+        string_buf.clear();
+    }
+    Ok(result.into_iter().collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

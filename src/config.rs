@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::parse::ExpressionProcessor;
+use crate::parse::{parse_expr, ExpressionProcessor, Token};
 use crate::source;
 
 use std::borrow::Cow;
@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::path::Path;
+use std::sync::Arc;
 use std::{collections::HashMap, io::Read};
 
 use anyhow::Context;
@@ -30,12 +31,16 @@ use tracing::{debug, warn};
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Placeholder {
-    expr: String,
+    tokens: Arc<Vec<Token>>,
 }
 
 impl Placeholder {
     fn new(expr: String) -> anyhow::Result<Self> {
-        Ok(Self { expr })
+        let tokens =
+            parse_expr(&expr).with_context(|| format!("Failed to parse expression: {:?}", expr))?;
+        Ok(Self {
+            tokens: Arc::new(tokens),
+        })
     }
 }
 
@@ -60,7 +65,19 @@ pub trait PlaceholderExt {
 impl PlaceholderExt for Placeholder {
     type R = String;
     fn resolve_placeholders(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        vars.process(&self.expr)
+        use itertools::Itertools;
+        Ok(self
+            .tokens
+            .iter()
+            .map(|token| match token {
+                Token::String(s) => s.clone(),
+                Token::Var(v) => vars
+                    .get(&v.name)
+                    .or(v.default_value.as_ref())
+                    .cloned()
+                    .unwrap_or_default(),
+            })
+            .join(""))
     }
 }
 
