@@ -103,13 +103,13 @@ impl Align {
     fn apply(&self, input: &str) -> anyhow::Result<String> {
         let len = input.chars().count();
         let pad_left = match self.direction {
-            AlignDirection::Left => self.width.checked_sub(len).unwrap_or_default(),
-            AlignDirection::Right => 0,
+            AlignDirection::Right => self.width.checked_sub(len).unwrap_or_default(),
+            AlignDirection::Left => 0,
             AlignDirection::Center => self.width.checked_sub(len).unwrap() / 2,
         };
         let pad_right = match self.direction {
-            AlignDirection::Left => 0,
-            AlignDirection::Right => self.width.checked_sub(len).unwrap_or_default(),
+            AlignDirection::Right => 0,
+            AlignDirection::Left => self.width.checked_sub(len).unwrap_or_default(),
             AlignDirection::Center => self.width.checked_sub(len).unwrap() / 2,
         };
         let pad_right_extra = match self.direction {
@@ -153,7 +153,7 @@ impl Filter {
     fn apply(&self, input: &str) -> anyhow::Result<String> {
         Ok(match self {
             Self::DefaultValue(v) => {
-                if input.is_empty() {
+                if input.trim().is_empty() {
                     v.clone()
                 } else {
                     input.to_string()
@@ -296,14 +296,14 @@ mod tests {
         );
         assert_eq!(
             "( -----hello )",
-            Placeholder::new("( ${a|align:-<10} )")
+            Placeholder::new("( ${a|align:->10} )")
                 .unwrap()
                 .resolve_placeholders(&map)
                 .unwrap(),
         );
         assert_eq!(
             "( hello----- )",
-            Placeholder::new("( ${a|align:->10} )")
+            Placeholder::new("( ${a|align:-<10} )")
                 .unwrap()
                 .resolve_placeholders(&map)
                 .unwrap(),
