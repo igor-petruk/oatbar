@@ -41,7 +41,7 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(
     author, version,
-    about = "Oatbar window manager ber",
+    about = "Oatbar window manager bar",
     long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
