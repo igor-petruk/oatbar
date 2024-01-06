@@ -58,23 +58,139 @@ impl PlaceholderExt for Placeholder {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
-pub struct VarToken {
-    pub name: String,
-    pub default_value: Option<String>,
+#[derive(Debug, Clone, PartialEq)]
+pub enum AlignDirection {
+    Left,
+    Center,
+    Right,
 }
 
-impl VarToken {
-    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
-        Ok(vars
-            .get(&self.name)
-            .or(self.default_value.as_ref())
-            .cloned()
-            .unwrap_or_default())
+#[derive(Debug, Clone, PartialEq)]
+pub struct Align {
+    direction: AlignDirection,
+    space: Option<char>,
+    width: usize,
+}
+
+impl Align {
+    fn parse(expression: &str) -> anyhow::Result<Self> {
+        if let Some((space, width)) = expression.rsplit_once('<') {
+            Ok(Self {
+                direction: AlignDirection::Left,
+                space: space.chars().next(),
+                width: width.parse()?,
+            })
+        } else if let Some((space, width)) = expression.rsplit_once('>') {
+            Ok(Self {
+                direction: AlignDirection::Right,
+                space: space.chars().next(),
+                width: width.parse()?,
+            })
+        } else if let Some((space, width)) = expression.rsplit_once('^') {
+            Ok(Self {
+                direction: AlignDirection::Center,
+                space: space.chars().next(),
+                width: width.parse()?,
+            })
+        } else {
+            Err(anyhow::anyhow!(
+                "Incorrect format of format expression: {:?}",
+                expression
+            ))
+        }
+    }
+
+    fn apply(&self, input: &str) -> anyhow::Result<String> {
+        let len = input.chars().count();
+        let pad_left = match self.direction {
+            AlignDirection::Left => self.width.checked_sub(len).unwrap_or_default(),
+            AlignDirection::Right => 0,
+            AlignDirection::Center => self.width.checked_sub(len).unwrap() / 2,
+        };
+        let pad_right = match self.direction {
+            AlignDirection::Left => 0,
+            AlignDirection::Right => self.width.checked_sub(len).unwrap_or_default(),
+            AlignDirection::Center => self.width.checked_sub(len).unwrap() / 2,
+        };
+        let pad_right_extra = match self.direction {
+            AlignDirection::Center => self.width.checked_sub(len).unwrap() % 2,
+            _ => 0,
+        };
+        let space = self.space.unwrap_or(' ');
+        let mut result = String::with_capacity(self.width * 2);
+        for _ in 0..pad_left {
+            result.push(space);
+        }
+        result.push_str(input);
+        for _ in 0..(pad_right + pad_right_extra) {
+            result.push(space);
+        }
+        Ok(result)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+enum Filter {
+    DefaultValue(String),
+    Align(Align),
+}
+
+impl Filter {
+    fn parse(expression: &str) -> anyhow::Result<Self> {
+        match expression.trim_start().split_once(':') {
+            Some(("def", v)) => Ok(Filter::DefaultValue(v.to_string())),
+            Some(("align", v)) => Ok(Filter::Align(Align::parse(v)?)),
+            Some((name, _)) => Err(anyhow::anyhow!("Unknown filter: {:?}", name)),
+            None => Err(anyhow::anyhow!(
+                "Filter format must be filter:args..., found: {:?}",
+                expression
+            )),
+        }
+    }
+
+    fn apply(&self, input: &str) -> anyhow::Result<String> {
+        Ok(match self {
+            Self::DefaultValue(v) => {
+                if input.is_empty() {
+                    v.clone()
+                } else {
+                    input.to_string()
+                }
+            }
+            Self::Align(align) => align.apply(input)?,
+        })
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct VarToken {
+    pub name: String,
+    filters: Vec<Filter>,
+}
+
+impl VarToken {
+    fn parse(expression: &str) -> anyhow::Result<Self> {
+        let mut split = expression.split('|');
+        let var = split.next().unwrap().trim();
+        let filters = split
+            .map(Filter::parse)
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        Ok(VarToken {
+            name: var.to_string(),
+            filters,
+        })
+    }
+
+    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
+        let mut value = vars.get(&self.name).cloned().unwrap_or_default();
+        for filter in self.filters.iter() {
+            value = filter.apply(&value)?;
+        }
+        Ok(value)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     String(String),
     Var(VarToken),
@@ -98,16 +214,7 @@ pub fn parse_expr(expression: &str) -> anyhow::Result<Vec<Token>> {
                                 }
 
                                 let var: String = var.into_iter().collect();
-                                let (var, default_value) =
-                                    if let Some((var_name, default_value)) = var.split_once('|') {
-                                        (var_name.to_string(), Some(default_value.to_string()))
-                                    } else {
-                                        (var, None)
-                                    };
-                                let var_token = VarToken {
-                                    name: var,
-                                    default_value,
-                                };
+                                let var_token = VarToken::parse(&var)?;
                                 result.push(Token::Var(var_token));
                                 break;
                             }
@@ -141,12 +248,53 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_align() {
+        let mut map = HashMap::new();
+        map.insert("a".into(), "hello".into());
+        assert_eq!(
+            "( hello )",
+            Placeholder::new("( ${a|align:-<5} )")
+                .unwrap()
+                .resolve_placeholders(&map)
+                .unwrap(),
+        );
+        assert_eq!(
+            "( -----hello )",
+            Placeholder::new("( ${a|align:-<10} )")
+                .unwrap()
+                .resolve_placeholders(&map)
+                .unwrap(),
+        );
+        assert_eq!(
+            "( hello----- )",
+            Placeholder::new("( ${a|align:->10} )")
+                .unwrap()
+                .resolve_placeholders(&map)
+                .unwrap(),
+        );
+        assert_eq!(
+            "( --hello-- )",
+            Placeholder::new("( ${a|align:-^9} )")
+                .unwrap()
+                .resolve_placeholders(&map)
+                .unwrap(),
+        );
+        assert_eq!(
+            "( --hello--- )",
+            Placeholder::new("( ${a|align:-^10} )")
+                .unwrap()
+                .resolve_placeholders(&map)
+                .unwrap(),
+        );
+    }
+
+    #[test]
     fn test_value() {
         let mut map = HashMap::new();
         map.insert("foo".into(), "hello".into());
         map.insert("bar".into(), "world".into());
         map.insert("baz".into(), "unuzed".into());
-        let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${default|default} </test>";
+        let value = "<test> ${foo} $$ ${bar}, (${not_found}) ${not_found|def:default} </test>";
         let result = Placeholder::new(&value).unwrap().resolve_placeholders(&map);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
