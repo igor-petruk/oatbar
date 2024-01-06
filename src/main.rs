@@ -36,7 +36,23 @@ mod wmready;
 mod xrandr;
 mod xutils;
 
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(
+    author, version,
+    about = "Oatbar window manager ber",
+    long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    /// Unique name of the oatbar server instance.
+    #[arg(long, default_value = "oatbar")]
+    instance_name: String,
+}
+
 fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
     #[cfg(feature = "profile")]
     let guard = pprof::ProfilerGuardBuilder::default()
         .frequency(100)
@@ -67,7 +83,7 @@ fn main() -> anyhow::Result<()> {
         command.spawn(state_update_tx.clone(), poker.add())?;
     }
 
-    ipcserver::Server::spawn(poker, state_update_tx, ipc_server_rx)?;
+    ipcserver::Server::spawn(&cli.instance_name, poker, state_update_tx, ipc_server_rx)?;
 
     #[cfg(feature = "profile")]
     std::thread::spawn(move || loop {

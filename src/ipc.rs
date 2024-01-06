@@ -36,22 +36,33 @@ pub struct Response {
     pub error: Option<String>,
 }
 
-pub fn socket_path() -> anyhow::Result<PathBuf> {
+pub fn socket_path(instance_name: &str) -> anyhow::Result<PathBuf> {
     let mut path = dirs::runtime_dir()
         .or_else(dirs::state_dir)
         .unwrap_or_else(std::env::temp_dir);
-    path.push("oatbar/oatbar.sock");
+    path.push(format!("oatbar/{}.sock", instance_name));
     Ok(path)
 }
 
-pub fn send_command(command: Command) -> anyhow::Result<Response> {
-    let path = socket_path()?;
-    let mut stream = UnixStream::connect(path)?;
-    let request = Request { command };
-    serde_json::to_writer(&mut stream, &request)?;
-    stream.shutdown(std::net::Shutdown::Write);
-    let mut vec = Vec::with_capacity(10 * 1024);
-    stream.read_to_end(&mut vec)?;
-    let response = serde_json::from_slice(&vec)?;
-    Ok(response)
+pub struct Client {
+    socket_path: PathBuf,
+}
+
+impl Client {
+    pub fn new(instance_name: &str) -> anyhow::Result<Self> {
+        Ok(Self {
+            socket_path: socket_path(instance_name)?,
+        })
+    }
+
+    pub fn send_command(&self, command: Command) -> anyhow::Result<Response> {
+        let mut stream = UnixStream::connect(&self.socket_path)?;
+        let request = Request { command };
+        serde_json::to_writer(&mut stream, &request)?;
+        stream.shutdown(std::net::Shutdown::Write);
+        let mut vec = Vec::with_capacity(10 * 1024);
+        stream.read_to_end(&mut vec)?;
+        let response = serde_json::from_slice(&vec)?;
+        Ok(response)
+    }
 }

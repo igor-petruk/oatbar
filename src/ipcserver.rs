@@ -80,11 +80,12 @@ impl Server {
     }
 
     pub fn spawn(
+        instance_name: &str,
         poker: source::Poker,
         state_update_tx: crossbeam_channel::Sender<state::Update>,
         var_updates_rx: crossbeam_channel::Receiver<state::VarUpdate>,
     ) -> anyhow::Result<()> {
-        let path = ipc::socket_path().context("Unable to get socket path")?;
+        let path = ipc::socket_path(instance_name).context("Unable to get socket path")?;
         tracing::info!("IPC socket path: {:?}", path);
         if UnixStream::connect(path.clone()).is_ok() {
             return Err(anyhow::anyhow!(
