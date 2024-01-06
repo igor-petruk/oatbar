@@ -4,11 +4,15 @@ blocks_left=[ "workspace", "active_window"]
 blocks_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
 background="#191919dd"
 
+[[var]]
+name="theme_color"
+input="#facd5a"
+
 [[default_block]]
 background="#191919dd"
 active_background="#333333dd"
-active_overline_color = "#facd5a"
-active_foreground = "#facd5a"
+active_overline_color = "${theme_color}"
+active_foreground = "${theme_color}"
 active_value = '<span weight="bold">{}</span>'
 
 [[command]]
@@ -46,7 +50,7 @@ on_click_command = "oatbar-keyboard layout set $BLOCK_INDEX"
 [[block]]
 name='disk_free'
 type = 'text'
-value = '<span weight="bold" foreground="#facd5a">/</span> ${disk_free:value}'
+value = '<span foreground="${theme_color}"><b>/</b></span> ${disk_free:value}'
 
 [[block]]
 name = 'clock'
