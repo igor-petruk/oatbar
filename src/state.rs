@@ -72,7 +72,7 @@ struct PlaceholderContextWithValue<'a> {
 impl<'a> parse::PlaceholderContext for PlaceholderContextWithValue<'a> {
     fn get(&self, key: &str) -> Option<&String> {
         if key == "value" {
-            return Some(self.value);
+            Some(self.value)
         } else {
             self.vars.get(key)
         }

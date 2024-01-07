@@ -263,6 +263,7 @@ pub fn parse_expr(expression: &str) -> anyhow::Result<Vec<Token>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_max() {
