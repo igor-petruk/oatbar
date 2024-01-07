@@ -235,17 +235,17 @@ impl State {
     fn text_block(&self, b: &config::TextBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         let display = b.display.resolve(&self.vars).context("display")?;
         let input = b.input.resolve(&self.vars).context("input")?;
-        let value = input.process_single(&display.value);
+        let value = input.process();
         let value = self.apply_output_format(&b.display.output_format, &value)?;
         Ok(BlockData {
             config: config::Block::Text(config::TextBlock {
-                display: config::DisplayOptions { value, ..display },
+                display,
                 separator_type: b.separator_type.clone(),
                 separator_radius: b.separator_radius,
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
                 event_handlers: b.event_handlers.clone(),
-                input,
+                input: config::Input { value, ..input },
             }),
         })
     }
@@ -253,15 +253,15 @@ impl State {
     fn image_block(&self, b: &config::ImageBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         let display = b.display.resolve(&self.vars).context("display")?;
         let input = b.input.resolve(&self.vars).context("input")?;
-        let value = input.process_single(&display.value);
+        let value = input.process();
 
         Ok(BlockData {
             config: config::Block::Image(config::ImageBlock {
-                display: config::DisplayOptions { value, ..display },
+                display,
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
                 event_handlers: b.event_handlers.clone(),
-                input,
+                input: config::Input { value, ..input },
             }),
         })
     }
@@ -273,17 +273,18 @@ impl State {
         let output_format = b.display.output_format.clone();
         let b = b.resolve(&self.vars).context("number_block")?;
         let display = &b.display;
-        let value = b.input.process_single(&display.value);
+        let value = b.input.process();
         let mut number_block = config::NumberBlock {
-            display: config::DisplayOptions {
+            display: display.clone(),
+            input: config::Input {
                 value,
-                ..display.clone()
+                ..b.input.clone()
             },
             ..b.clone()
         };
         let value = b
             .number_type
-            .parse_str(&number_block.display.value)
+            .parse_str(&number_block.input.value)
             .context("value")?;
 
         let (min_value, max_value) = Self::parse_min_max(&number_block)?;
@@ -354,7 +355,7 @@ impl State {
         number_block.parsed_data.text_bar_string = text;
         number_block.max_value = "".into();
         number_block.min_value = "".into();
-        number_block.display.value = "".into();
+        number_block.input.value = "".into();
 
         Ok(BlockData {
             config: config::Block::Number(number_block),
@@ -391,7 +392,7 @@ impl State {
             .resolve(&self.vars)
             .context("cannot replace placeholders")?
             .split(enum_separator)
-            .map(|value| input.process_single(value))
+            .map(|value| input.process_value(value))
             .enumerate()
             .map(|(index, value)| {
                 let display = if active == index {
@@ -494,7 +495,7 @@ impl State {
             match var_value {
                 Ok(value) => match var.input.resolve(&self.vars).context("input") {
                     Ok(input) => {
-                        let processed = input.process_single(&value);
+                        let processed = input.process_value(&value);
                         let old_value = self
                             .vars
                             .insert(var.name.clone(), processed.clone())

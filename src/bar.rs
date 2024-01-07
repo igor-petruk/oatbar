@@ -261,6 +261,7 @@ impl Block for BaseBlock {
 #[derive(Debug)]
 struct TextBlock {
     name: String,
+    value: String,
     pango_layout: Option<pango::Layout>,
     display_options: config::DisplayOptions<String>,
     event_handlers: config::EventHandlers,
@@ -271,6 +272,7 @@ impl DebugBlock for TextBlock {}
 impl TextBlock {
     fn new(
         name: String,
+        value: String,
         drawing_context: &drawing::Context,
         display_options: config::DisplayOptions<String>,
         event_handlers: config::EventHandlers,
@@ -280,9 +282,9 @@ impl TextBlock {
                 let pango_layout = pango::Layout::new(pango_context);
                 if display_options.pango_markup == Some(true) {
                     // TODO: fix this.
-                    pango_layout.set_markup(display_options.value.as_str());
+                    pango_layout.set_markup(value.as_str());
                 } else {
-                    pango_layout.set_text(display_options.value.as_str());
+                    pango_layout.set_text(value.as_str());
                 }
                 let mut font_cache = drawing_context.font_cache.lock().unwrap();
                 let fd = font_cache.get(display_options.font.as_str());
@@ -293,14 +295,17 @@ impl TextBlock {
         };
         Self {
             name,
+            value,
             pango_layout,
             display_options,
             event_handlers,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn new_in_base_block(
         name: String,
+        value: String,
         drawing_context: &drawing::Context,
         display_options: config::DisplayOptions<String>,
         height: f64,
@@ -312,6 +317,7 @@ impl TextBlock {
             display_options.clone(),
             Box::new(Self::new(
                 name,
+                value,
                 drawing_context,
                 display_options,
                 event_handlers,
@@ -325,12 +331,7 @@ impl TextBlock {
 
 impl Block for TextBlock {
     fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        handle_button_press(
-            &self.event_handlers,
-            self.name(),
-            &self.display_options.value,
-            vec![],
-        )
+        handle_button_press(&self.event_handlers, self.name(), &self.value, vec![])
     }
 
     fn name(&self) -> &str {
@@ -384,12 +385,12 @@ impl TextProgressBarNumberBlock {
         event_handlers: config::EventHandlers,
     ) -> Self {
         let display = config::DisplayOptions {
-            value: number_block.parsed_data.text_bar_string.clone(),
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
         let text_block = TextBlock::new_in_base_block(
             name,
+            number_block.parsed_data.text_bar_string.clone(),
             drawing_context,
             display,
             height,
@@ -438,12 +439,12 @@ impl TextNumberBlock {
         event_handlers: config::EventHandlers,
     ) -> Self {
         let display = config::DisplayOptions {
-            value: number_block.parsed_data.text_bar_string.clone(),
             pango_markup: Some(true), // TODO: fix
             ..number_block.display.clone()
         };
         let text_block = TextBlock::new_in_base_block(
             name,
+            number_block.parsed_data.text_bar_string.clone(),
             drawing_context,
             display,
             height,
@@ -509,16 +510,16 @@ impl EnumBlock {
             if item.is_empty() {
                 continue;
             }
-            let mut display_options = if index == active {
+            let display_options = if index == active {
                 block.active_display.clone()
             } else {
                 block.display.clone()
             };
-            display_options.value = item.clone();
             let variant_block = VariantBlock {
                 index,
                 block: TextBlock::new_in_base_block(
                     "".into(),
+                    item.clone(),
                     drawing_context,
                     display_options.clone(),
                     height,
@@ -597,6 +598,7 @@ impl Block for EnumBlock {
 #[derive(Debug)]
 struct ImageBlock {
     name: String,
+    value: String,
     display_options: config::DisplayOptions<String>,
     image_buf: anyhow::Result<cairo::ImageSurface>,
     event_handlers: config::EventHandlers,
@@ -613,16 +615,18 @@ impl ImageBlock {
 
     fn new(
         name: String,
+        value: String,
         display_options: config::DisplayOptions<String>,
         height: f64,
         event_handlers: config::EventHandlers,
     ) -> Box<dyn DebugBlock> {
-        let image_buf = Self::load_image(display_options.value.as_str());
+        let image_buf = Self::load_image(value.as_str());
         if let Err(e) = &image_buf {
             error!("Error loading PNG file: {:?}", e)
         }
         let image_block = Self {
             name,
+            value,
             image_buf,
             display_options: display_options.clone(),
             event_handlers,
@@ -639,7 +643,7 @@ impl ImageBlock {
 
 impl Block for ImageBlock {
     fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        handle_button_press(&self.event_handlers, self.name(), "", vec![])
+        handle_button_press(&self.event_handlers, self.name(), &self.value, vec![])
     }
 
     fn name(&self) -> &str {
@@ -935,6 +939,7 @@ impl Bar {
         match &block_data.config {
             config::Block::Text(text) => TextBlock::new_in_base_block(
                 name,
+                text.input.value.clone(),
                 drawing_context,
                 text.display.clone(),
                 self.bar.height as f64,
@@ -980,6 +985,7 @@ impl Bar {
             }
             config::Block::Image(image) => ImageBlock::new(
                 name,
+                image.input.value.clone(),
                 image.display.clone(),
                 self.bar.height as f64,
                 image.event_handlers.clone(),
@@ -991,8 +997,11 @@ impl Bar {
         let name = ERROR_BLOCK_NAME.to_string();
         let error_block: config::TextBlock<String> = config::TextBlock {
             name: name.clone(),
-            display: config::DisplayOptions {
+            input: config::Input {
                 value: error.into(),
+                ..Default::default()
+            },
+            display: config::DisplayOptions {
                 ..config::default_error_display()
             },
             ..Default::default()

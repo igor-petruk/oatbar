@@ -39,7 +39,6 @@ pub enum PopupMode {
 pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
     pub font: Dynamic,
     pub foreground: Dynamic,
-    pub value: Dynamic,
     pub popup_value: Dynamic,
     pub output_format: Dynamic,
     pub background: Dynamic,
@@ -68,7 +67,6 @@ impl DisplayOptions<Option<Placeholder>> {
             background: self
                 .background
                 .unwrap_or_else(|| default.background.clone()),
-            value: self.value.unwrap_or_else(|| default.value.clone()),
             output_format: self
                 .output_format
                 .unwrap_or_else(|| default.output_format.clone()),
@@ -106,7 +104,6 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
             font: self.font.resolve(vars).context("font")?,
             foreground: self.foreground.resolve(vars).context("foreground")?,
             background: self.background.resolve(vars).context("background")?,
-            value: self.value.resolve(vars).context("value")?,
             popup_value: self.popup_value.resolve(vars).context("popup_value")?,
             output_format: self.output_format.resolve(vars).context("output_format")?,
             overline_color: self
@@ -910,6 +907,7 @@ impl DefaultBlock<Option<Placeholder>> {
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 pub struct Input<Dynamic: Clone + Default + Debug> {
+    pub value: Dynamic,
     #[serde(default)]
     pub replace_first_match: bool,
     #[serde(default)]
@@ -919,6 +917,10 @@ pub struct Input<Dynamic: Clone + Default + Debug> {
 impl Input<Option<Placeholder>> {
     fn with_defaults(&self) -> Input<Placeholder> {
         Input {
+            value: self
+                .value
+                .clone()
+                .unwrap_or_else(|| Placeholder::infallable("")),
             replace_first_match: self.replace_first_match,
             replace: Replace(
                 self.replace
@@ -934,6 +936,7 @@ impl Input<Option<Placeholder>> {
 impl Input<Placeholder> {
     pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Input<String>> {
         Ok(Input {
+            value: self.value.resolve(vars).context("value")?,
             replace_first_match: self.replace_first_match,
             replace: self.replace.resolve(vars).context("replace")?,
         })
@@ -941,8 +944,12 @@ impl Input<Placeholder> {
 }
 
 impl Input<String> {
-    pub fn process_single(&self, value: &str) -> String {
+    pub fn process_value(&self, value: &str) -> String {
         self.replace.apply(self.replace_first_match, value)
+    }
+
+    pub fn process(&self) -> String {
+        self.process_value(&self.value)
     }
 }
 
@@ -1055,7 +1062,6 @@ fn default_margin() -> Margin {
 
 pub fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        value: Placeholder::infallable(""),
         popup_value: Placeholder::infallable(""),
         output_format: Placeholder::infallable("${value}"),
         font: Placeholder::infallable("monospace 12"),
@@ -1075,7 +1081,6 @@ pub fn default_display() -> DisplayOptions<Placeholder> {
 
 pub fn default_error_display() -> DisplayOptions<String> {
     DisplayOptions {
-        value: "".into(),
         popup_value: "".into(),
         output_format: "".into(),
         font: "monospace 12".into(),
