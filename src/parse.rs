@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -6,7 +5,9 @@ use std::sync::Arc;
 use anyhow::Context;
 use serde::Deserialize;
 
-pub type PlaceholderContext = HashMap<String, String>;
+pub trait PlaceholderContext {
+    fn get(&self, key: &str) -> Option<&String>;
+}
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 #[serde(try_from = "String")]
@@ -38,12 +39,12 @@ impl TryFrom<String> for Placeholder {
 pub trait PlaceholderExt {
     type R;
 
-    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<Self::R>;
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R>;
 }
 
 impl PlaceholderExt for Placeholder {
     type R = String;
-    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<String> {
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<String> {
         Ok(self
             .tokens
             .iter()
@@ -197,7 +198,7 @@ impl VarToken {
         })
     }
 
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<String> {
+    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<String> {
         let mut value = vars.get(&self.name).cloned().unwrap_or_default();
         for filter in self.filters.iter() {
             value = filter.apply(&value)?;

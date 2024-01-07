@@ -97,7 +97,7 @@ impl DisplayOptions<Option<Placeholder>> {
 impl PlaceholderExt for DisplayOptions<Placeholder> {
     type R = DisplayOptions<String>;
 
-    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<Self::R> {
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
         Ok(DisplayOptions {
             font: self.font.resolve(vars).context("font")?,
             foreground: self.foreground.resolve(vars).context("foreground")?,
@@ -167,7 +167,7 @@ impl VecStringRegexEx for Vec<(String, Regex)> {
 pub struct Replace<Dynamic: Clone + Default + Debug>(Vec<(Regex, Dynamic)>);
 
 impl Replace<Placeholder> {
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<Replace<String>> {
+    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Replace<String>> {
         Ok(Replace(
             self.0
                 .iter()
@@ -206,7 +206,7 @@ pub struct EventHandlers {
 impl PlaceholderExt for EventHandlers {
     type R = EventHandlers;
 
-    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<EventHandlers> {
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EventHandlers> {
         Ok(EventHandlers {
             on_click_command: self
                 .on_click_command
@@ -261,7 +261,7 @@ impl EnumBlock<Option<Placeholder>> {
 impl PlaceholderExt for EnumBlock<Placeholder> {
     type R = EnumBlock<String>;
 
-    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<EnumBlock<String>> {
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EnumBlock<String>> {
         Ok(EnumBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
@@ -315,7 +315,7 @@ impl TextBlock<Option<Placeholder>> {
 }
 
 impl TextBlock<Placeholder> {
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<TextBlock<String>> {
+    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<TextBlock<String>> {
         Ok(TextBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
@@ -448,7 +448,7 @@ impl TextProgressBarDisplay<Option<Placeholder>> {
 impl TextProgressBarDisplay<Placeholder> {
     pub fn resolve(
         &self,
-        vars: &PlaceholderContext,
+        vars: &dyn PlaceholderContext,
     ) -> anyhow::Result<TextProgressBarDisplay<String>> {
         Ok(TextProgressBarDisplay {
             fill: self
@@ -512,7 +512,10 @@ impl NumberTextDisplay<Option<Placeholder>> {
 }
 
 impl NumberTextDisplay<Placeholder> {
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<NumberTextDisplay<String>> {
+    pub fn resolve(
+        &self,
+        vars: &dyn PlaceholderContext,
+    ) -> anyhow::Result<NumberTextDisplay<String>> {
         Ok(NumberTextDisplay {
             number_type: self.number_type,
             phantom_data: PhantomData,
@@ -607,7 +610,7 @@ impl NumberBlock<Option<Placeholder>> {
 }
 
 impl NumberBlock<Placeholder> {
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<NumberBlock<String>> {
+    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<NumberBlock<String>> {
         Ok(NumberBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
@@ -674,7 +677,7 @@ impl ImageBlock<Option<Placeholder>> {
 }
 
 impl ImageBlock<Placeholder> {
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<ImageBlock<String>> {
+    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<ImageBlock<String>> {
         Ok(ImageBlock {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
@@ -732,7 +735,7 @@ impl Block<Option<Placeholder>> {
 }
 
 impl Block<Placeholder> {
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<Block<String>> {
+    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Block<String>> {
         Ok(match self {
             Block::Enum(e) => Block::Enum(e.resolve(vars).context("block::enum")?),
             Block::Text(e) => Block::Text(e.resolve(vars).context("block::text")?),
@@ -835,7 +838,7 @@ pub struct Bar<Dynamic: Clone + Default + Debug> {
 impl PlaceholderExt for Bar<Placeholder> {
     type R = Bar<String>;
 
-    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<Self::R> {
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
         Ok(Self::R {
             blocks_left: self.blocks_left.clone(),
             blocks_center: self.blocks_right.clone(),
@@ -939,7 +942,10 @@ impl ProcessingOptions<Option<Placeholder>> {
 }
 
 impl ProcessingOptions<Placeholder> {
-    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<ProcessingOptions<String>> {
+    pub fn resolve(
+        &self,
+        vars: &dyn PlaceholderContext,
+    ) -> anyhow::Result<ProcessingOptions<String>> {
         Ok(ProcessingOptions {
             enum_separator: self.enum_separator.clone(),
             replace_first_match: self.replace_first_match,

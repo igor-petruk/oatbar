@@ -58,8 +58,29 @@ pub struct State {
     config: config::Config<parse::Placeholder>,
 }
 
+impl parse::PlaceholderContext for HashMap<String, String> {
+    fn get(&self, key: &str) -> Option<&String> {
+        self.get(key)
+    }
+}
+
+struct PlaceholderContextWithValue<'a> {
+    vars: &'a HashMap<String, String>,
+    value: &'a String,
+}
+
+impl<'a> parse::PlaceholderContext for PlaceholderContextWithValue<'a> {
+    fn get(&self, key: &str) -> Option<&String> {
+        if key == "value" {
+            return Some(self.value);
+        } else {
+            self.vars.get(key)
+        }
+    }
+}
+
 fn format_active_inactive(
-    vars: &parse::PlaceholderContext,
+    vars: &dyn parse::PlaceholderContext,
     display: &config::DisplayOptions<parse::Placeholder>,
     active_display: &config::DisplayOptions<parse::Placeholder>,
     active: usize,
@@ -335,10 +356,10 @@ impl State {
         } else {
             text
         };
-        // TODO: avoid copying
-        let mut vars = self.vars.clone();
-        vars.insert("value".to_string(), text);
-        let text = output_format.resolve(&vars)?;
+        let text = output_format.resolve(&PlaceholderContextWithValue {
+            vars: &self.vars,
+            value: &text,
+        })?;
 
         number_block.parsed_data.text_bar_string = text;
         number_block.max_value = "".into();
@@ -382,8 +403,6 @@ impl State {
             .enum_separator
             .as_deref()
             .unwrap_or(",");
-        // TODO: maybe optimize to make a view, instead of copy.
-        let mut vars = self.vars.clone();
         let (variants, errors): (Vec<_>, Vec<_>) = b
             .variants
             .resolve(&self.vars)
@@ -392,7 +411,10 @@ impl State {
             .map(|value| processing_options.process_single(value))
             .enumerate()
             .map(|(index, value)| {
-                vars.insert("value".to_string(), value);
+                let vars = PlaceholderContextWithValue {
+                    vars: &self.vars,
+                    value: &value,
+                };
                 format_active_inactive(&vars, &b.display, &b.active_display, active, index)
             })
             .partition(|r| r.is_ok());
