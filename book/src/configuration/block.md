@@ -188,8 +188,8 @@ number_type="percent"
 # A sorted list of ramp formats. If set, prior to wrapping with `output_format`,
 # wrap to the format from the entry larger than `value`.
 ramp = [
-  ["80%", "<span foreground='yellow'>{}</span>"],
-  ["90%", "<span foreground='red'>{}</span>"],
+  ["80%", "<span foreground='yellow'>${value}</span>"],
+  ["90%", "<span foreground='red'>${value}</span>"],
 ]
 ```
 

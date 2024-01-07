@@ -181,21 +181,25 @@ impl State {
     }
 
     fn ramp_pass(
+        &self,
         number_type: config::NumberType,
         text: &str,
         value: f64,
-        ramp: &[(String, String)],
+        ramp: &[(String, parse::Placeholder)],
     ) -> anyhow::Result<String> {
-        let mut format = "{}";
+        let mut format: Option<&parse::Placeholder> = None;
         for (ramp, ramp_format) in ramp {
             if let Some(ramp_number) = number_type.parse_str(ramp)? {
                 if value < ramp_number {
                     break;
                 }
             }
-            format = ramp_format;
+            format = Some(ramp_format);
         }
-        Ok(format.replace("{}", text))
+        match format {
+            None => Ok(text.into()),
+            Some(format) => self.apply_output_format(format, &text.to_string()),
+        }
     }
 
     fn parse_min_max(
@@ -271,6 +275,7 @@ impl State {
         b: &config::NumberBlock<parse::Placeholder>,
     ) -> anyhow::Result<BlockData> {
         let output_format = b.display.output_format.clone();
+        let ramp = b.ramp.clone();
         let b = b.resolve(&self.vars).context("number_block")?;
         let display = &b.display;
         let value = b.input.process();
@@ -339,7 +344,7 @@ impl State {
                     } else {
                         value
                     };
-                    Self::ramp_pass(b.number_type, &text, value, &b.ramp)?
+                    self.ramp_pass(b.number_type, &text, value, &ramp)?
                 }
                 _ => {
                     return Err(anyhow::anyhow!("ramp with no min_value or max_value"));
