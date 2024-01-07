@@ -32,6 +32,11 @@ replace=[
 # If false, keep applying replaces to the end.
 replace_first_match=false
 
+# If set, formats the final value contents after all processing and transformations
+# like regex replacements or progress bar rendering.
+# Not supported by image blocks.
+output_format="cpu: ${value}"
+
 # If true (default), full Pango markup is supported.
 # https://docs.gtk.org/Pango/pango_markup.html
 # It may be desirable to turn it off if input has
@@ -179,9 +184,6 @@ max_value="1000"
 #  - bytes - a number that supports byte unit suffixes, e.g. "GB", "kb",
 #      - See https://docs.rs/bytesize/latest/bytesize/
 number_type="percent"
-
-# If set, wrap the `number_display` output, which will be rendered in place of ${value}.
-output_format="cpu: ${value}"
 
 # A sorted list of ramp formats. If set, prior to wrapping with `output_format`,
 # wrap to the format from the entry larger than `value`.
