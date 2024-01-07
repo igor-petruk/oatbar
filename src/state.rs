@@ -59,7 +59,7 @@ pub struct State {
 }
 
 fn format_active_inactive(
-    vars: &parse::PlaceholderVars,
+    vars: &parse::PlaceholderContext,
     display: &config::DisplayOptions<parse::Placeholder>,
     active_display: &config::DisplayOptions<parse::Placeholder>,
     active: usize,

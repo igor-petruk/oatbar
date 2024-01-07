@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use serde::Deserialize;
 
-pub type PlaceholderVars = HashMap<String, String>;
+pub type PlaceholderContext = HashMap<String, String>;
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 #[serde(try_from = "String")]
@@ -38,12 +38,12 @@ impl TryFrom<String> for Placeholder {
 pub trait PlaceholderExt {
     type R;
 
-    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<Self::R>;
+    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<Self::R>;
 }
 
 impl PlaceholderExt for Placeholder {
     type R = String;
-    fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
+    fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<String> {
         Ok(self
             .tokens
             .iter()
@@ -197,7 +197,7 @@ impl VarToken {
         })
     }
 
-    pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<String> {
+    pub fn resolve(&self, vars: &PlaceholderContext) -> anyhow::Result<String> {
         let mut value = vars.get(&self.name).cloned().unwrap_or_default();
         for filter in self.filters.iter() {
             value = filter.apply(&value)?;
