@@ -234,11 +234,8 @@ impl State {
 
     fn text_block(&self, b: &config::TextBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         let display = b.display.resolve(&self.vars).context("display")?;
-        let processing_options = b
-            .processing_options
-            .resolve(&self.vars)
-            .context("processing_options")?;
-        let value = processing_options.process_single(&display.value);
+        let input = b.input.resolve(&self.vars).context("input")?;
+        let value = input.process_single(&display.value);
         let value = self.apply_output_format(&b.display.output_format, &value)?;
         Ok(BlockData {
             config: config::Block::Text(config::TextBlock {
@@ -248,18 +245,15 @@ impl State {
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
                 event_handlers: b.event_handlers.clone(),
-                processing_options,
+                input,
             }),
         })
     }
 
     fn image_block(&self, b: &config::ImageBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         let display = b.display.resolve(&self.vars).context("display")?;
-        let processing_options = b
-            .processing_options
-            .resolve(&self.vars)
-            .context("processing_options")?;
-        let value = processing_options.process_single(&display.value);
+        let input = b.input.resolve(&self.vars).context("input")?;
+        let value = input.process_single(&display.value);
 
         Ok(BlockData {
             config: config::Block::Image(config::ImageBlock {
@@ -267,7 +261,7 @@ impl State {
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
                 event_handlers: b.event_handlers.clone(),
-                processing_options,
+                input,
             }),
         })
     }
@@ -279,7 +273,7 @@ impl State {
         let output_format = b.display.output_format.clone();
         let b = b.resolve(&self.vars).context("number_block")?;
         let display = &b.display;
-        let value = b.processing_options.process_single(&display.value);
+        let value = b.input.process_single(&display.value);
         let mut number_block = config::NumberBlock {
             display: config::DisplayOptions {
                 value,
@@ -369,10 +363,7 @@ impl State {
 
     fn enum_block(&self, b: &config::EnumBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
         // Optimize this mess. It should just use normal resolve for the entire config.
-        let processing_options = b
-            .processing_options
-            .resolve(&self.vars)
-            .context("processing_options")?;
+        let input = b.input.resolve(&self.vars).context("input")?;
         let display = b.display.resolve(&self.vars).context("display")?;
 
         let active_display = b
@@ -394,17 +385,13 @@ impl State {
         } else {
             active_str.parse().unwrap()
         };
-        let enum_separator = b
-            .processing_options
-            .enum_separator
-            .as_deref()
-            .unwrap_or(",");
+        let enum_separator = b.enum_separator.as_deref().unwrap_or(",");
         let (variants, errors): (Vec<_>, Vec<_>) = b
             .variants
             .resolve(&self.vars)
             .context("cannot replace placeholders")?
             .split(enum_separator)
-            .map(|value| processing_options.process_single(value))
+            .map(|value| input.process_single(value))
             .enumerate()
             .map(|(index, value)| {
                 let display = if active == index {
@@ -428,12 +415,10 @@ impl State {
                 variants,
                 variants_vec,
                 active: active.to_string(),
-                processing_options: config::ProcessingOptions {
-                    enum_separator: Some(enum_separator.into()),
-                    ..processing_options
-                },
+                input,
                 display,
                 active_display,
+                enum_separator: Some(enum_separator.into()),
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
                 event_handlers,
@@ -507,27 +492,21 @@ impl State {
                 .resolve(&self.vars)
                 .with_context(|| format!("var: '{}'", var.name));
             match var_value {
-                Ok(value) => {
-                    match var
-                        .processing_options
-                        .resolve(&self.vars)
-                        .context("processing_options")
-                    {
-                        Ok(processing_options) => {
-                            let processed = processing_options.process(&value);
-                            let old_value = self
-                                .vars
-                                .insert(var.name.clone(), processed.clone())
-                                .unwrap_or_default();
-                            if old_value != processed {
-                                var_update.vars.insert(var.name.clone(), processed);
-                            }
-                        }
-                        Err(e) => {
-                            self.error = Some(format_error_str(&format!("{:?}", e)));
+                Ok(value) => match var.input.resolve(&self.vars).context("input") {
+                    Ok(input) => {
+                        let processed = input.process_single(&value);
+                        let old_value = self
+                            .vars
+                            .insert(var.name.clone(), processed.clone())
+                            .unwrap_or_default();
+                        if old_value != processed {
+                            var_update.vars.insert(var.name.clone(), processed);
                         }
                     }
-                }
+                    Err(e) => {
+                        self.error = Some(format_error_str(&format!("{:?}", e)));
+                    }
+                },
                 Err(e) => {
                     self.error = Some(format_error_str(&format!("{:?}", e)));
                 }

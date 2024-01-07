@@ -236,11 +236,12 @@ pub struct EnumBlock<Dynamic: Clone + Default + Debug> {
     #[serde(skip)]
     pub variants_vec: Vec<String>,
     #[serde(flatten)]
-    pub processing_options: ProcessingOptions<Dynamic>,
+    pub input: Input<Dynamic>,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten, with = "prefix_active")]
     pub active_display: DisplayOptions<Dynamic>,
+    pub enum_separator: Option<String>,
     #[serde(flatten)]
     pub event_handlers: EventHandlers,
 }
@@ -251,9 +252,10 @@ impl EnumBlock<Option<Placeholder>> {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
             active: self.active.unwrap_or_default(),
+            enum_separator: self.enum_separator,
             variants: self.variants.unwrap_or_default(),
             variants_vec: vec![],
-            processing_options: self.processing_options.with_defaults(),
+            input: self.input.with_defaults(),
             display: self.display.clone().with_default(&default_block.display),
             active_display: self
                 .active_display
@@ -273,15 +275,13 @@ impl PlaceholderExt for EnumBlock<Placeholder> {
             active: self.active.resolve(vars).context("active")?,
             variants: self.variants.resolve(vars).context("variants")?,
             variants_vec: self.variants_vec.clone(),
-            processing_options: self
-                .processing_options
-                .resolve(vars)
-                .context("processing_options")?,
+            input: self.input.resolve(vars).context("input")?,
             display: self.display.resolve(vars).context("display")?,
             active_display: self
                 .active_display
                 .resolve(vars)
                 .context("active_display")?,
+            enum_separator: self.enum_separator.clone(),
             event_handlers: self
                 .event_handlers
                 .resolve(vars)
@@ -298,7 +298,7 @@ pub struct TextBlock<Dynamic: Clone + Default + Debug> {
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten)]
-    pub processing_options: ProcessingOptions<Dynamic>,
+    pub input: Input<Dynamic>,
     pub separator_type: Option<SeparatorType>,
     pub separator_radius: Option<f64>,
     #[serde(flatten)]
@@ -311,7 +311,7 @@ impl TextBlock<Option<Placeholder>> {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
-            processing_options: self.processing_options.with_defaults(),
+            input: self.input.with_defaults(),
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
             event_handlers: self.event_handlers,
@@ -325,10 +325,7 @@ impl TextBlock<Placeholder> {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
             display: self.display.resolve(vars).context("display")?,
-            processing_options: self
-                .processing_options
-                .resolve(vars)
-                .context("processing_options")?,
+            input: self.input.resolve(vars).context("input")?,
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
             event_handlers: self
@@ -556,7 +553,7 @@ pub struct NumberBlock<Dynamic: Clone + Default + Debug> {
     pub display: DisplayOptions<Dynamic>,
     #[serde(default = "default_number_type")]
     #[serde(flatten)]
-    pub processing_options: ProcessingOptions<Dynamic>,
+    pub input: Input<Dynamic>,
     pub number_type: NumberType,
     #[serde(flatten)]
     pub number_display: Option<NumberDisplay<Dynamic>>,
@@ -603,7 +600,7 @@ impl NumberBlock<Option<Placeholder>> {
                 .into_iter()
                 .map(|(r, v)| (r, v.unwrap_or_default()))
                 .collect(),
-            processing_options: self.processing_options.with_defaults(),
+            input: self.input.with_defaults(),
             parsed_data: Default::default(),
             event_handlers: self.event_handlers,
         }
@@ -618,10 +615,7 @@ impl NumberBlock<Placeholder> {
             min_value: self.min_value.resolve(vars).context("min_value")?,
             max_value: self.max_value.resolve(vars).context("max_value")?,
             display: self.display.resolve(vars).context("display")?,
-            processing_options: self
-                .processing_options
-                .resolve(vars)
-                .context("processing_options")?,
+            input: self.input.resolve(vars).context("input")?,
             number_type: self.number_type,
             number_display: match &self.number_display {
                 Some(NumberDisplay::ProgressBar(t)) => Some(NumberDisplay::ProgressBar(
@@ -656,7 +650,7 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten)]
-    pub processing_options: ProcessingOptions<Dynamic>,
+    pub input: Input<Dynamic>,
     #[serde(flatten)]
     pub event_handlers: EventHandlers,
 }
@@ -670,7 +664,7 @@ impl ImageBlock<Option<Placeholder>> {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
-            processing_options: self.processing_options.with_defaults(),
+            input: self.input.with_defaults(),
             event_handlers: self.event_handlers,
         }
     }
@@ -682,10 +676,7 @@ impl ImageBlock<Placeholder> {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
             display: self.display.resolve(vars).context("display")?,
-            processing_options: self
-                .processing_options
-                .resolve(vars)
-                .context("processing_options")?,
+            input: self.input.resolve(vars).context("input")?,
             event_handlers: self
                 .event_handlers
                 .resolve(vars)
@@ -918,17 +909,16 @@ impl DefaultBlock<Option<Placeholder>> {
 }
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
-pub struct ProcessingOptions<Dynamic: Clone + Default + Debug> {
-    pub enum_separator: Option<String>,
+pub struct Input<Dynamic: Clone + Default + Debug> {
     #[serde(default)]
     pub replace_first_match: bool,
     #[serde(default)]
     pub replace: Replace<Dynamic>,
 }
-impl ProcessingOptions<Option<Placeholder>> {
-    fn with_defaults(&self) -> ProcessingOptions<Placeholder> {
-        ProcessingOptions {
-            enum_separator: self.enum_separator.clone(),
+
+impl Input<Option<Placeholder>> {
+    fn with_defaults(&self) -> Input<Placeholder> {
+        Input {
             replace_first_match: self.replace_first_match,
             replace: Replace(
                 self.replace
@@ -941,34 +931,18 @@ impl ProcessingOptions<Option<Placeholder>> {
     }
 }
 
-impl ProcessingOptions<Placeholder> {
-    pub fn resolve(
-        &self,
-        vars: &dyn PlaceholderContext,
-    ) -> anyhow::Result<ProcessingOptions<String>> {
-        Ok(ProcessingOptions {
-            enum_separator: self.enum_separator.clone(),
+impl Input<Placeholder> {
+    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Input<String>> {
+        Ok(Input {
             replace_first_match: self.replace_first_match,
             replace: self.replace.resolve(vars).context("replace")?,
         })
     }
 }
 
-impl ProcessingOptions<String> {
+impl Input<String> {
     pub fn process_single(&self, value: &str) -> String {
         self.replace.apply(self.replace_first_match, value)
-    }
-
-    pub fn process(&self, value: &str) -> String {
-        if let Some(enum_separator) = &self.enum_separator {
-            let vec: Vec<_> = value
-                .split(enum_separator)
-                .map(|s| self.process_single(s))
-                .collect();
-            vec.join(enum_separator)
-        } else {
-            self.process_single(value)
-        }
     }
 }
 
@@ -977,7 +951,7 @@ pub struct Var<Dynamic: Clone + Default + Debug> {
     pub name: String,
     pub value: Dynamic,
     #[serde(flatten)]
-    pub processing_options: ProcessingOptions<Dynamic>,
+    pub input: Input<Dynamic>,
 }
 
 impl Var<Option<Placeholder>> {
@@ -985,7 +959,7 @@ impl Var<Option<Placeholder>> {
         Var {
             name: self.name.clone(),
             value: self.value.clone().unwrap_or_default(),
-            processing_options: self.processing_options.with_defaults(),
+            input: self.input.with_defaults(),
         }
     }
 }
@@ -1186,7 +1160,8 @@ mod tests {
             active_display: DisplayOptions {
                 ..Default::default()
             },
-            processing_options: Default::default(),
+            input: Default::default(),
+            enum_separator: None,
             event_handlers: Default::default(),
         });
         let block = block.resolve(&map).unwrap();
