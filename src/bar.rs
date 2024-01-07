@@ -37,8 +37,17 @@ struct Dimensions {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Button {
+    Left,
+    Right,
+    Middle,
+    ScrollUp,
+    ScrollDown,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum BlockEvent {
-    ButtonPress { x: f64, y: f64 },
+    ButtonPress { x: f64, y: f64, button: Button },
 }
 
 trait Block {
@@ -1161,7 +1170,7 @@ impl Bar {
         }
     }
 
-    pub fn handle_button_press(&self, x: i16, y: i16) -> anyhow::Result<()> {
+    pub fn handle_button_press(&self, x: i16, y: i16, button: Button) -> anyhow::Result<()> {
         let x = (x - self.bar.margin.left as i16) as f64;
         let y = (y - self.bar.margin.top as i16) as f64;
 
@@ -1177,6 +1186,7 @@ impl Bar {
             block.handle_event(&BlockEvent::ButtonPress {
                 x: x - block_pos,
                 y,
+                button,
             })?
         }
 

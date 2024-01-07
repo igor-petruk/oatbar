@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use xcb::{x, xinput};
 
-use crate::{config, parse, state, thread, window, wmready, xutils};
+use crate::{bar, config, parse, state, thread, window, wmready, xutils};
 
 pub struct Engine {
     windows: HashMap<x::Window, window::Window>,
@@ -143,7 +143,23 @@ impl Engine {
             xcb::Event::X(x::Event::ButtonPress(event)) => {
                 for window in self.windows.values() {
                     if window.id == event.event() {
-                        window.handle_button_press(event.event_x(), event.event_y())?;
+                        tracing::trace!(
+                            "Button press: X={}, Y={}, button={}",
+                            event.event_x(),
+                            event.event_y(),
+                            event.detail()
+                        );
+                        let button = match event.detail() {
+                            1 => Some(bar::Button::Left),
+                            2 => Some(bar::Button::Middle),
+                            3 => Some(bar::Button::Right),
+                            4 => Some(bar::Button::ScrollUp),
+                            5 => Some(bar::Button::ScrollDown),
+                            _ => None,
+                        };
+                        if let Some(button) = button {
+                            window.handle_button_press(event.event_x(), event.event_y(), button)?;
+                        }
                     }
                 }
             }

@@ -487,8 +487,8 @@ impl Window {
         Ok(())
     }
 
-    pub fn handle_button_press(&self, x: i16, y: i16) -> anyhow::Result<()> {
-        self.bar.handle_button_press(x, y)
+    pub fn handle_button_press(&self, x: i16, y: i16, button: bar::Button) -> anyhow::Result<()> {
+        self.bar.handle_button_press(x, y, button)
     }
 
     pub fn handle_raw_motion(&self, _x: i16, y: i16) -> anyhow::Result<()> {
