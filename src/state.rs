@@ -79,21 +79,6 @@ impl<'a> parse::PlaceholderContext for PlaceholderContextWithValue<'a> {
     }
 }
 
-fn format_active_inactive(
-    vars: &dyn parse::PlaceholderContext,
-    display: &config::DisplayOptions<parse::Placeholder>,
-    active_display: &config::DisplayOptions<parse::Placeholder>,
-    active: usize,
-    index: usize,
-) -> anyhow::Result<String> {
-    let result = if index == active {
-        active_display.value.resolve(vars)?
-    } else {
-        display.value.resolve(vars)?
-    };
-    Ok(result)
-}
-
 fn format_error_str(error_str: &str) -> String {
     use itertools::Itertools;
     error_str
@@ -112,6 +97,17 @@ impl State {
             var_updates_tx,
             ..Default::default()
         }
+    }
+
+    fn apply_output_format(
+        &self,
+        output_format: &parse::Placeholder,
+        value: &String,
+    ) -> anyhow::Result<String> {
+        output_format.resolve(&PlaceholderContextWithValue {
+            vars: &self.vars,
+            value,
+        })
     }
 
     pub fn build_error_msg(&self) -> Option<String> {
@@ -243,6 +239,7 @@ impl State {
             .resolve(&self.vars)
             .context("processing_options")?;
         let value = processing_options.process_single(&display.value);
+        let value = self.apply_output_format(&b.display.output_format, &value)?;
         Ok(BlockData {
             config: config::Block::Text(config::TextBlock {
                 display: config::DisplayOptions { value, ..display },
@@ -279,7 +276,7 @@ impl State {
         &self,
         b: &config::NumberBlock<parse::Placeholder>,
     ) -> anyhow::Result<BlockData> {
-        let output_format = b.output_format.clone();
+        let output_format = b.display.output_format.clone();
         let b = b.resolve(&self.vars).context("number_block")?;
         let display = &b.display;
         let value = b.processing_options.process_single(&display.value);
@@ -356,10 +353,9 @@ impl State {
         } else {
             text
         };
-        let text = output_format.resolve(&PlaceholderContextWithValue {
-            vars: &self.vars,
-            value: &text,
-        })?;
+        let text = self
+            .apply_output_format(&output_format, &text)
+            .context("output_format")?;
 
         number_block.parsed_data.text_bar_string = text;
         number_block.max_value = "".into();
@@ -411,11 +407,12 @@ impl State {
             .map(|value| processing_options.process_single(value))
             .enumerate()
             .map(|(index, value)| {
-                let vars = PlaceholderContextWithValue {
-                    vars: &self.vars,
-                    value: &value,
+                let display = if active == index {
+                    &b.active_display
+                } else {
+                    &b.display
                 };
-                format_active_inactive(&vars, &b.display, &b.active_display, active, index)
+                self.apply_output_format(&display.output_format, &value)
             })
             .partition(|r| r.is_ok());
 

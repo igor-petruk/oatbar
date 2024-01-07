@@ -13,7 +13,7 @@ background="#191919dd"
 active_background="#333333dd"
 active_overline_color = "${theme_color}"
 active_foreground = "${theme_color}"
-active_value = '<span weight="bold">${value}</span>'
+active_output_format = '<span weight="bold">${value}</span>'
 
 [[command]]
 name="disk_free"

@@ -41,6 +41,7 @@ pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
     pub foreground: Dynamic,
     pub value: Dynamic,
     pub popup_value: Dynamic,
+    pub output_format: Dynamic,
     pub background: Dynamic,
     pub overline_color: Dynamic,
     pub underline_color: Dynamic,
@@ -68,6 +69,9 @@ impl DisplayOptions<Option<Placeholder>> {
                 .background
                 .unwrap_or_else(|| default.background.clone()),
             value: self.value.unwrap_or_else(|| default.value.clone()),
+            output_format: self
+                .output_format
+                .unwrap_or_else(|| default.output_format.clone()),
             popup_value: self
                 .popup_value
                 .unwrap_or_else(|| default.popup_value.clone()),
@@ -104,6 +108,7 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
             background: self.background.resolve(vars).context("background")?,
             value: self.value.resolve(vars).context("value")?,
             popup_value: self.popup_value.resolve(vars).context("popup_value")?,
+            output_format: self.output_format.resolve(vars).context("output_format")?,
             overline_color: self
                 .overline_color
                 .resolve(vars)
@@ -555,7 +560,6 @@ pub struct NumberBlock<Dynamic: Clone + Default + Debug> {
     pub number_type: NumberType,
     #[serde(flatten)]
     pub number_display: Option<NumberDisplay<Dynamic>>,
-    pub output_format: Dynamic,
     #[serde(default)]
     pub ramp: Vec<(String, Dynamic)>,
     #[serde(skip)]
@@ -581,9 +585,6 @@ impl NumberBlock<Option<Placeholder>> {
                 .clone()
                 .unwrap_or_else(|| Placeholder::infallable("")),
             display: self.display.clone().with_default(&default_block.display),
-            output_format: self
-                .output_format
-                .unwrap_or(Placeholder::infallable("${value}")),
             number_type: self.number_type,
             number_display: Some(match self.number_display {
                 Some(NumberDisplay::ProgressBar(t)) => NumberDisplay::ProgressBar(t.with_default()),
@@ -631,7 +632,6 @@ impl NumberBlock<Placeholder> {
                 }
                 None => None,
             },
-            output_format: self.output_format.resolve(vars).context("output_format")?,
             parsed_data: self.parsed_data.clone(),
             event_handlers: self
                 .event_handlers
@@ -1081,8 +1081,9 @@ fn default_margin() -> Margin {
 
 pub fn default_display() -> DisplayOptions<Placeholder> {
     DisplayOptions {
-        value: Placeholder::infallable("${value}"),
+        value: Placeholder::infallable(""),
         popup_value: Placeholder::infallable(""),
+        output_format: Placeholder::infallable("${value}"),
         font: Placeholder::infallable("monospace 12"),
         foreground: Placeholder::infallable("#dddddd"),
         background: Placeholder::infallable("#191919"),
@@ -1102,6 +1103,7 @@ pub fn default_error_display() -> DisplayOptions<String> {
     DisplayOptions {
         value: "".into(),
         popup_value: "".into(),
+        output_format: "".into(),
         font: "monospace 12".into(),
         foreground: "#dddddd".into(),
         background: "#191919".into(),
