@@ -258,7 +258,7 @@ name='cpu'
 type = 'number'
 value = "${i3status:cpu_usage.full_text}"
 number_type = "percent"
-output_format="<b>CPU:</b>{}"
+output_format="<b>CPU:</b>${value}"
 number_display="text"
 ```
 
@@ -313,7 +313,7 @@ number_type = "percent"
 
 [block.number_display]
 type="text"
-output_format="<b>CPU:</b>{}"
+output_format="<b>CPU:</b>${value}"
 
 [[block]]
 name='mem'
@@ -323,7 +323,7 @@ number_type = "percent"
 
 [block.number_display]
 type="text"
-output_format="<b>MEM:</b>{}"
+output_format="<b>MEM:</b>${value}"
 ```
 
 ### `i3blocks`

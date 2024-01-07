@@ -498,7 +498,6 @@ impl TextProgressBarDisplay<Placeholder> {
 #[serde(rename_all = "snake_case")]
 pub struct NumberTextDisplay<Dynamic: Clone + Default + Debug> {
     pub number_type: Option<NumberType>,
-    pub padded_width: Option<usize>,
     #[serde(skip)]
     pub phantom_data: PhantomData<Dynamic>,
 }
@@ -507,10 +506,6 @@ impl NumberTextDisplay<Option<Placeholder>> {
     pub fn with_default(self, input_number_type: NumberType) -> NumberTextDisplay<Placeholder> {
         let number_type = self.number_type.unwrap_or(input_number_type);
         NumberTextDisplay {
-            padded_width: Some(self.padded_width.unwrap_or(match number_type {
-                NumberType::Percent => 4,
-                _ => 0,
-            })),
             number_type: Some(number_type),
             phantom_data: PhantomData,
         }
@@ -521,7 +516,6 @@ impl NumberTextDisplay<Placeholder> {
     pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<NumberTextDisplay<String>> {
         Ok(NumberTextDisplay {
             number_type: self.number_type,
-            padded_width: self.padded_width,
             phantom_data: PhantomData,
         })
     }
@@ -585,7 +579,9 @@ impl NumberBlock<Option<Placeholder>> {
                 .clone()
                 .unwrap_or_else(|| Placeholder::infallable("")),
             display: self.display.clone().with_default(&default_block.display),
-            output_format: self.output_format.unwrap_or(Placeholder::infallable("{}")),
+            output_format: self
+                .output_format
+                .unwrap_or(Placeholder::infallable("${value}")),
             number_type: self.number_type,
             number_display: Some(match self.number_display {
                 Some(NumberDisplay::ProgressBar(t)) => NumberDisplay::ProgressBar(t.with_default()),

@@ -212,17 +212,7 @@ impl State {
             config::NumberType::Number => format!("{}", value),
             config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
         };
-        Ok(Self::pad(&text, number_text_display))
-    }
-
-    fn pad(text: &str, number_text_display: &config::NumberTextDisplay<String>) -> String {
-        let chars_to_pad = number_text_display
-            .padded_width
-            .unwrap_or_default()
-            .checked_sub(text.len())
-            .unwrap_or_default();
-        let pad_string: String = (0..chars_to_pad).map(|_| ' ').collect();
-        format!("{}{}", pad_string, text)
+        Ok(text)
     }
 
     fn text_block(&self, b: &config::TextBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {

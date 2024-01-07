@@ -180,8 +180,8 @@ max_value="1000"
 #      - See https://docs.rs/bytesize/latest/bytesize/
 number_type="percent"
 
-# If set, wrap the `number_display` output, which will be rendered in place of {}.
-output_format="cpu: {}"
+# If set, wrap the `number_display` output, which will be rendered in place of ${value}.
+output_format="cpu: ${value}"
 
 # A sorted list of ramp formats. If set, prior to wrapping with `output_format`,
 # wrap to the format from the entry larger than `value`.
@@ -207,8 +207,6 @@ type="number"
 name="cpu"
 ...
 number_display="progress_bar"
-# Right aligh the number by padding it with spaces.
-padded_width = 10
 ```
 
 ### Progress bar
