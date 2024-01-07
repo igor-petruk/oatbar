@@ -169,7 +169,12 @@ pub struct Replace<Dynamic: Clone + Default + Debug>(Vec<(Regex, Dynamic)>);
 
 impl Replace<Placeholder> {
     pub fn resolve(&self, vars: &PlaceholderVars) -> anyhow::Result<Replace<String>> {
-        Err(anyhow::anyhow!("TODO"))
+        Ok(Replace(
+            self.0
+                .iter()
+                .map(|(k, v)| Ok((k.clone(), v.resolve(vars)?)))
+                .collect::<anyhow::Result<Vec<_>>>()?,
+        ))
     }
 }
 
@@ -943,13 +948,7 @@ impl ProcessingOptions<Placeholder> {
         Ok(ProcessingOptions {
             enum_separator: self.enum_separator.clone(),
             replace_first_match: self.replace_first_match,
-            replace: Replace(
-                self.replace
-                    .0
-                    .iter()
-                    .map(|(k, v)| Ok((k.clone(), v.resolve(vars)?)))
-                    .collect::<anyhow::Result<Vec<_>>>()?,
-            ),
+            replace: self.replace.resolve(vars).context("replace")?,
         })
     }
 }
