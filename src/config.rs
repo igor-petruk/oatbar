@@ -24,7 +24,6 @@ use std::sync::Arc;
 use std::{collections::HashMap, io::Read};
 
 use anyhow::Context;
-use cairo::ffi::cairo_copy_clip_rectangle_list;
 use serde::{de, de::DeserializeOwned, de::Deserializer, Deserialize};
 use tracing::{debug, warn};
 
