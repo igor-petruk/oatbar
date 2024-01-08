@@ -46,8 +46,15 @@ pub enum Button {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ButtonPress {
+    pub x: f64,
+    pub y: f64,
+    pub button: Button,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum BlockEvent {
-    ButtonPress { x: f64, y: f64, button: Button },
+    ButtonPress(ButtonPress),
 }
 
 trait Block {
@@ -63,17 +70,29 @@ trait Block {
 
 trait DebugBlock: Block + Debug {}
 
-fn handle_button_press(
-    event_handlers: &config::EventHandlers,
+fn handle_block_event(
+    event_handlers: &config::EventHandlers<String>,
+    block_event: &BlockEvent,
     name: &str,
     value: &str,
     extra_envs: Vec<(String, String)>,
 ) -> anyhow::Result<()> {
-    if let Some(on_click_command) = &event_handlers.on_click_command {
-        let mut envs = extra_envs;
-        envs.push(("BLOCK_NAME".into(), name.into()));
-        envs.push(("BLOCK_VALUE".into(), value.into()));
-        process::run_detached(on_click_command, envs)?;
+    match block_event {
+        BlockEvent::ButtonPress(e) => {
+            let command = match e.button {
+                Button::Left => &event_handlers.on_mouse_left,
+                Button::Middle => &event_handlers.on_mouse_middle,
+                Button::Right => &event_handlers.on_mouse_right,
+                Button::ScrollUp => &event_handlers.on_scroll_up,
+                Button::ScrollDown => &event_handlers.on_scroll_down,
+            };
+            if !command.trim().is_empty() {
+                let mut envs = extra_envs;
+                envs.push(("BLOCK_NAME".into(), name.into()));
+                envs.push(("BLOCK_VALUE".into(), value.into()));
+                process::run_detached(command, envs)?;
+            }
+        }
     }
     Ok(())
 }
@@ -273,7 +292,7 @@ struct TextBlock {
     value: String,
     pango_layout: Option<pango::Layout>,
     display_options: config::DisplayOptions<String>,
-    event_handlers: config::EventHandlers,
+    event_handlers: config::EventHandlers<String>,
 }
 
 impl DebugBlock for TextBlock {}
@@ -284,7 +303,7 @@ impl TextBlock {
         value: String,
         drawing_context: &drawing::Context,
         display_options: config::DisplayOptions<String>,
-        event_handlers: config::EventHandlers,
+        event_handlers: config::EventHandlers<String>,
     ) -> Self {
         let pango_layout = match &drawing_context.pango_context {
             Some(pango_context) => {
@@ -320,7 +339,7 @@ impl TextBlock {
         height: f64,
         separator_type: Option<config::SeparatorType>,
         separator_radius: Option<f64>,
-        event_handlers: config::EventHandlers,
+        event_handlers: config::EventHandlers<String>,
     ) -> Box<dyn DebugBlock> {
         Box::new(BaseBlock::new(
             display_options.clone(),
@@ -339,8 +358,14 @@ impl TextBlock {
 }
 
 impl Block for TextBlock {
-    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        handle_button_press(&self.event_handlers, self.name(), &self.value, vec![])
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        handle_block_event(
+            &self.event_handlers,
+            &event,
+            self.name(),
+            &self.value,
+            vec![],
+        )
     }
 
     fn name(&self) -> &str {
@@ -391,7 +416,7 @@ impl TextProgressBarNumberBlock {
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
         height: f64,
-        event_handlers: config::EventHandlers,
+        event_handlers: config::EventHandlers<String>,
     ) -> Self {
         let display = config::DisplayOptions {
             pango_markup: Some(true), // TODO: fix
@@ -445,7 +470,7 @@ impl TextNumberBlock {
         drawing_context: &drawing::Context,
         number_block: &config::NumberBlock<String>,
         height: f64,
-        event_handlers: config::EventHandlers,
+        event_handlers: config::EventHandlers<String>,
     ) -> Self {
         let display = config::DisplayOptions {
             pango_markup: Some(true), // TODO: fix
@@ -501,7 +526,7 @@ struct EnumBlock {
     variant_blocks: Vec<VariantBlock>,
     dim: Dimensions,
     block: config::EnumBlock<String>,
-    event_handlers: config::EventHandlers,
+    event_handlers: config::EventHandlers<String>,
 }
 
 impl EnumBlock {
@@ -510,7 +535,7 @@ impl EnumBlock {
         drawing_context: &drawing::Context,
         block: &config::EnumBlock<String>,
         height: f64,
-        event_handlers: config::EventHandlers,
+        event_handlers: config::EventHandlers<String>,
     ) -> Self {
         let mut variant_blocks = vec![];
         let mut width: f64 = 0.0;
@@ -557,13 +582,14 @@ impl DebugBlock for EnumBlock {}
 impl Block for EnumBlock {
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         match event {
-            BlockEvent::ButtonPress { x, .. } => {
+            BlockEvent::ButtonPress(button_press) => {
                 let mut pos: f64 = 0.0;
                 for variant_block in self.variant_blocks.iter() {
                     let next_pos = pos + variant_block.block.get_dimensions().width;
-                    if pos <= *x && *x <= next_pos {
-                        handle_button_press(
+                    if pos <= button_press.x && button_press.x <= next_pos {
+                        handle_block_event(
                             &self.event_handlers,
+                            &event,
                             self.name(),
                             &variant_block.original_value,
                             vec![("BLOCK_INDEX".into(), format!("{}", variant_block.index))],
@@ -610,7 +636,7 @@ struct ImageBlock {
     value: String,
     display_options: config::DisplayOptions<String>,
     image_buf: anyhow::Result<cairo::ImageSurface>,
-    event_handlers: config::EventHandlers,
+    event_handlers: config::EventHandlers<String>,
 }
 
 impl DebugBlock for ImageBlock {}
@@ -627,7 +653,7 @@ impl ImageBlock {
         value: String,
         display_options: config::DisplayOptions<String>,
         height: f64,
-        event_handlers: config::EventHandlers,
+        event_handlers: config::EventHandlers<String>,
     ) -> Box<dyn DebugBlock> {
         let image_buf = Self::load_image(value.as_str());
         if let Err(e) = &image_buf {
@@ -651,8 +677,14 @@ impl ImageBlock {
 }
 
 impl Block for ImageBlock {
-    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        handle_button_press(&self.event_handlers, self.name(), &self.value, vec![])
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        handle_block_event(
+            &self.event_handlers,
+            &event,
+            self.name(),
+            &self.value,
+            vec![],
+        )
     }
 
     fn name(&self) -> &str {
@@ -1183,11 +1215,11 @@ impl Bar {
         }?;
 
         if let Some((block_pos, block)) = block_pair {
-            block.handle_event(&BlockEvent::ButtonPress {
+            block.handle_event(&BlockEvent::ButtonPress(ButtonPress {
                 x: x - block_pos,
                 y,
                 button,
-            })?
+            }))?
         }
 
         Ok(())

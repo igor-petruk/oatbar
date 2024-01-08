@@ -248,7 +248,10 @@ impl State {
                 separator_radius: b.separator_radius,
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
-                event_handlers: b.event_handlers.clone(),
+                event_handlers: b
+                    .event_handlers
+                    .resolve(&self.vars)
+                    .context("event_handlers")?,
                 input: config::Input { value, ..input },
             }),
         })
@@ -264,7 +267,10 @@ impl State {
                 display,
                 name: b.name.clone(),
                 inherit: b.inherit.clone(),
-                event_handlers: b.event_handlers.clone(),
+                event_handlers: b
+                    .event_handlers
+                    .resolve(&self.vars)
+                    .context("event_handlers")?,
                 input: config::Input { value, ..input },
             }),
         })

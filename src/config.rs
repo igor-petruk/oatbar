@@ -201,25 +201,43 @@ serde_with::with_prefix!(prefix_active "active_");
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
-pub struct EventHandlers {
-    pub on_click_command: Option<String>,
+pub struct EventHandlers<Dynamic: Clone + Default + Debug> {
+    pub on_mouse_left: Dynamic,
+    pub on_mouse_middle: Dynamic,
+    pub on_mouse_right: Dynamic,
+    pub on_scroll_up: Dynamic,
+    pub on_scroll_down: Dynamic,
 }
 
-impl PlaceholderExt for EventHandlers {
-    type R = EventHandlers;
+impl PlaceholderExt for EventHandlers<Placeholder> {
+    type R = EventHandlers<String>;
 
-    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EventHandlers> {
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EventHandlers<String>> {
         Ok(EventHandlers {
-            on_click_command: self
-                .on_click_command
-                .as_ref()
-                .map(|c| {
-                    Placeholder::new(c)?
-                        .resolve(vars)
-                        .context("on_click_command")
-                })
-                .transpose()?, // .map_or(Ok(None), |r| r.map(Some))?,
+            on_mouse_left: self.on_mouse_left.resolve(vars).context("on_mouse_left")?,
+            on_mouse_middle: self
+                .on_mouse_middle
+                .resolve(vars)
+                .context("on_mouse_middle")?,
+            on_mouse_right: self
+                .on_mouse_right
+                .resolve(vars)
+                .context("on_mouse_right")?,
+            on_scroll_up: self.on_scroll_up.resolve(vars).context("on_scroll_up")?,
+            on_scroll_down: self.on_scroll_down.resolve(vars).context("on_mouse_down")?,
         })
+    }
+}
+
+impl EventHandlers<Option<Placeholder>> {
+    pub fn with_default(self) -> EventHandlers<Placeholder> {
+        EventHandlers {
+            on_mouse_left: self.on_mouse_left.unwrap_or_default(),
+            on_mouse_middle: self.on_mouse_middle.unwrap_or_default(),
+            on_mouse_right: self.on_mouse_right.unwrap_or_default(),
+            on_scroll_up: self.on_scroll_up.unwrap_or_default(),
+            on_scroll_down: self.on_scroll_down.unwrap_or_default(),
+        }
     }
 }
 
@@ -240,7 +258,7 @@ pub struct EnumBlock<Dynamic: Clone + Default + Debug> {
     pub active_display: DisplayOptions<Dynamic>,
     pub enum_separator: Option<String>,
     #[serde(flatten)]
-    pub event_handlers: EventHandlers,
+    pub event_handlers: EventHandlers<Dynamic>,
 }
 
 impl EnumBlock<Option<Placeholder>> {
@@ -257,7 +275,7 @@ impl EnumBlock<Option<Placeholder>> {
             active_display: self
                 .active_display
                 .with_default(&self.display.with_default(&default_block.active_display)),
-            event_handlers: self.event_handlers,
+            event_handlers: self.event_handlers.with_default(),
         }
     }
 }
@@ -299,7 +317,7 @@ pub struct TextBlock<Dynamic: Clone + Default + Debug> {
     pub separator_type: Option<SeparatorType>,
     pub separator_radius: Option<f64>,
     #[serde(flatten)]
-    pub event_handlers: EventHandlers,
+    pub event_handlers: EventHandlers<Dynamic>,
 }
 
 impl TextBlock<Option<Placeholder>> {
@@ -311,7 +329,7 @@ impl TextBlock<Option<Placeholder>> {
             input: self.input.with_defaults(),
             separator_type: self.separator_type.clone(),
             separator_radius: self.separator_radius,
-            event_handlers: self.event_handlers,
+            event_handlers: self.event_handlers.with_default(),
         }
     }
 }
@@ -559,7 +577,7 @@ pub struct NumberBlock<Dynamic: Clone + Default + Debug> {
     #[serde(skip)]
     pub parsed_data: NumberParsedData,
     #[serde(flatten)]
-    pub event_handlers: EventHandlers,
+    pub event_handlers: EventHandlers<Dynamic>,
 }
 
 impl NumberBlock<Option<Placeholder>> {
@@ -599,7 +617,7 @@ impl NumberBlock<Option<Placeholder>> {
                 .collect(),
             input: self.input.with_defaults(),
             parsed_data: Default::default(),
-            event_handlers: self.event_handlers,
+            event_handlers: self.event_handlers.with_default(),
         }
     }
 }
@@ -649,7 +667,7 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     #[serde(flatten)]
     pub input: Input<Dynamic>,
     #[serde(flatten)]
-    pub event_handlers: EventHandlers,
+    pub event_handlers: EventHandlers<Dynamic>,
 }
 
 impl ImageBlock<Option<Placeholder>> {
@@ -662,7 +680,7 @@ impl ImageBlock<Option<Placeholder>> {
             inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
             input: self.input.with_defaults(),
-            event_handlers: self.event_handlers,
+            event_handlers: self.event_handlers.with_default(),
         }
     }
 }

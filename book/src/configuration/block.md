@@ -75,11 +75,15 @@ line_width=0.4
 margin=3.0
 padding=5.0
 
-# A command to run on click.
+# A command to run on a particular mouse event.
 # It is run with `sh -c "..."` and the process will be detached from oatbar.
 # BLOCK_NAME and BLOCK_VALUE environment variables are set.
 # For `enum` blocks, BLOCK_INDEX is set too.
-on_click_command = 'chrome'
+on_mouse_left = 'chrome'
+on_mouse_middle = 'chrome'
+on_mouse_right = 'chrome'
+on_scroll_up = 'chrome'
+on_scroll_down = 'chrome'
 ```
 
 To avoid repetition, consider using `default_block`, that
