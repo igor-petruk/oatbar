@@ -7,7 +7,7 @@ Let's build something complex with what `oatbar` has to offer.
 Combination of variables, visibility control and programmatic access to variables via `oatctl var` provides
 tremendous power.
 
-In these examples `oatctl var` is often called from `on_click_command` handlers, but you
+In these examples `oatctl var` is often called from `on_mouse_left` handlers, but you
 can use it in your WM keybindings too.
 
 ## Workspace customizations
@@ -83,21 +83,21 @@ replace = [
    ["show", "circle-left"],
    ["(.+)","<span font='IcoMoon-Free 12' weight='bold' color='#53e2ae'>$1</span>"],
 ]
-on_click_command = "oatctl var rotate show_menu right '' show"
+on_mouse_left = "oatctl var rotate show_menu right '' show"
 
 [[block]]
 name='launch_chrome'
 type = 'text'
 inherit="menu_child"
 value = "<span font='IcoMoon-Free 12'></span> "
-on_click_command = "oatctl var set show_menu ''; chrome"
+on_mouse_left = "oatctl var set show_menu ''; chrome"
 
 [[block]]
 name='launch_terminal'
 type = 'text'
 inherit="menu_child"
 value = "<span font='IcoMoon-Free 12'></span> "
-on_click_command = "oatctl var set show_menu ''; alacritty"
+on_mouse_left = "oatctl var set show_menu ''; alacritty"
 ```
 
 Let's take a closer look:
@@ -106,7 +106,7 @@ Let's take a closer look:
 1. In `menu` block all regexes apply in sequence.
 1. The first two replace it with icon names. 
 1. The last one wraps the icon name into the final Pango markup.
-1. The `on_click_command` rotates the values of `show_menu` between empty and `show`, effectively toggling it.
+1. The `on_mouse_left` rotates the values of `show_menu` between empty and `show`, effectively toggling it.
 1. Blocks are only displayed if `show_menu` is set.
 1. Blocks clear `show_menu` before launching the app to hide the menu.
 1. A small cosmetic effect is achieved by inheriting a `default_block` with a different style.
@@ -130,13 +130,13 @@ blocks_left=["L", "rotate_left", "panel_0", "panel_1", "panel_2", "rotate_right"
 name='rotate_left'
 type = 'text'
 value = "<span font='IcoMoon-Free 12' color='#53e2ae'>circle-left</span>"
-on_click_command = "oatctl var rotate rotation_idx left '' 1 2"
+on_mouse_left = "oatctl var rotate rotation_idx left '' 1 2"
 
 [[block]]
 name='rotate_right'
 type = 'text'
 value = "<span font='IcoMoon-Free 12' color='#53e2ae'>circle-right</span>"
-on_click_command = "oatctl var rotate rotation_idx right '' 1 2"
+on_mouse_left = "oatctl var rotate rotation_idx right '' 1 2"
 
 [[block]]
 name='panel_0'

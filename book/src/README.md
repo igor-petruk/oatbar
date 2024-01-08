@@ -49,7 +49,7 @@ name = 'workspace'
 type = 'enum'
 active = '${desktop:workspace.active}'
 variants = '${desktop:workspace.variants}'
-on_click_command = "oatbar-desktop $BLOCK_INDEX"
+on_mouse_left = "oatbar-desktop $BLOCK_INDEX"
 
 [[block]]
 name = 'clock'
