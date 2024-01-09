@@ -55,6 +55,7 @@ pub struct State {
     pub error: Option<String>,
     pub command_errors: BTreeMap<String, String>,
     pub var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
+    pub mouse_position: Option<(i16, i16)>,
     config: config::Config<parse::Placeholder>,
 }
 
@@ -550,11 +551,14 @@ impl State {
     }
 }
 
+pub struct MotionUpdate {}
+
 #[derive(Debug, Default)]
 pub struct Update {
     pub command_name: Option<String>,
     pub entries: Vec<UpdateEntry>,
     pub error: Option<String>,
+    pub mouse_position: Option<MotionUpdate>,
 }
 
 #[derive(Debug, Default)]

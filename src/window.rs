@@ -141,7 +141,8 @@ pub struct Window {
     bar_config: config::Bar<parse::Placeholder>,
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
-    window_height: u16,
+    x: i16,
+    y: i16,
     visibility_control: Arc<RwLock<VisibilityControl>>,
 }
 
@@ -152,6 +153,7 @@ impl Window {
         bar_config: config::Bar<parse::Placeholder>,
         conn: Arc<xcb::Connection>,
         state: Arc<RwLock<state::State>>,
+        state_update_tx: crossbeam_channel::Sender<state::Update>,
         wm_info: &wmready::WMInfo,
     ) -> anyhow::Result<Self> {
         info!("Loading bar {:?}", name);
@@ -219,7 +221,11 @@ impl Window {
                 x::Cw::OverrideRedirect(bar_config.popup),
                 //x::Cw::OverrideRedirect(true),
                 x::Cw::EventMask(
-                    x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS | x::EventMask::BUTTON_PRESS,
+                    x::EventMask::EXPOSURE
+                        | x::EventMask::KEY_PRESS
+                        | x::EventMask::BUTTON_PRESS
+                        | x::EventMask::LEAVE_WINDOW
+                        | x::EventMask::POINTER_MOTION,
                 ),
                 x::Cw::Colormap(cid),
             ],
@@ -407,7 +413,8 @@ impl Window {
             state,
             screen,
             bar_config,
-            window_height,
+            x,
+            y,
             visibility_control: Arc::new(RwLock::new(VisibilityControl {
                 name,
                 window_id: id,
@@ -491,15 +498,38 @@ impl Window {
         self.bar.handle_button_press(x, y, button)
     }
 
-    pub fn handle_raw_motion(&self, _x: i16, y: i16) -> anyhow::Result<()> {
+    pub fn handle_raw_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
+        self.handle_motion_popup(x, y)?;
+        self.handle_bar_mouse_motion(x, y)?;
+        Ok(())
+    }
+
+    pub fn handle_bar_mouse_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
+        let (rel_x, rel_y) = (x - self.x, y - self.y);
+        let visibility_control = self.visibility_control.read().unwrap();
+        let pos = if visibility_control.visible
+            && rel_x > 0
+            && rel_y > 0
+            && rel_x < self.width as i16
+            && rel_y < self.height as i16
+        {
+            Some((rel_x, rel_y))
+        } else {
+            None
+        };
+        // tracing::info!("{:?}", pos);
+        Ok(())
+    }
+
+    pub fn handle_motion_popup(&self, _x: i16, y: i16) -> anyhow::Result<()> {
         if !self.bar_config.popup || !self.bar_config.popup_at_edge {
             return Ok(());
         }
         let edge_size: i16 = 3;
         let screen_height: i16 = self.screen.height_in_pixels() as i16;
         let over_window = match self.bar_config.position {
-            config::BarPosition::Top => y < self.window_height as i16,
-            config::BarPosition::Bottom => y > screen_height - self.window_height as i16,
+            config::BarPosition::Top => y < self.height as i16,
+            config::BarPosition::Bottom => y > screen_height - self.height as i16,
             config::BarPosition::Center => false,
         };
         let over_edge = match self.bar_config.position {

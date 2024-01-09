@@ -25,6 +25,8 @@ pub struct Engine {
     state: Arc<RwLock<state::State>>,
     conn: Arc<xcb::Connection>,
     screen: x::ScreenBuf,
+    pub update_tx: crossbeam_channel::Sender<state::Update>,
+    update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
 }
 
 impl Engine {
@@ -33,6 +35,7 @@ impl Engine {
         initial_state: state::State,
     ) -> anyhow::Result<Self> {
         let state = Arc::new(RwLock::new(initial_state));
+        let (update_tx, update_rx) = crossbeam_channel::unbounded();
 
         let (conn, _) = xcb::Connection::connect_with_xlib_display_and_extensions(
             &[
@@ -74,6 +77,7 @@ impl Engine {
                 bar.clone(),
                 conn.clone(),
                 state.clone(),
+                update_tx.clone(),
                 &wm_info,
             )?;
             windows.insert(window.id, window);
@@ -87,6 +91,8 @@ impl Engine {
             state,
             conn,
             screen,
+            update_tx,
+            update_rx: Some(update_rx),
         })
     }
 
@@ -170,12 +176,16 @@ impl Engine {
         Ok(())
     }
 
-    pub fn run(
-        &mut self,
-        state_update_rx: crossbeam_channel::Receiver<state::Update>,
-    ) -> anyhow::Result<()> {
-        self.spawn_state_update_thread(state_update_rx)
-            .context("engine state update")?;
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        match self.update_rx.take() {
+            Some(update_rx) => {
+                self.spawn_state_update_thread(update_rx)
+                    .context("engine state update")?;
+            }
+            None => {
+                return Err(anyhow::anyhow!("run() can be run only once"));
+            }
+        }
         loop {
             let event = xutils::get_event(&self.conn).context("failed getting an X event")?;
             match event {

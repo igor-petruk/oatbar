@@ -73,17 +73,21 @@ fn main() -> anyhow::Result<()> {
     let (ipc_server_tx, ipc_server_rx) = crossbeam_channel::unbounded();
 
     let state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
-    let (state_update_tx, state_update_rx) = crossbeam_channel::unbounded();
 
     let mut engine = engine::Engine::new(config, state)?;
 
     let mut poker = source::Poker::new();
     for (index, config) in commands.into_iter().enumerate() {
         let command = source::Command { index, config };
-        command.spawn(state_update_tx.clone(), poker.add())?;
+        command.spawn(engine.update_tx.clone(), poker.add())?;
     }
 
-    ipcserver::Server::spawn(&cli.instance_name, poker, state_update_tx, ipc_server_rx)?;
+    ipcserver::Server::spawn(
+        &cli.instance_name,
+        poker,
+        engine.update_tx.clone(),
+        ipc_server_rx,
+    )?;
 
     #[cfg(feature = "profile")]
     std::thread::spawn(move || loop {
@@ -94,6 +98,6 @@ fn main() -> anyhow::Result<()> {
         std::thread::sleep(std::time::Duration::from_secs(5));
     });
 
-    engine.run(state_update_rx)?;
+    engine.run()?;
     Ok(())
 }
