@@ -176,7 +176,7 @@ impl Block for BaseBlock {
         let hover = match drawing_context.pointer_position {
             Some((x, y)) => {
                 let (ux, _) = context.device_to_user(x as f64, y as f64)?;
-                ux >= 0.0 && ux <= self.get_dimensions().width && self.separator_type().is_none()
+                ux >= 0.0 && ux < self.get_dimensions().width && self.separator_type().is_none()
             }
             None => false,
         };
@@ -293,7 +293,9 @@ impl Block for BaseBlock {
             self.margin + self.padding,
             (self.height - inner_dim.height) / 2.0,
         );
-        self.inner_block.render(drawing_context)?;
+        let mut drawing_context = drawing_context.clone();
+        drawing_context.hover = hover;
+        self.inner_block.render(&drawing_context)?;
         context.restore()?;
         Ok(())
     }
@@ -404,7 +406,12 @@ impl Block for TextBlock {
         let context = &drawing_context.context;
         context.save()?;
 
-        let color = &self.display_options.decorations.foreground;
+        let decorations = if drawing_context.hover {
+            &self.display_options.hover_decorations
+        } else {
+            &self.display_options.decorations
+        };
+        let color = &decorations.foreground;
         if !color.is_empty() {
             drawing_context.set_source_rgba(color)?;
         }

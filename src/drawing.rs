@@ -41,6 +41,7 @@ pub struct Context {
     pub mode: Mode,
     pub font_cache: Arc<Mutex<FontCache>>,
     pub pointer_position: Option<(i16, i16)>,
+    pub hover: bool,
 }
 
 pub struct Color {
@@ -90,6 +91,7 @@ impl Context {
             height,
             mode,
             pointer_position: None,
+            hover: false,
         })
     }
 
