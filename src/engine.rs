@@ -127,10 +127,10 @@ impl Engine {
 
     fn handle_event(&mut self, event: &xcb::Event) -> anyhow::Result<()> {
         match event {
-            xcb::Event::X(x::Event::Expose(ev)) => {
-                if let Some(window) = self.windows.get_mut(&ev.window()) {
+            xcb::Event::X(x::Event::Expose(event)) => {
+                if let Some(window) = self.windows.get_mut(&event.window()) {
                     // Hack for now to distinguish on-demand expose.
-                    if let Err(e) = window.render(ev.width() != 1) {
+                    if let Err(e) = window.render(event.width() != 1) {
                         tracing::error!("Failed to render bar {:?}", e);
                     }
                 }
@@ -144,6 +144,16 @@ impl Engine {
                 )?;
                 for window in self.windows.values() {
                     window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
+                }
+            }
+            xcb::Event::X(x::Event::MotionNotify(event)) => {
+                if let Some(window) = self.windows.get(&event.event()) {
+                    window.handle_motion(event.event_x(), event.event_y())?;
+                }
+            }
+            xcb::Event::X(x::Event::LeaveNotify(event)) => {
+                if let Some(window) = self.windows.get(&event.event()) {
+                    window.handle_motion_leave()?;
                 }
             }
             xcb::Event::X(x::Event::ButtonPress(event)) => {

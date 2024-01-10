@@ -24,12 +24,13 @@ impl FontCache {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Mode {
     Full,
     Shape,
 }
 
+#[derive(Clone)]
 pub struct Context {
     pub buffer: x::Pixmap,
     pub buffer_surface: cairo::XCBSurface,
@@ -39,6 +40,7 @@ pub struct Context {
     pub height: f64,
     pub mode: Mode,
     pub font_cache: Arc<Mutex<FontCache>>,
+    pub pointer_position: Option<(i16, i16)>,
 }
 
 pub struct Color {
@@ -87,6 +89,7 @@ impl Context {
             width,
             height,
             mode,
+            pointer_position: None,
         })
     }
 

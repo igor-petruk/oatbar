@@ -54,8 +54,8 @@ pub struct State {
     pub bars: Vec<config::Bar<String>>,
     pub error: Option<String>,
     pub command_errors: BTreeMap<String, String>,
-    pub var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
-    pub mouse_position: Option<(i16, i16)>,
+    pub var_snapshot_updates_tx: Vec<crossbeam_channel::Sender<VarSnapshotUpdate>>,
+    pub pointer_position: HashMap<String, (i16, i16)>,
     config: config::Config<parse::Placeholder>,
 }
 
@@ -91,11 +91,11 @@ fn format_error_str(error_str: &str) -> String {
 impl State {
     pub fn new(
         config: config::Config<parse::Placeholder>,
-        var_updates_tx: Vec<crossbeam_channel::Sender<VarUpdate>>,
+        var_snapshot_updates_tx: Vec<crossbeam_channel::Sender<VarSnapshotUpdate>>,
     ) -> Self {
         Self {
             config,
-            var_updates_tx,
+            var_snapshot_updates_tx,
             ..Default::default()
         }
     }
@@ -466,11 +466,27 @@ impl State {
     }
 
     pub fn handle_state_update(&mut self, state_update: Update) {
-        let mut var_update = VarUpdate {
+        match state_update {
+            Update::VarUpdate(u) => self.handle_var_update(u),
+            Update::MotionUpdate(u) => self.handle_motion_update(u),
+        }
+    }
+
+    pub fn handle_motion_update(&mut self, motion_update: MotionUpdate) {
+        if let Some(position) = motion_update.position {
+            self.pointer_position
+                .insert(motion_update.window_name, position);
+        } else {
+            self.pointer_position.remove(&motion_update.window_name);
+        }
+    }
+
+    pub fn handle_var_update(&mut self, var_update: VarUpdate) {
+        let mut var_snapshot_update = VarSnapshotUpdate {
             vars: Default::default(),
         };
 
-        for update in state_update.entries.into_iter() {
+        for update in var_update.entries.into_iter() {
             let mut var = Vec::with_capacity(3);
             if let Some(name) = update.name {
                 var.push(name);
@@ -479,7 +495,7 @@ impl State {
                 var.push(instance);
             }
             var.push(update.var);
-            let name = match state_update.command_name {
+            let name = match var_update.command_name {
                 Some(ref command_name) => format!("{}:{}", command_name, var.join(".")),
                 None => var.join("."),
             };
@@ -489,7 +505,7 @@ impl State {
                 .insert(name.clone(), update.value.clone())
                 .unwrap_or_default();
             if old_value != update.value {
-                var_update.vars.insert(name, update.value);
+                var_snapshot_update.vars.insert(name, update.value);
             }
         }
 
@@ -513,7 +529,7 @@ impl State {
                             .insert(var.name.clone(), processed.clone())
                             .unwrap_or_default();
                         if old_value != processed {
-                            var_update.vars.insert(var.name.clone(), processed);
+                            var_snapshot_update.vars.insert(var.name.clone(), processed);
                         }
                     }
                     Err(e) => {
@@ -530,8 +546,8 @@ impl State {
             self.error = Some(format_error_str(&format!("{:?}", e)));
         }
 
-        if let Some(command_name) = state_update.command_name {
-            if let Some(error) = state_update.error {
+        if let Some(command_name) = var_update.command_name {
+            if let Some(error) = var_update.error {
                 self.command_errors.insert(
                     command_name,
                     format_error_str(&format!("State error: {}", error)),
@@ -541,24 +557,24 @@ impl State {
             }
         }
 
-        if !var_update.vars.is_empty() {
-            for rx in self.var_updates_tx.iter() {
-                if let Err(e) = rx.send(var_update.clone()) {
-                    tracing::error!("Failed to send var update: {:?}: {:?}", var_update, e);
+        if !var_snapshot_update.vars.is_empty() {
+            for rx in self.var_snapshot_updates_tx.iter() {
+                if let Err(e) = rx.send(var_snapshot_update.clone()) {
+                    tracing::error!(
+                        "Failed to send var update: {:?}: {:?}",
+                        var_snapshot_update,
+                        e
+                    );
                 }
             }
         }
     }
 }
 
-pub struct MotionUpdate {}
-
 #[derive(Debug, Default)]
-pub struct Update {
-    pub command_name: Option<String>,
-    pub entries: Vec<UpdateEntry>,
-    pub error: Option<String>,
-    pub mouse_position: Option<MotionUpdate>,
+pub struct MotionUpdate {
+    pub window_name: String,
+    pub position: Option<(i16, i16)>,
 }
 
 #[derive(Debug, Default)]
@@ -569,7 +585,20 @@ pub struct UpdateEntry {
     pub value: String,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct VarUpdate {
+    pub command_name: Option<String>,
+    pub entries: Vec<UpdateEntry>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum Update {
+    VarUpdate(VarUpdate),
+    MotionUpdate(MotionUpdate),
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct VarSnapshotUpdate {
     pub vars: HashMap<String, String>,
 }

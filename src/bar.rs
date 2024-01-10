@@ -173,14 +173,27 @@ impl Block for BaseBlock {
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
         context.set_operator(cairo::Operator::Source);
-        let line_width = self.display_options.line_width.unwrap_or_default();
+        let hover = match drawing_context.pointer_position {
+            Some((x, y)) => {
+                let (ux, _) = context.device_to_user(x as f64, y as f64)?;
+                ux >= 0.0 && ux <= self.get_dimensions().width && self.separator_type().is_none()
+            }
+            None => false,
+        };
+        let decorations = if hover {
+            &self.display_options.hover_decorations
+        } else {
+            &self.display_options.decorations
+        };
+
+        let line_width = decorations.line_width.unwrap_or_default();
         context.set_line_width(line_width);
 
         // TODO: figure out how to prevent a gap between neighbour blocks.
         let deg = std::f64::consts::PI / 180.0;
         let radius = self.separator_radius.unwrap_or_default();
 
-        let background_color = &self.display_options.background;
+        let background_color = &decorations.background;
         if !background_color.is_empty() {
             drawing_context
                 .set_source_rgba_background(background_color)
@@ -219,7 +232,7 @@ impl Block for BaseBlock {
             context.fill()?;
         }
 
-        let overline_color = &self.display_options.overline_color;
+        let overline_color = &decorations.overline_color;
         if !overline_color.is_empty() {
             drawing_context.set_source_rgba(overline_color)?;
             context.move_to(0.0, line_width / 2.0);
@@ -227,7 +240,7 @@ impl Block for BaseBlock {
             context.stroke()?;
         }
 
-        let underline_color = &self.display_options.underline_color;
+        let underline_color = &decorations.underline_color;
         if !underline_color.is_empty() {
             drawing_context.set_source_rgba(underline_color)?;
             context.move_to(0.0, self.height - line_width / 2.0);
@@ -238,7 +251,7 @@ impl Block for BaseBlock {
             context.stroke()?;
         }
 
-        let edgeline_color = &self.display_options.edgeline_color;
+        let edgeline_color = &decorations.edgeline_color;
         if !edgeline_color.is_empty() {
             match self.separator_type {
                 Some(config::SeparatorType::Right) => {
@@ -361,7 +374,7 @@ impl Block for TextBlock {
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         handle_block_event(
             &self.event_handlers,
-            &event,
+            event,
             self.name(),
             &self.value,
             vec![],
@@ -390,7 +403,8 @@ impl Block for TextBlock {
     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         context.save()?;
-        let color = &self.display_options.foreground;
+
+        let color = &self.display_options.decorations.foreground;
         if !color.is_empty() {
             drawing_context.set_source_rgba(color)?;
         }
@@ -589,7 +603,7 @@ impl Block for EnumBlock {
                     if pos <= button_press.x && button_press.x <= next_pos {
                         handle_block_event(
                             &self.event_handlers,
-                            &event,
+                            event,
                             self.name(),
                             &variant_block.original_value,
                             vec![("BLOCK_INDEX".into(), format!("{}", variant_block.index))],
@@ -680,7 +694,7 @@ impl Block for ImageBlock {
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         handle_block_event(
             &self.event_handlers,
-            &event,
+            event,
             self.name(),
             &self.value,
             vec![],
@@ -884,6 +898,7 @@ pub struct Bar {
     center_group_pos: f64,
     right_group: BlockGroup,
     right_group_pos: f64,
+    last_update_pointer_position: Option<(i16, i16)>,
 }
 
 impl Bar {
@@ -907,6 +922,7 @@ impl Bar {
             center_group_pos: 0.0,
             right_group: BlockGroup::new(&[]),
             right_group_pos: 0.0,
+            last_update_pointer_position: None,
         })
     }
 }
@@ -1061,6 +1077,7 @@ impl Bar {
         resolved_bar_config: &config::Bar<String>,
         block_data: &HashMap<String, state::BlockData>,
         error: &Option<String>,
+        pointer_position: Option<(i16, i16)>,
     ) -> Updates {
         self.resolved_bar_config = Some(resolved_bar_config.clone());
         let mut redraw_all = false;
@@ -1068,6 +1085,11 @@ impl Bar {
             redraw_all = true;
         }
         self.error = error.clone();
+
+        if pointer_position != self.last_update_pointer_position {
+            self.last_update_pointer_position = pointer_position;
+            redraw_all = true;
+        }
 
         let mut popup: HashMap<config::PopupMode, HashSet<String>> =
             HashMap::with_capacity(block_data.len());
@@ -1230,6 +1252,9 @@ impl Bar {
         drawing_context: &drawing::Context,
         redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
+        let mut drawing_context = drawing_context.clone();
+        drawing_context.pointer_position = self.last_update_pointer_position;
+
         let context = &drawing_context.context;
         let bar = &self.bar;
 
@@ -1255,21 +1280,21 @@ impl Bar {
 
         context.save()?;
         self.left_group
-            .render(drawing_context, redraw)
+            .render(&drawing_context, redraw)
             .context("left_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate(self.center_group_pos, 0.0);
         self.center_group
-            .render(drawing_context, redraw)
+            .render(&drawing_context, redraw)
             .context("center_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate(self.right_group_pos, 0.0);
         self.right_group
-            .render(drawing_context, redraw)
+            .render(&drawing_context, redraw)
             .context("right_group")?;
         context.restore()?;
 

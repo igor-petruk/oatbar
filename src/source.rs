@@ -97,11 +97,11 @@ impl<'de> Visitor<'de> for RowVisitor {
                 .flat_map(|(idx, block)| block_to_su_entry(idx, block))
                 .collect();
             self.tx
-                .send(state::Update {
+                .send(state::Update::VarUpdate(state::VarUpdate {
                     command_name: Some(self.command_name.clone()),
                     entries,
                     ..Default::default()
-                })
+                }))
                 .unwrap();
         }
         Ok(())
@@ -144,11 +144,11 @@ impl PlainSender {
         if self.entries.len() == self.line_names.len() {
             let entries =
                 std::mem::replace(&mut self.entries, Vec::with_capacity(self.line_names.len()));
-            self.tx.send(state::Update {
+            self.tx.send(state::Update::VarUpdate(state::VarUpdate {
                 command_name: Some(self.command_name.clone()),
                 entries,
                 ..Default::default()
-            })?;
+            }))?;
         }
         Ok(())
     }
@@ -295,11 +295,11 @@ impl Command {
             thread::spawn(command_name.clone(), move || loop {
                 let result = self.run_command(&command_name, &tx);
                 if let Err(e) = result {
-                    tx.send(state::Update {
+                    tx.send(state::Update::VarUpdate(state::VarUpdate {
                         command_name: Some(command_name.clone()),
                         error: Some(format!("Command failed: {:?}", e)),
                         ..Default::default()
-                    })?;
+                    }))?;
                 }
                 if self.config.once {
                     return Ok(());
@@ -311,11 +311,11 @@ impl Command {
             })
         };
         if let Err(e) = result {
-            tx.send(state::Update {
+            tx.send(state::Update::VarUpdate(state::VarUpdate {
                 command_name: Some(command_name.clone()),
                 error: Some(format!("Spawning thread failed: {:?}", e)),
                 ..Default::default()
-            })?;
+            }))?;
         }
         Ok(())
     }

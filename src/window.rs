@@ -131,6 +131,7 @@ impl VisibilityControl {
 pub struct Window {
     pub conn: Arc<xcb::Connection>,
     pub id: x::Window,
+    pub name: String,
     pub width: u16,
     pub height: u16,
     back_buffer_context: drawing::Context,
@@ -141,8 +142,7 @@ pub struct Window {
     bar_config: config::Bar<parse::Placeholder>,
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
-    x: i16,
-    y: i16,
+    state_update_tx: crossbeam_channel::Sender<state::Update>,
     visibility_control: Arc<RwLock<VisibilityControl>>,
 }
 
@@ -403,6 +403,7 @@ impl Window {
         Ok(Self {
             conn: conn.clone(),
             id,
+            name: name.clone(),
             width: window_width,
             height: window_height,
             back_buffer_context,
@@ -411,10 +412,9 @@ impl Window {
             bar_index,
             bar,
             state,
+            state_update_tx,
             screen,
             bar_config,
-            x,
-            y,
             visibility_control: Arc::new(RwLock::new(VisibilityControl {
                 name,
                 window_id: id,
@@ -446,11 +446,13 @@ impl Window {
                 return Ok(());
             }
         };
+        let pointer_position = state.pointer_position.get(&self.name).copied();
         let mut updates = self.bar.update(
             &self.back_buffer_context,
             bar_config,
             &state.blocks,
             &state.build_error_msg(),
+            pointer_position,
         );
 
         if from_os {
@@ -500,24 +502,24 @@ impl Window {
 
     pub fn handle_raw_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
         self.handle_motion_popup(x, y)?;
-        self.handle_bar_mouse_motion(x, y)?;
         Ok(())
     }
 
-    pub fn handle_bar_mouse_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
-        let (rel_x, rel_y) = (x - self.x, y - self.y);
-        let visibility_control = self.visibility_control.read().unwrap();
-        let pos = if visibility_control.visible
-            && rel_x > 0
-            && rel_y > 0
-            && rel_x < self.width as i16
-            && rel_y < self.height as i16
-        {
-            Some((rel_x, rel_y))
-        } else {
-            None
-        };
-        // tracing::info!("{:?}", pos);
+    pub fn handle_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
+        self.state_update_tx
+            .send(state::Update::MotionUpdate(state::MotionUpdate {
+                window_name: self.name.clone(),
+                position: Some((x, y)),
+            }))?;
+        Ok(())
+    }
+
+    pub fn handle_motion_leave(&self) -> anyhow::Result<()> {
+        self.state_update_tx
+            .send(state::Update::MotionUpdate(state::MotionUpdate {
+                window_name: self.name.clone(),
+                position: None,
+            }))?;
         Ok(())
     }
 

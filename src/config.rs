@@ -36,19 +36,76 @@ pub enum PopupMode {
 }
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
-pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
-    pub font: Dynamic,
+pub struct Decorations<Dynamic: Clone + Default + Debug> {
     pub foreground: Dynamic,
-    pub popup_value: Dynamic,
-    pub output_format: Dynamic,
     pub background: Dynamic,
     pub overline_color: Dynamic,
     pub underline_color: Dynamic,
     pub edgeline_color: Dynamic,
+    pub line_width: Option<f64>,
+}
+
+impl Decorations<Option<Placeholder>> {
+    pub fn with_default(self, default: &Decorations<Placeholder>) -> Decorations<Placeholder> {
+        Decorations {
+            foreground: self
+                .foreground
+                .unwrap_or_else(|| default.foreground.clone()),
+            background: self
+                .background
+                .unwrap_or_else(|| default.background.clone()),
+            overline_color: self
+                .overline_color
+                .unwrap_or_else(|| default.overline_color.clone()),
+            underline_color: self
+                .underline_color
+                .unwrap_or_else(|| default.underline_color.clone()),
+            edgeline_color: self
+                .edgeline_color
+                .unwrap_or_else(|| default.edgeline_color.clone()),
+            line_width: self.line_width.or(default.line_width),
+        }
+    }
+}
+
+impl PlaceholderExt for Decorations<Placeholder> {
+    type R = Decorations<String>;
+
+    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
+        Ok(Decorations {
+            foreground: self.foreground.resolve(vars).context("foreground")?,
+            background: self.background.resolve(vars).context("background")?,
+            overline_color: self
+                .overline_color
+                .resolve(vars)
+                .context("overline_color")?,
+            underline_color: self
+                .underline_color
+                .resolve(vars)
+                .context("underline_color")?,
+            edgeline_color: self
+                .edgeline_color
+                .resolve(vars)
+                .context("edgeline_color")?,
+            line_width: self.line_width,
+        })
+    }
+}
+
+serde_with::with_prefix!(prefix_hover "hover_");
+
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
+pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
+    pub font: Dynamic,
+    pub popup_value: Dynamic,
+    pub output_format: Dynamic,
     pub pango_markup: Option<bool>,
     pub margin: Option<f64>,
     pub padding: Option<f64>,
-    pub line_width: Option<f64>,
+    #[serde(flatten)]
+    pub decorations: Decorations<Dynamic>,
+    #[serde(flatten, with = "prefix_hover")]
+    pub hover_decorations: Decorations<Dynamic>,
     #[serde(default)]
     pub show_if_matches: Vec<(String, Regex)>,
     pub popup: Option<PopupMode>,
@@ -61,30 +118,18 @@ impl DisplayOptions<Option<Placeholder>> {
     ) -> DisplayOptions<Placeholder> {
         DisplayOptions {
             font: self.font.unwrap_or_else(|| default.font.clone()),
-            foreground: self
-                .foreground
-                .unwrap_or_else(|| default.foreground.clone()),
-            background: self
-                .background
-                .unwrap_or_else(|| default.background.clone()),
             output_format: self
                 .output_format
                 .unwrap_or_else(|| default.output_format.clone()),
             popup_value: self
                 .popup_value
                 .unwrap_or_else(|| default.popup_value.clone()),
-            overline_color: self
-                .overline_color
-                .unwrap_or_else(|| default.overline_color.clone()),
-            underline_color: self
-                .underline_color
-                .unwrap_or_else(|| default.underline_color.clone()),
-            edgeline_color: self
-                .edgeline_color
-                .unwrap_or_else(|| default.edgeline_color.clone()),
             margin: self.margin.or(default.margin),
             padding: self.padding.or(default.padding),
-            line_width: self.line_width.or(default.line_width),
+            decorations: self.decorations.clone().with_default(&default.decorations),
+            hover_decorations: self
+                .hover_decorations
+                .with_default(&self.decorations.with_default(&default.hover_decorations)),
             show_if_matches: if self.show_if_matches.is_empty() {
                 default.show_if_matches.clone()
             } else {
@@ -102,25 +147,15 @@ impl PlaceholderExt for DisplayOptions<Placeholder> {
     fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
         Ok(DisplayOptions {
             font: self.font.resolve(vars).context("font")?,
-            foreground: self.foreground.resolve(vars).context("foreground")?,
-            background: self.background.resolve(vars).context("background")?,
             popup_value: self.popup_value.resolve(vars).context("popup_value")?,
             output_format: self.output_format.resolve(vars).context("output_format")?,
-            overline_color: self
-                .overline_color
-                .resolve(vars)
-                .context("overline_color")?,
-            underline_color: self
-                .underline_color
-                .resolve(vars)
-                .context("underline_color")?,
-            edgeline_color: self
-                .edgeline_color
-                .resolve(vars)
-                .context("edgeline_color")?,
             margin: self.margin,
             padding: self.padding,
-            line_width: self.line_width,
+            decorations: self.decorations.resolve(vars).context("decorations")?,
+            hover_decorations: self
+                .hover_decorations
+                .resolve(vars)
+                .context("decorations")?,
             show_if_matches: self
                 .show_if_matches
                 .iter()
@@ -1079,47 +1114,61 @@ fn default_margin() -> Margin {
 }
 
 pub fn default_display() -> DisplayOptions<Placeholder> {
-    DisplayOptions {
-        popup_value: Placeholder::infallable(""),
-        output_format: Placeholder::infallable("${value}"),
-        font: Placeholder::infallable("monospace 12"),
+    let decorations = Decorations {
         foreground: Placeholder::infallable("#dddddd"),
         background: Placeholder::infallable("#191919"),
         overline_color: Placeholder::infallable(""),
         underline_color: Placeholder::infallable(""),
         edgeline_color: Placeholder::infallable(""),
+        line_width: Some(1.1),
+    };
+    DisplayOptions {
+        popup_value: Placeholder::infallable(""),
+        output_format: Placeholder::infallable("${value}"),
+        font: Placeholder::infallable("monospace 12"),
         pango_markup: Some(true),
         margin: Some(0.0),
         padding: Some(8.0),
-        line_width: Some(1.1),
         show_if_matches: vec![],
         popup: None,
+        hover_decorations: decorations.clone(),
+        decorations,
     }
 }
 
 pub fn default_error_display() -> DisplayOptions<String> {
-    DisplayOptions {
-        popup_value: "".into(),
-        output_format: "".into(),
-        font: "monospace 12".into(),
+    let decorations = Decorations {
         foreground: "#dddddd".into(),
         background: "#191919".into(),
         overline_color: "".into(),
         underline_color: "".into(),
         edgeline_color: "".into(),
+        line_width: Some(1.1),
+    };
+    DisplayOptions {
+        popup_value: "".into(),
+        output_format: "".into(),
+        font: "monospace 12".into(),
         pango_markup: Some(true),
         margin: Some(0.0),
         padding: Some(8.0),
-        line_width: Some(1.1),
         show_if_matches: vec![],
         popup: None,
+        hover_decorations: decorations.clone(),
+        decorations,
     }
 }
 
 fn default_active_display() -> DisplayOptions<Placeholder> {
-    DisplayOptions {
+    let default = default_display();
+    let decorations = Decorations {
         foreground: Placeholder::infallable("#ffffff"),
-        ..default_display()
+        ..default.decorations
+    };
+    DisplayOptions {
+        hover_decorations: decorations.clone(),
+        decorations,
+        ..default
     }
 }
 
@@ -1177,7 +1226,7 @@ mod tests {
             variants: Placeholder::infallable(""),
             variants_vec: vec![],
             display: DisplayOptions {
-                foreground: Placeholder::infallable("b ${foo} c"),
+                font: Placeholder::infallable("b ${foo} c"),
                 ..Default::default()
             },
             active_display: DisplayOptions {
@@ -1190,7 +1239,7 @@ mod tests {
         let block = block.resolve(&map).unwrap();
         if let Block::Enum(e) = block {
             assert_eq!(e.active, "a hello b");
-            assert_eq!(e.display.foreground, "b hello c");
+            assert_eq!(e.display.font, "b hello c");
         }
     }
 

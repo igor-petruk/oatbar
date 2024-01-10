@@ -25,15 +25,16 @@ impl Server {
             Some((command_name, name)) => (Some(command_name.into()), name.into()),
             None => (None, name),
         };
-        self.state_update_tx.send(state::Update {
-            command_name,
-            entries: vec![state::UpdateEntry {
-                var: name,
-                value,
+        self.state_update_tx
+            .send(state::Update::VarUpdate(state::VarUpdate {
+                command_name,
+                entries: vec![state::UpdateEntry {
+                    var: name,
+                    value,
+                    ..Default::default()
+                }],
                 ..Default::default()
-            }],
-            ..Default::default()
-        })?;
+            }))?;
         Ok(())
     }
 
@@ -83,7 +84,7 @@ impl Server {
         instance_name: &str,
         poker: source::Poker,
         state_update_tx: crossbeam_channel::Sender<state::Update>,
-        var_updates_rx: crossbeam_channel::Receiver<state::VarUpdate>,
+        var_snapshot_updates_rx: crossbeam_channel::Receiver<state::VarSnapshotUpdate>,
     ) -> anyhow::Result<()> {
         let path = ipc::socket_path(instance_name).context("Unable to get socket path")?;
         tracing::info!("IPC socket path: {:?}", path);
@@ -112,9 +113,9 @@ impl Server {
             Ok(())
         })?;
         thread::spawn("ipc-vars", move || {
-            while let Ok(var_update) = var_updates_rx.recv() {
+            while let Ok(var_snapshot_update) = var_snapshot_updates_rx.recv() {
                 let mut vars = vars.write().unwrap();
-                for (name, new_value) in var_update.vars {
+                for (name, new_value) in var_snapshot_update.vars {
                     vars.insert(name, new_value);
                 }
             }
