@@ -74,6 +74,7 @@ impl Engine {
             let window = window::Window::create_and_show(
                 format!("bar{}", index),
                 index,
+                &config,
                 bar.clone(),
                 conn.clone(),
                 state.clone(),

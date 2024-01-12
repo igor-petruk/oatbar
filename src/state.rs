@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#![allow(clippy::dead_code)]
 
 use crate::config;
 use crate::parse::{self, PlaceholderExt};
@@ -59,27 +60,6 @@ pub struct State {
     config: config::Config<parse::Placeholder>,
 }
 
-impl parse::PlaceholderContext for HashMap<String, String> {
-    fn get(&self, key: &str) -> Option<&String> {
-        self.get(key)
-    }
-}
-
-struct PlaceholderContextWithValue<'a> {
-    vars: &'a HashMap<String, String>,
-    value: &'a String,
-}
-
-impl<'a> parse::PlaceholderContext for PlaceholderContextWithValue<'a> {
-    fn get(&self, key: &str) -> Option<&String> {
-        if key == "value" {
-            Some(self.value)
-        } else {
-            self.vars.get(key)
-        }
-    }
-}
-
 fn format_error_str(error_str: &str) -> String {
     use itertools::Itertools;
     error_str
@@ -100,16 +80,16 @@ impl State {
         }
     }
 
-    fn apply_output_format(
-        &self,
-        output_format: &parse::Placeholder,
-        value: &String,
-    ) -> anyhow::Result<String> {
-        output_format.resolve(&PlaceholderContextWithValue {
-            vars: &self.vars,
-            value,
-        })
-    }
+    // fn apply_output_format(
+    //     &self,
+    //     output_format: &parse::Placeholder,
+    //     value: &String,
+    // ) -> anyhow::Result<String> {
+    //     output_format.resolve(&PlaceholderContextWithValue {
+    //         vars: &self.vars,
+    //         value,
+    //     })
+    // }
 
     pub fn build_error_msg(&self) -> Option<String> {
         if let Some(error) = &self.error {
@@ -121,349 +101,350 @@ impl State {
         }
     }
 
-    fn segment_ramp_pass(
-        number_type: config::NumberType,
-        i_value: f64,
-        ramp: &[(String, String)],
-    ) -> anyhow::Result<String> {
-        let mut segment = " ";
-        for (ramp, ramp_format) in ramp {
-            if let Some(ramp_number) = number_type.parse_str(ramp)? {
-                if i_value < ramp_number {
-                    break;
-                }
-            }
-            segment = ramp_format;
-        }
-        Ok(segment.into())
-    }
+    // fn segment_ramp_pass(
+    //     number_type: config::NumberType,
+    //     i_value: f64,
+    //     ramp: &[(String, String)],
+    // ) -> anyhow::Result<String> {
+    //     let mut segment = " ";
+    //     for (ramp, ramp_format) in ramp {
+    //         if let Some(ramp_number) = number_type.parse_str(ramp)? {
+    //             if i_value < ramp_number {
+    //                 break;
+    //             }
+    //         }
+    //         segment = ramp_format;
+    //     }
+    //     Ok(segment.into())
+    // }
 
-    fn progress_bar_string(
-        text_progress_bar: &config::TextProgressBarDisplay<String>,
-        number_type: config::NumberType,
-        value: Option<f64>,
-        min_value: Option<f64>,
-        max_value: Option<f64>,
-        width: usize,
-    ) -> anyhow::Result<String> {
-        let empty_result = (0..width).map(|_| ' ');
-        if max_value.is_none() || min_value.is_none() || value.is_none() {
-            return Ok(empty_result.collect());
-        }
-        let min_value = min_value.unwrap();
+    // fn progress_bar_string(
+    //     text_progress_bar: &config::TextProgressBarDisplay<String>,
+    //     number_type: config::NumberType,
+    //     value: Option<f64>,
+    //     min_value: Option<f64>,
+    //     max_value: Option<f64>,
+    //     width: usize,
+    // ) -> anyhow::Result<String> {
+    //     let empty_result = (0..width).map(|_| ' ');
+    //     if max_value.is_none() || min_value.is_none() || value.is_none() {
+    //         return Ok(empty_result.collect());
+    //     }
+    //     let min_value = min_value.unwrap();
 
-        let max_value = max_value.unwrap();
-        if min_value >= max_value {
-            return Ok(empty_result.collect()); // error
-        }
-        let mut value = value.unwrap();
-        if value < min_value {
-            value = min_value;
-        }
-        if value > max_value {
-            value = max_value;
-        }
-        let fill = &text_progress_bar.fill;
-        let empty = &text_progress_bar.empty;
-        let indicator = &text_progress_bar.indicator;
-        let indicator_position =
-            ((value - min_value) / (max_value - min_value) * width as f64) as i32;
-        let segments: Vec<String> = (0..(width + 1) as i32)
-            .map(|i| {
-                let i_value = (i as f64) / (width as f64) * (max_value - min_value) + min_value;
-                Ok(match i.cmp(&indicator_position) {
-                    Ordering::Less => Self::segment_ramp_pass(number_type, i_value, fill)?,
-                    Ordering::Equal => Self::segment_ramp_pass(number_type, i_value, indicator)?,
-                    Ordering::Greater => Self::segment_ramp_pass(number_type, i_value, empty)?,
-                })
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-        Ok(segments.join(""))
-    }
+    //     let max_value = max_value.unwrap();
+    //     if min_value >= max_value {
+    //         return Ok(empty_result.collect()); // error
+    //     }
+    //     let mut value = value.unwrap();
+    //     if value < min_value {
+    //         value = min_value;
+    //     }
+    //     if value > max_value {
+    //         value = max_value;
+    //     }
+    //     let fill = &text_progress_bar.fill;
+    //     let empty = &text_progress_bar.empty;
+    //     let indicator = &text_progress_bar.indicator;
+    //     let indicator_position =
+    //         ((value - min_value) / (max_value - min_value) * width as f64) as i32;
+    //     let segments: Vec<String> = (0..(width + 1) as i32)
+    //         .map(|i| {
+    //             let i_value = (i as f64) / (width as f64) * (max_value - min_value) + min_value;
+    //             Ok(match i.cmp(&indicator_position) {
+    //                 Ordering::Less => Self::segment_ramp_pass(number_type, i_value, fill)?,
+    //                 Ordering::Equal => Self::segment_ramp_pass(number_type, i_value, indicator)?,
+    //                 Ordering::Greater => Self::segment_ramp_pass(number_type, i_value, empty)?,
+    //             })
+    //         })
+    //         .collect::<anyhow::Result<Vec<_>>>()?;
+    //     Ok(segments.join(""))
+    // }
 
-    fn ramp_pass(
-        &self,
-        number_type: config::NumberType,
-        text: &str,
-        value: f64,
-        ramp: &[(String, parse::Placeholder)],
-    ) -> anyhow::Result<String> {
-        let mut format: Option<&parse::Placeholder> = None;
-        for (ramp, ramp_format) in ramp {
-            if let Some(ramp_number) = number_type.parse_str(ramp)? {
-                if value < ramp_number {
-                    break;
-                }
-            }
-            format = Some(ramp_format);
-        }
-        match format {
-            None => Ok(text.into()),
-            Some(format) => self.apply_output_format(format, &text.to_string()),
-        }
-    }
+    // fn ramp_pass(
+    //     &self,
+    //     number_type: config::NumberType,
+    //     text: &str,
+    //     value: f64,
+    //     ramp: &[(String, parse::Placeholder)],
+    // ) -> anyhow::Result<String> {
+    //     let mut format: Option<&parse::Placeholder> = None;
+    //     for (ramp, ramp_format) in ramp {
+    //         if let Some(ramp_number) = number_type.parse_str(ramp)? {
+    //             if value < ramp_number {
+    //                 break;
+    //             }
+    //         }
+    //         format = Some(ramp_format);
+    //     }
+    //     match format {
+    //         None => Ok(text.into()),
+    //         Some(format) => self.apply_output_format(format, &text.to_string()),
+    //     }
+    // }
 
-    fn parse_min_max(
-        number_block: &config::NumberBlock<String>,
-    ) -> anyhow::Result<(Option<f64>, Option<f64>)> {
-        let number_type = number_block.number_type;
-        Ok(match number_type {
-            config::NumberType::Percent => (Some(0.0), Some(100.0)),
-            _ => (
-                number_type
-                    .parse_str(&number_block.min_value)
-                    .context("min_value")?,
-                number_type
-                    .parse_str(&number_block.max_value)
-                    .context("max_value")?,
-            ),
-        })
-    }
+    // fn parse_min_max(
+    //     number_block: &config::NumberBlock<String>,
+    // ) -> anyhow::Result<(Option<f64>, Option<f64>)> {
+    //     let number_type = number_block.number_type;
+    //     Ok(match number_type {
+    //         config::NumberType::Percent => (Some(0.0), Some(100.0)),
+    //         _ => (
+    //             number_type
+    //                 .parse_str(&number_block.min_value)
+    //                 .context("min_value")?,
+    //             number_type
+    //                 .parse_str(&number_block.max_value)
+    //                 .context("max_value")?,
+    //         ),
+    //     })
+    // }
 
-    fn number_text(
-        number_text_display: &config::NumberTextDisplay<String>,
-        value: Option<f64>,
-    ) -> anyhow::Result<String> {
-        if value.is_none() {
-            return Ok("".into());
-        }
-        let value = value.unwrap();
+    // fn number_text(
+    //     number_text_display: &config::NumberTextDisplay<String>,
+    //     value: Option<f64>,
+    // ) -> anyhow::Result<String> {
+    //     if value.is_none() {
+    //         return Ok("".into());
+    //     }
+    //     let value = value.unwrap();
 
-        let text = match number_text_display.number_type.unwrap() {
-            config::NumberType::Percent => format!("{}%", value),
-            config::NumberType::Number => format!("{}", value),
-            config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
-        };
-        Ok(text)
-    }
+    //     let text = match number_text_display.number_type.unwrap() {
+    //         config::NumberType::Percent => format!("{}%", value),
+    //         config::NumberType::Number => format!("{}", value),
+    //         config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
+    //     };
+    //     Ok(text)
+    // }
 
-    fn text_block(&self, b: &config::TextBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
-        let display = b.display.resolve(&self.vars).context("display")?;
-        let input = b.input.resolve(&self.vars).context("input")?;
-        let value = input.process();
-        let value = self.apply_output_format(&b.display.output_format, &value)?;
-        Ok(BlockData {
-            config: config::Block::Text(config::TextBlock {
-                display,
-                separator_type: b.separator_type.clone(),
-                separator_radius: b.separator_radius,
-                name: b.name.clone(),
-                inherit: b.inherit.clone(),
-                event_handlers: b
-                    .event_handlers
-                    .resolve(&self.vars)
-                    .context("event_handlers")?,
-                input: config::Input { value, ..input },
-            }),
-        })
-    }
+    // fn text_block(&self, b: &config::TextBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
+    //     let display = b.display.resolve(&self.vars).context("display")?;
+    //     let input = b.input.resolve(&self.vars).context("input")?;
+    //     let value = input.process();
+    //     let value = self.apply_output_format(&b.display.output_format, &value)?;
+    //     Ok(BlockData {
+    //         config: config::Block::Text(config::TextBlock {
+    //             display,
+    //             separator_type: b.separator_type.clone(),
+    //             separator_radius: b.separator_radius,
+    //             name: b.name.clone(),
+    //             inherit: b.inherit.clone(),
+    //             event_handlers: b
+    //                 .event_handlers
+    //                 .resolve(&self.vars)
+    //                 .context("event_handlers")?,
+    //             input: config::Input { value, ..input },
+    //         }),
+    //     })
+    // }
 
-    fn image_block(&self, b: &config::ImageBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
-        let display = b.display.resolve(&self.vars).context("display")?;
-        let input = b.input.resolve(&self.vars).context("input")?;
-        let value = input.process();
+    // fn image_block(&self, b: &config::ImageBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
+    //     let display = b.display.resolve(&self.vars).context("display")?;
+    //     let input = b.input.resolve(&self.vars).context("input")?;
+    //     let value = input.process();
 
-        Ok(BlockData {
-            config: config::Block::Image(config::ImageBlock {
-                display,
-                name: b.name.clone(),
-                inherit: b.inherit.clone(),
-                event_handlers: b
-                    .event_handlers
-                    .resolve(&self.vars)
-                    .context("event_handlers")?,
-                input: config::Input { value, ..input },
-            }),
-        })
-    }
+    //     Ok(BlockData {
+    //         config: config::Block::Image(config::ImageBlock {
+    //             display,
+    //             name: b.name.clone(),
+    //             inherit: b.inherit.clone(),
+    //             event_handlers: b
+    //                 .event_handlers
+    //                 .resolve(&self.vars)
+    //                 .context("event_handlers")?,
+    //             input: config::Input { value, ..input },
+    //         }),
+    //     })
+    // }
 
-    fn number_block(
-        &self,
-        b: &config::NumberBlock<parse::Placeholder>,
-    ) -> anyhow::Result<BlockData> {
-        let output_format = b.display.output_format.clone();
-        let ramp = b.ramp.clone();
-        let b = b.resolve(&self.vars).context("number_block")?;
-        let display = &b.display;
-        let value = b.input.process();
-        let mut number_block = config::NumberBlock {
-            display: display.clone(),
-            input: config::Input {
-                value,
-                ..b.input.clone()
-            },
-            ..b.clone()
-        };
-        let value = b
-            .number_type
-            .parse_str(&number_block.input.value)
-            .context("value")?;
+    // fn number_block(
+    //     &self,
+    //     b: &config::NumberBlock<parse::Placeholder>,
+    // ) -> anyhow::Result<BlockData> {
+    //     let output_format = b.display.output_format.clone();
+    //     let ramp = b.ramp.clone();
+    //     let b = b.resolve(&self.vars).context("number_block")?;
+    //     let display = &b.display;
+    //     let value = b.input.process();
+    //     let mut number_block = config::NumberBlock {
+    //         display: display.clone(),
+    //         input: config::Input {
+    //             value,
+    //             ..b.input.clone()
+    //         },
+    //         ..b.clone()
+    //     };
+    //     let value = b
+    //         .number_type
+    //         .parse_str(&number_block.input.value)
+    //         .context("value")?;
 
-        let (min_value, max_value) = Self::parse_min_max(&number_block)?;
-        if let Some(min_value) = min_value {
-            if let Some(max_value) = max_value {
-                if min_value > max_value {
-                    return Err(anyhow::anyhow!(
-                        "min_value={}, max_value={}",
-                        min_value,
-                        max_value,
-                    ));
-                }
-            }
-        }
-        let value = value.map(|mut value| {
-            if let Some(min_value) = min_value {
-                if value < min_value {
-                    value = min_value;
-                }
-            }
-            if let Some(max_value) = max_value {
-                if value > max_value {
-                    value = max_value;
-                }
-            }
-            value
-        });
+    //     let (min_value, max_value) = Self::parse_min_max(&number_block)?;
+    //     if let Some(min_value) = min_value {
+    //         if let Some(max_value) = max_value {
+    //             if min_value > max_value {
+    //                 return Err(anyhow::anyhow!(
+    //                     "min_value={}, max_value={}",
+    //                     min_value,
+    //                     max_value,
+    //                 ));
+    //             }
+    //         }
+    //     }
+    //     let value = value.map(|mut value| {
+    //         if let Some(min_value) = min_value {
+    //             if value < min_value {
+    //                 value = min_value;
+    //             }
+    //         }
+    //         if let Some(max_value) = max_value {
+    //             if value > max_value {
+    //                 value = max_value;
+    //             }
+    //         }
+    //         value
+    //     });
 
-        let text = match b.number_display.as_ref().unwrap() {
-            config::NumberDisplay::ProgressBar(text_progress_bar) => Self::progress_bar_string(
-                text_progress_bar,
-                b.number_type,
-                value,
-                min_value,
-                max_value,
-                text_progress_bar.progress_bar_size,
-            )?,
-            config::NumberDisplay::Text(number_text_display) => {
-                Self::number_text(number_text_display, value)?
-            }
-        };
+    //     let text = match b.number_display.as_ref().unwrap() {
+    //         config::NumberDisplay::ProgressBar(text_progress_bar) => Self::progress_bar_string(
+    //             text_progress_bar,
+    //             b.number_type,
+    //             value,
+    //             min_value,
+    //             max_value,
+    //             text_progress_bar.progress_bar_size,
+    //         )?,
+    //         config::NumberDisplay::Text(number_text_display) => {
+    //             Self::number_text(number_text_display, value)?
+    //         }
+    //     };
 
-        let text = if b.ramp.is_empty() {
-            text
-        } else if let Some(value) = value {
-            match (min_value, max_value) {
-                (Some(min), Some(max)) => {
-                    let value = if value < min {
-                        min
-                    } else if value > max {
-                        max
-                    } else {
-                        value
-                    };
-                    self.ramp_pass(b.number_type, &text, value, &ramp)?
-                }
-                _ => {
-                    return Err(anyhow::anyhow!("ramp with no min_value or max_value"));
-                }
-            }
-        } else {
-            text
-        };
-        let text = self
-            .apply_output_format(&output_format, &text)
-            .context("output_format")?;
+    //     let text = if b.ramp.is_empty() {
+    //         text
+    //     } else if let Some(value) = value {
+    //         match (min_value, max_value) {
+    //             (Some(min), Some(max)) => {
+    //                 let value = if value < min {
+    //                     min
+    //                 } else if value > max {
+    //                     max
+    //                 } else {
+    //                     value
+    //                 };
+    //                 self.ramp_pass(b.number_type, &text, value, &ramp)?
+    //             }
+    //             _ => {
+    //                 return Err(anyhow::anyhow!("ramp with no min_value or max_value"));
+    //             }
+    //         }
+    //     } else {
+    //         text
+    //     };
+    //     let text = self
+    //         .apply_output_format(&output_format, &text)
+    //         .context("output_format")?;
 
-        number_block.parsed_data.text_bar_string = text;
-        number_block.max_value = "".into();
-        number_block.min_value = "".into();
-        number_block.input.value = "".into();
+    //     number_block.parsed_data.text_bar_string = text;
+    //     number_block.max_value = "".into();
+    //     number_block.min_value = "".into();
+    //     number_block.input.value = "".into();
 
-        Ok(BlockData {
-            config: config::Block::Number(number_block),
-        })
-    }
+    //     Ok(BlockData {
+    //         config: config::Block::Number(number_block),
+    //     })
+    // }
 
-    fn enum_block(&self, b: &config::EnumBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
-        // Optimize this mess. It should just use normal resolve for the entire config.
-        let input = b.input.resolve(&self.vars).context("input")?;
-        let display = b.display.resolve(&self.vars).context("display")?;
+    // fn enum_block(&self, b: &config::EnumBlock<parse::Placeholder>) -> anyhow::Result<BlockData> {
+    //     // Optimize this mess. It should just use normal resolve for the entire config.
+    //     let input = b.input.resolve(&self.vars).context("input")?;
+    //     let display = b.display.resolve(&self.vars).context("display")?;
 
-        let active_display = b
-            .active_display
-            .resolve(&self.vars)
-            .context("active_display")?;
+    //     let active_display = b
+    //         .active_display
+    //         .resolve(&self.vars)
+    //         .context("active_display")?;
 
-        let event_handlers = b
-            .event_handlers
-            .resolve(&self.vars)
-            .context("event_handlers")?;
+    //     let event_handlers = b
+    //         .event_handlers
+    //         .resolve(&self.vars)
+    //         .context("event_handlers")?;
 
-        let active_str = &b
-            .active
-            .resolve(&self.vars)
-            .context("cannot replace placeholders for active_str")?;
-        let active: usize = if active_str.trim().is_empty() {
-            0
-        } else {
-            active_str.parse().unwrap()
-        };
-        let enum_separator = b.enum_separator.as_deref().unwrap_or(",");
-        let (variants, errors): (Vec<_>, Vec<_>) = b
-            .variants
-            .resolve(&self.vars)
-            .context("cannot replace placeholders")?
-            .split(enum_separator)
-            .map(|value| input.process_value(value))
-            .enumerate()
-            .map(|(index, value)| {
-                let display = if active == index {
-                    &b.active_display
-                } else {
-                    &b.display
-                };
-                self.apply_output_format(&display.output_format, &value)
-            })
-            .partition(|r| r.is_ok());
+    //     let active_str = &b
+    //         .active
+    //         .resolve(&self.vars)
+    //         .context("cannot replace placeholders for active_str")?;
+    //     let active: usize = if active_str.trim().is_empty() {
+    //         0
+    //     } else {
+    //         active_str.parse().unwrap()
+    //     };
+    //     let enum_separator = b.enum_separator.as_deref().unwrap_or(",");
+    //     let (variants, errors): (Vec<_>, Vec<_>) = b
+    //         .variants
+    //         .resolve(&self.vars)
+    //         .context("cannot replace placeholders")?
+    //         .split(enum_separator)
+    //         .map(|value| input.process_value(value))
+    //         .enumerate()
+    //         .map(|(index, value)| {
+    //             let display = if active == index {
+    //                 &b.active_display
+    //             } else {
+    //                 &b.display
+    //             };
+    //             self.apply_output_format(&display.output_format, &value)
+    //         })
+    //         .partition(|r| r.is_ok());
 
-        if let Some(Err(err)) = errors.into_iter().next() {
-            return Err(err);
-        }
+    //     if let Some(Err(err)) = errors.into_iter().next() {
+    //         return Err(err);
+    //     }
 
-        let variants_vec: Vec<_> = variants.into_iter().map(|v| v.unwrap()).collect();
-        let variants = variants_vec.join(enum_separator);
+    //     let variants_vec: Vec<_> = variants.into_iter().map(|v| v.unwrap()).collect();
+    //     let variants = variants_vec.join(enum_separator);
 
-        Ok(BlockData {
-            config: config::Block::Enum(config::EnumBlock {
-                variants,
-                variants_vec,
-                active: active.to_string(),
-                input,
-                display,
-                active_display,
-                enum_separator: Some(enum_separator.into()),
-                name: b.name.clone(),
-                inherit: b.inherit.clone(),
-                event_handlers,
-            }),
-        })
-    }
+    //     Ok(BlockData {
+    //         config: config::Block::Enum(config::EnumBlock {
+    //             variants,
+    //             variants_vec,
+    //             active: active.to_string(),
+    //             input,
+    //             display,
+    //             active_display,
+    //             enum_separator: Some(enum_separator.into()),
+    //             name: b.name.clone(),
+    //             inherit: b.inherit.clone(),
+    //             event_handlers,
+    //         }),
+    //     })
+    // }
 
-    pub fn update_resolved_data(&mut self) -> anyhow::Result<()> {
-        for (name, block) in self.config.blocks.iter() {
-            let block_data = match &block {
-                config::Block::Text(text_block) => {
-                    self.text_block(text_block).context("text_block")
-                }
-                config::Block::Enum(enum_block) => {
-                    self.enum_block(enum_block).context("enum_block")
-                }
-                config::Block::Number(number_block) => {
-                    self.number_block(number_block).context("number_block")
-                }
-                config::Block::Image(image_block) => {
-                    self.image_block(image_block).context("image_block")
-                }
-            }
-            .with_context(|| format!("block: '{}'", name))?;
-            self.blocks.insert(name.into(), block_data);
-        }
-        self.bars = Vec::with_capacity(self.config.bar.len());
-        for bar in self.config.bar.iter() {
-            self.bars.push(bar.resolve(&self.vars)?);
-        }
-        Ok(())
-    }
+    // pub fn update_blocks(&mut self) -> anyhow::Result<()> {
+    // for block in self.c
+    //     for (name, block) in self.config.blocks.iter() {
+    //         let block_data = match &block {
+    //             config::Block::Text(text_block) => {
+    //                 self.text_block(text_block).context("text_block")
+    //             }
+    //             config::Block::Enum(enum_block) => {
+    //                 self.enum_block(enum_block).context("enum_block")
+    //             }
+    //             config::Block::Number(number_block) => {
+    //                 self.number_block(number_block).context("number_block")
+    //             }
+    //             config::Block::Image(image_block) => {
+    //                 self.image_block(image_block).context("image_block")
+    //             }
+    //         }
+    //         .with_context(|| format!("block: '{}'", name))?;
+    //         self.blocks.insert(name.into(), block_data);
+    //     }
+    //     self.bars = Vec::with_capacity(self.config.bar.len());
+    //     for bar in self.config.bar.iter() {
+    //         self.bars.push(bar.resolve(&self.vars)?);
+    //     }
+    //     Ok(())
+    // }
 
     pub fn handle_state_update(&mut self, state_update: Update) {
         match state_update {
@@ -514,37 +495,39 @@ impl State {
             let var = self
                 .config
                 .vars
-                .get(var_name)
+                .get_mut(var_name)
                 .expect("var from var_order should be present in the map");
-            let var_value = var
-                .value
-                .resolve(&self.vars)
+            let update_result = var
+                .input
+                .update(&self.vars)
                 .with_context(|| format!("var: '{}'", var.name));
-            match var_value {
-                Ok(value) => match var.input.resolve(&self.vars).context("input") {
-                    Ok(input) => {
-                        let processed = input.process_value(&value);
-                        let old_value = self
+            match update_result {
+                Ok(_) => {
+                    //         Ok(input) => {
+                    let processed: &str = &var.input.value;
+                    let old_value = self
+                        .vars
+                        .insert(var.name.clone(), processed.to_string())
+                        .unwrap_or_default();
+                    if old_value != processed {
+                        var_snapshot_update
                             .vars
-                            .insert(var.name.clone(), processed.clone())
-                            .unwrap_or_default();
-                        if old_value != processed {
-                            var_snapshot_update.vars.insert(var.name.clone(), processed);
-                        }
+                            .insert(var.name.clone(), processed.to_string());
                     }
-                    Err(e) => {
-                        self.error = Some(format_error_str(&format!("{:?}", e)));
-                    }
-                },
+                    //         }
+                    //         Err(e) => {
+                    //             self.error = Some(format_error_str(&format!("{:?}", e)));
+                    //         }
+                }
                 Err(e) => {
                     self.error = Some(format_error_str(&format!("{:?}", e)));
                 }
             }
         }
 
-        if let Err(e) = self.update_resolved_data().context("update failed") {
-            self.error = Some(format_error_str(&format!("{:?}", e)));
-        }
+        // if let Err(e) = self.update_blocks().context("update failed") {
+        //     self.error = Some(format_error_str(&format!("{:?}", e)));
+        // }
 
         if let Some(command_name) = var_update.command_name {
             if let Some(error) = var_update.error {

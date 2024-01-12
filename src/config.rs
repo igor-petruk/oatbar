@@ -45,6 +45,19 @@ pub struct Decorations<Dynamic: Clone + Default + Debug> {
     pub line_width: Option<f64>,
 }
 
+impl Decorations<Placeholder> {
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<()> {
+        self.foreground.update(vars).context("foreground")?;
+        self.background.update(vars).context("background")?;
+        self.overline_color.update(vars).context("overline_color")?;
+        self.underline_color
+            .update(vars)
+            .context("underline_color")?;
+        self.edgeline_color.update(vars).context("edgeline_color")?;
+        Ok(())
+    }
+}
+
 impl Decorations<Option<Placeholder>> {
     pub fn with_default(self, default: &Decorations<Placeholder>) -> Decorations<Placeholder> {
         Decorations {
@@ -68,29 +81,29 @@ impl Decorations<Option<Placeholder>> {
     }
 }
 
-impl PlaceholderExt for Decorations<Placeholder> {
-    type R = Decorations<String>;
+// impl PlaceholderExt for Decorations<Placeholder> {
+//     type R = Decorations<String>;
 
-    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
-        Ok(Decorations {
-            foreground: self.foreground.resolve(vars).context("foreground")?,
-            background: self.background.resolve(vars).context("background")?,
-            overline_color: self
-                .overline_color
-                .resolve(vars)
-                .context("overline_color")?,
-            underline_color: self
-                .underline_color
-                .resolve(vars)
-                .context("underline_color")?,
-            edgeline_color: self
-                .edgeline_color
-                .resolve(vars)
-                .context("edgeline_color")?,
-            line_width: self.line_width,
-        })
-    }
-}
+//     fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
+//         Ok(Decorations {
+//             foreground: self.foreground.resolve(vars).context("foreground")?,
+//             background: self.background.resolve(vars).context("background")?,
+//             overline_color: self
+//                 .overline_color
+//                 .resolve(vars)
+//                 .context("overline_color")?,
+//             underline_color: self
+//                 .underline_color
+//                 .resolve(vars)
+//                 .context("underline_color")?,
+//             edgeline_color: self
+//                 .edgeline_color
+//                 .resolve(vars)
+//                 .context("edgeline_color")?,
+//             line_width: self.line_width,
+//         })
+//     }
+// }
 
 serde_with::with_prefix!(prefix_hover "hover_");
 
@@ -107,8 +120,24 @@ pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
     #[serde(flatten, with = "prefix_hover")]
     pub hover_decorations: Decorations<Dynamic>,
     #[serde(default)]
-    pub show_if_matches: Vec<(String, Regex)>,
+    pub show_if_matches: Vec<(Dynamic, Regex)>,
     pub popup: Option<PopupMode>,
+}
+
+impl DisplayOptions<Placeholder> {
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<()> {
+        self.font.update(vars).context("font")?;
+        self.popup_value.update(vars).context("popup_value")?;
+        // self.output_format is resolved later
+        self.decorations.update(vars).context("decorations")?;
+        self.hover_decorations
+            .update(vars)
+            .context("hover_decorations")?;
+        for (expr, _) in self.show_if_matches.iter_mut() {
+            expr.update(vars)?;
+        }
+        Ok(())
+    }
 }
 
 impl DisplayOptions<Option<Placeholder>> {
@@ -134,6 +163,9 @@ impl DisplayOptions<Option<Placeholder>> {
                 default.show_if_matches.clone()
             } else {
                 self.show_if_matches
+                    .into_iter()
+                    .map(|(expr, regex)| (expr.unwrap(), regex))
+                    .collect()
             },
             popup: self.popup.or(default.popup),
             pango_markup: Some(self.pango_markup.unwrap_or(true)),
@@ -141,39 +173,39 @@ impl DisplayOptions<Option<Placeholder>> {
     }
 }
 
-impl PlaceholderExt for DisplayOptions<Placeholder> {
-    type R = DisplayOptions<String>;
+// impl PlaceholderExt for DisplayOptions<Placeholder> {
+//     type R = DisplayOptions<String>;
 
-    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
-        Ok(DisplayOptions {
-            font: self.font.resolve(vars).context("font")?,
-            popup_value: self.popup_value.resolve(vars).context("popup_value")?,
-            output_format: self.output_format.resolve(vars).context("output_format")?,
-            margin: self.margin,
-            padding: self.padding,
-            decorations: self.decorations.resolve(vars).context("decorations")?,
-            hover_decorations: self
-                .hover_decorations
-                .resolve(vars)
-                .context("decorations")?,
-            show_if_matches: self
-                .show_if_matches
-                .iter()
-                .map(|(p, r)| {
-                    Ok((
-                        Placeholder::new(p)?
-                            .resolve(vars)
-                            .with_context(|| format!("{:?}", p))?,
-                        r.clone(),
-                    ))
-                })
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("show_if_matches")?,
-            popup: self.popup,
-            pango_markup: self.pango_markup,
-        })
-    }
-}
+//     fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
+//         Ok(DisplayOptions {
+//             font: self.font.resolve(vars).context("font")?,
+//             popup_value: self.popup_value.resolve(vars).context("popup_value")?,
+//             output_format: self.output_format.resolve(vars).context("output_format")?,
+//             margin: self.margin,
+//             padding: self.padding,
+//             decorations: self.decorations.resolve(vars).context("decorations")?,
+//             hover_decorations: self
+//                 .hover_decorations
+//                 .resolve(vars)
+//                 .context("decorations")?,
+//             show_if_matches: self
+//                 .show_if_matches
+//                 .iter()
+//                 .map(|(p, r)| {
+//                     Ok((
+//                         Placeholder::new(p)?
+//                             .resolve(vars)
+//                             .with_context(|| format!("{:?}", p))?,
+//                         r.clone(),
+//                     ))
+//                 })
+//                 .collect::<anyhow::Result<Vec<_>>>()
+//                 .context("show_if_matches")?,
+//             popup: self.popup,
+//             pango_markup: self.pango_markup,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Regex(#[serde(with = "serde_regex")] regex::Regex);
@@ -194,7 +226,7 @@ pub trait VecStringRegexEx {
     fn all_match(&self) -> bool;
 }
 
-impl VecStringRegexEx for Vec<(String, Regex)> {
+impl VecStringRegexEx for Vec<(Placeholder, Regex)> {
     fn all_match(&self) -> bool {
         !self.iter().any(|(s, r)| !r.is_match(s))
     }
@@ -204,22 +236,29 @@ impl VecStringRegexEx for Vec<(String, Regex)> {
 pub struct Replace<Dynamic: Clone + Default + Debug>(Vec<(Regex, Dynamic)>);
 
 impl Replace<Placeholder> {
-    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Replace<String>> {
-        Ok(Replace(
-            self.0
-                .iter()
-                .map(|(k, v)| Ok((k.clone(), v.resolve(vars)?)))
-                .collect::<anyhow::Result<Vec<_>>>()?,
-        ))
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<()> {
+        for item in &mut self.0 {
+            item.1.update(vars)?;
+        }
+        Ok(())
     }
+
+    // pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Replace<String>> {
+    //     Ok(Replace(
+    //         self.0
+    //             .iter()
+    //             .map(|(k, v)| Ok((k.clone(), v.resolve(vars)?)))
+    //             .collect::<anyhow::Result<Vec<_>>>()?,
+    //     ))
+    // }
 }
 
-impl Replace<String> {
+impl Replace<Placeholder> {
     pub fn apply(&self, replace_first_match: bool, string: &str) -> String {
         let mut string = String::from(string);
         for replacement in self.0.iter() {
             let re = &replacement.0 .0;
-            let replacement = re.replace_all(&string, &replacement.1);
+            let replacement = re.replace_all(&string, &replacement.1.value);
             if replace_first_match {
                 if let Cow::Owned(_) = replacement {
                     string = replacement.into();
@@ -244,25 +283,25 @@ pub struct EventHandlers<Dynamic: Clone + Default + Debug> {
     pub on_scroll_down: Dynamic,
 }
 
-impl PlaceholderExt for EventHandlers<Placeholder> {
-    type R = EventHandlers<String>;
+// impl PlaceholderExt for EventHandlers<Placeholder> {
+//     type R = EventHandlers<String>;
 
-    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EventHandlers<String>> {
-        Ok(EventHandlers {
-            on_mouse_left: self.on_mouse_left.resolve(vars).context("on_mouse_left")?,
-            on_mouse_middle: self
-                .on_mouse_middle
-                .resolve(vars)
-                .context("on_mouse_middle")?,
-            on_mouse_right: self
-                .on_mouse_right
-                .resolve(vars)
-                .context("on_mouse_right")?,
-            on_scroll_up: self.on_scroll_up.resolve(vars).context("on_scroll_up")?,
-            on_scroll_down: self.on_scroll_down.resolve(vars).context("on_mouse_down")?,
-        })
-    }
-}
+//     fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EventHandlers<String>> {
+//         Ok(EventHandlers {
+//             on_mouse_left: self.on_mouse_left.resolve(vars).context("on_mouse_left")?,
+//             on_mouse_middle: self
+//                 .on_mouse_middle
+//                 .resolve(vars)
+//                 .context("on_mouse_middle")?,
+//             on_mouse_right: self
+//                 .on_mouse_right
+//                 .resolve(vars)
+//                 .context("on_mouse_right")?,
+//             on_scroll_up: self.on_scroll_up.resolve(vars).context("on_scroll_up")?,
+//             on_scroll_down: self.on_scroll_down.resolve(vars).context("on_mouse_down")?,
+//         })
+//     }
+// }
 
 impl EventHandlers<Option<Placeholder>> {
     pub fn with_default(self) -> EventHandlers<Placeholder> {
@@ -315,30 +354,30 @@ impl EnumBlock<Option<Placeholder>> {
     }
 }
 
-impl PlaceholderExt for EnumBlock<Placeholder> {
-    type R = EnumBlock<String>;
+// impl PlaceholderExt for EnumBlock<Placeholder> {
+//     type R = EnumBlock<String>;
 
-    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EnumBlock<String>> {
-        Ok(EnumBlock {
-            name: self.name.clone(),
-            inherit: self.inherit.clone(),
-            active: self.active.resolve(vars).context("active")?,
-            variants: self.variants.resolve(vars).context("variants")?,
-            variants_vec: self.variants_vec.clone(),
-            input: self.input.resolve(vars).context("input")?,
-            display: self.display.resolve(vars).context("display")?,
-            active_display: self
-                .active_display
-                .resolve(vars)
-                .context("active_display")?,
-            enum_separator: self.enum_separator.clone(),
-            event_handlers: self
-                .event_handlers
-                .resolve(vars)
-                .context("event_handlers")?,
-        })
-    }
-}
+//     fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EnumBlock<String>> {
+//         Ok(EnumBlock {
+//             name: self.name.clone(),
+//             inherit: self.inherit.clone(),
+//             active: self.active.resolve(vars).context("active")?,
+//             variants: self.variants.resolve(vars).context("variants")?,
+//             variants_vec: self.variants_vec.clone(),
+//             input: self.input.resolve(vars).context("input")?,
+//             display: self.display.resolve(vars).context("display")?,
+//             active_display: self
+//                 .active_display
+//                 .resolve(vars)
+//                 .context("active_display")?,
+//             enum_separator: self.enum_separator.clone(),
+//             event_handlers: self
+//                 .event_handlers
+//                 .resolve(vars)
+//                 .context("event_handlers")?,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -369,22 +408,22 @@ impl TextBlock<Option<Placeholder>> {
     }
 }
 
-impl TextBlock<Placeholder> {
-    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<TextBlock<String>> {
-        Ok(TextBlock {
-            name: self.name.clone(),
-            inherit: self.inherit.clone(),
-            display: self.display.resolve(vars).context("display")?,
-            input: self.input.resolve(vars).context("input")?,
-            separator_type: self.separator_type.clone(),
-            separator_radius: self.separator_radius,
-            event_handlers: self
-                .event_handlers
-                .resolve(vars)
-                .context("event_handlers")?,
-        })
-    }
-}
+// impl TextBlock<Placeholder> {
+//     pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<TextBlock<String>> {
+//         Ok(TextBlock {
+//             name: self.name.clone(),
+//             inherit: self.inherit.clone(),
+//             display: self.display.resolve(vars).context("display")?,
+//             input: self.input.resolve(vars).context("input")?,
+//             separator_type: self.separator_type.clone(),
+//             separator_radius: self.separator_radius,
+//             event_handlers: self
+//                 .event_handlers
+//                 .resolve(vars)
+//                 .context("event_handlers")?,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -497,53 +536,53 @@ impl TextProgressBarDisplay<Option<Placeholder>> {
     }
 }
 
-impl TextProgressBarDisplay<Placeholder> {
-    pub fn resolve(
-        &self,
-        vars: &dyn PlaceholderContext,
-    ) -> anyhow::Result<TextProgressBarDisplay<String>> {
-        Ok(TextProgressBarDisplay {
-            fill: self
-                .fill
-                .iter()
-                .map(|(ramp, format)| {
-                    Ok((
-                        ramp.clone(),
-                        Placeholder::new(format)?
-                            .resolve(vars)
-                            .context("fill ramp format")?,
-                    ))
-                })
-                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
-            indicator: self
-                .indicator
-                .iter()
-                .map(|(ramp, format)| {
-                    Ok((
-                        ramp.clone(),
-                        Placeholder::new(format)?
-                            .resolve(vars)
-                            .context("indicator ramp format")?,
-                    ))
-                })
-                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
-            empty: self
-                .empty
-                .iter()
-                .map(|(ramp, format)| {
-                    Ok((
-                        ramp.clone(),
-                        Placeholder::new(format)?
-                            .resolve(vars)
-                            .context("empty ramp format")?,
-                    ))
-                })
-                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
-            progress_bar_size: self.progress_bar_size,
-            phantom_data: PhantomData,
-        })
-    }
-}
+// impl TextProgressBarDisplay<Placeholder> {
+//     pub fn resolve(
+//         &self,
+//         vars: &dyn PlaceholderContext,
+//     ) -> anyhow::Result<TextProgressBarDisplay<String>> {
+//         Ok(TextProgressBarDisplay {
+//             fill: self
+//                 .fill
+//                 .iter()
+//                 .map(|(ramp, format)| {
+//                     Ok((
+//                         ramp.clone(),
+//                         Placeholder::new(format)?
+//                             .resolve(vars)
+//                             .context("fill ramp format")?,
+//                     ))
+//                 })
+//                 .collect::<anyhow::Result<Vec<(_, _)>>>()?,
+//             indicator: self
+//                 .indicator
+//                 .iter()
+//                 .map(|(ramp, format)| {
+//                     Ok((
+//                         ramp.clone(),
+//                         Placeholder::new(format)?
+//                             .resolve(vars)
+//                             .context("indicator ramp format")?,
+//                     ))
+//                 })
+//                 .collect::<anyhow::Result<Vec<(_, _)>>>()?,
+//             empty: self
+//                 .empty
+//                 .iter()
+//                 .map(|(ramp, format)| {
+//                     Ok((
+//                         ramp.clone(),
+//                         Placeholder::new(format)?
+//                             .resolve(vars)
+//                             .context("empty ramp format")?,
+//                     ))
+//                 })
+//                 .collect::<anyhow::Result<Vec<(_, _)>>>()?,
+//             progress_bar_size: self.progress_bar_size,
+//             phantom_data: PhantomData,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -563,17 +602,17 @@ impl NumberTextDisplay<Option<Placeholder>> {
     }
 }
 
-impl NumberTextDisplay<Placeholder> {
-    pub fn resolve(
-        &self,
-        vars: &dyn PlaceholderContext,
-    ) -> anyhow::Result<NumberTextDisplay<String>> {
-        Ok(NumberTextDisplay {
-            number_type: self.number_type,
-            phantom_data: PhantomData,
-        })
-    }
-}
+// impl NumberTextDisplay<Placeholder> {
+//     pub fn resolve(
+//         &self,
+//         vars: &dyn PlaceholderContext,
+//     ) -> anyhow::Result<NumberTextDisplay<String>> {
+//         Ok(NumberTextDisplay {
+//             number_type: self.number_type,
+//             phantom_data: PhantomData,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -657,40 +696,40 @@ impl NumberBlock<Option<Placeholder>> {
     }
 }
 
-impl NumberBlock<Placeholder> {
-    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<NumberBlock<String>> {
-        Ok(NumberBlock {
-            name: self.name.clone(),
-            inherit: self.inherit.clone(),
-            min_value: self.min_value.resolve(vars).context("min_value")?,
-            max_value: self.max_value.resolve(vars).context("max_value")?,
-            display: self.display.resolve(vars).context("display")?,
-            input: self.input.resolve(vars).context("input")?,
-            number_type: self.number_type,
-            number_display: match &self.number_display {
-                Some(NumberDisplay::ProgressBar(t)) => Some(NumberDisplay::ProgressBar(
-                    t.resolve(vars).context("progress_bar")?,
-                )),
-                Some(NumberDisplay::Text(t)) => {
-                    Some(NumberDisplay::Text(t.resolve(vars).context("text_number")?))
-                }
-                None => None,
-            },
-            parsed_data: self.parsed_data.clone(),
-            event_handlers: self
-                .event_handlers
-                .resolve(vars)
-                .context("event_handlers")?,
-            ramp: self
-                .ramp
-                .iter()
-                .map(|(ramp, format)| {
-                    Ok((ramp.clone(), format.resolve(vars).context("ramp format")?))
-                })
-                .collect::<anyhow::Result<Vec<(_, _)>>>()?,
-        })
-    }
-}
+// impl NumberBlock<Placeholder> {
+//     pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<NumberBlock<String>> {
+//         Ok(NumberBlock {
+//             name: self.name.clone(),
+//             inherit: self.inherit.clone(),
+//             min_value: self.min_value.resolve(vars).context("min_value")?,
+//             max_value: self.max_value.resolve(vars).context("max_value")?,
+//             display: self.display.resolve(vars).context("display")?,
+//             input: self.input.resolve(vars).context("input")?,
+//             number_type: self.number_type,
+//             number_display: match &self.number_display {
+//                 Some(NumberDisplay::ProgressBar(t)) => Some(NumberDisplay::ProgressBar(
+//                     t.resolve(vars).context("progress_bar")?,
+//                 )),
+//                 Some(NumberDisplay::Text(t)) => {
+//                     Some(NumberDisplay::Text(t.resolve(vars).context("text_number")?))
+//                 }
+//                 None => None,
+//             },
+//             parsed_data: self.parsed_data.clone(),
+//             event_handlers: self
+//                 .event_handlers
+//                 .resolve(vars)
+//                 .context("event_handlers")?,
+//             ramp: self
+//                 .ramp
+//                 .iter()
+//                 .map(|(ramp, format)| {
+//                     Ok((ramp.clone(), format.resolve(vars).context("ramp format")?))
+//                 })
+//                 .collect::<anyhow::Result<Vec<(_, _)>>>()?,
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -720,22 +759,22 @@ impl ImageBlock<Option<Placeholder>> {
     }
 }
 
-impl ImageBlock<Placeholder> {
-    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<ImageBlock<String>> {
-        Ok(ImageBlock {
-            name: self.name.clone(),
-            inherit: self.inherit.clone(),
-            display: self.display.resolve(vars).context("display")?,
-            input: self.input.resolve(vars).context("input")?,
-            event_handlers: self
-                .event_handlers
-                .resolve(vars)
-                .context("event_handlers")?,
-        })
-    }
-}
+// impl ImageBlock<Placeholder> {
+//     pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<ImageBlock<String>> {
+//         Ok(ImageBlock {
+//             name: self.name.clone(),
+//             inherit: self.inherit.clone(),
+//             display: self.display.resolve(vars).context("display")?,
+//             input: self.input.resolve(vars).context("input")?,
+//             event_handlers: self
+//                 .event_handlers
+//                 .resolve(vars)
+//                 .context("event_handlers")?,
+//         })
+//     }
+// }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SeparatorType {
     Left,
@@ -775,16 +814,16 @@ impl Block<Option<Placeholder>> {
     }
 }
 
-impl Block<Placeholder> {
-    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Block<String>> {
-        Ok(match self {
-            Block::Enum(e) => Block::Enum(e.resolve(vars).context("block::enum")?),
-            Block::Text(e) => Block::Text(e.resolve(vars).context("block::text")?),
-            Block::Number(e) => Block::Number(e.resolve(vars).context("block::number")?),
-            Block::Image(e) => Block::Image(e.resolve(vars).context("block::image")?),
-        })
-    }
-}
+// impl Block<Placeholder> {
+//     pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Block<String>> {
+//         Ok(match self {
+//             Block::Enum(e) => Block::Enum(e.resolve(vars).context("block::enum")?),
+//             Block::Text(e) => Block::Text(e.resolve(vars).context("block::text")?),
+//             Block::Number(e) => Block::Number(e.resolve(vars).context("block::number")?),
+//             Block::Image(e) => Block::Image(e.resolve(vars).context("block::image")?),
+//         })
+//     }
+// }
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -876,37 +915,37 @@ pub struct Bar<Dynamic: Clone + Default + Debug> {
     pub show_if_matches: Vec<(String, Regex)>,
 }
 
-impl PlaceholderExt for Bar<Placeholder> {
-    type R = Bar<String>;
+// impl PlaceholderExt for Bar<Placeholder> {
+//     type R = Bar<String>;
 
-    fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
-        Ok(Self::R {
-            blocks_left: self.blocks_left.clone(),
-            blocks_center: self.blocks_right.clone(),
-            blocks_right: self.blocks_right.clone(),
-            monitor: self.monitor.clone(),
-            height: self.height,
-            position: self.position.clone(),
-            margin: self.margin.clone(),
-            background: self.background.resolve(vars).context("background")?,
-            popup: self.popup,
-            popup_at_edge: self.popup_at_edge,
-            show_if_matches: self
-                .show_if_matches
-                .iter()
-                .map(|(p, r)| {
-                    Ok((
-                        Placeholder::new(p)?
-                            .resolve(vars)
-                            .with_context(|| format!("{:?}", p))?,
-                        r.clone(),
-                    ))
-                })
-                .collect::<anyhow::Result<Vec<_>>>()
-                .context("show_if_matches")?,
-        })
-    }
-}
+//     fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Self::R> {
+//         Ok(Self::R {
+//             blocks_left: self.blocks_left.clone(),
+//             blocks_center: self.blocks_right.clone(),
+//             blocks_right: self.blocks_right.clone(),
+//             monitor: self.monitor.clone(),
+//             height: self.height,
+//             position: self.position.clone(),
+//             margin: self.margin.clone(),
+//             background: self.background.resolve(vars).context("background")?,
+//             popup: self.popup,
+//             popup_at_edge: self.popup_at_edge,
+//             show_if_matches: self
+//                 .show_if_matches
+//                 .iter()
+//                 .map(|(p, r)| {
+//                     Ok((
+//                         Placeholder::new(p)?
+//                             .resolve(vars)
+//                             .with_context(|| format!("{:?}", p))?,
+//                         r.clone(),
+//                     ))
+//                 })
+//                 .collect::<anyhow::Result<Vec<_>>>()
+//                 .context("show_if_matches")?,
+//         })
+//     }
+// }
 
 fn default_popup_at_edge() -> bool {
     true
@@ -987,29 +1026,34 @@ impl Input<Option<Placeholder>> {
 }
 
 impl Input<Placeholder> {
-    pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Input<String>> {
-        Ok(Input {
-            value: self.value.resolve(vars).context("value")?,
-            replace_first_match: self.replace_first_match,
-            replace: self.replace.resolve(vars).context("replace")?,
-        })
+    // pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<Input<String>> {
+    //     Ok(Input {
+    //         value: self.value.resolve(vars).context("value")?,
+    //         replace_first_match: self.replace_first_match,
+    //         replace: self.replace.resolve(vars).context("replace")?,
+    //     })
+    // }
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<()> {
+        self.value.update(vars)?;
+        self.replace.update(vars)?;
+        self.value.value = self.replace.apply(self.replace_first_match, &self.value);
+        Ok(())
     }
 }
 
-impl Input<String> {
-    pub fn process_value(&self, value: &str) -> String {
-        self.replace.apply(self.replace_first_match, value)
-    }
+// impl Input<String> {
+//     pub fn process_value(&self, value: &str) -> String {
+//         self.replace.apply(self.replace_first_match, value)
+//     }
 
-    pub fn process(&self) -> String {
-        self.process_value(&self.value)
-    }
-}
+//     pub fn process(&self) -> String {
+//         self.process_value(&self.value)
+//     }
+// }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Var<Dynamic: Clone + Default + Debug> {
     pub name: String,
-    pub value: Dynamic,
     #[serde(flatten)]
     pub input: Input<Dynamic>,
 }
@@ -1018,7 +1062,6 @@ impl Var<Option<Placeholder>> {
     fn with_defaults(&self) -> Var<Placeholder> {
         Var {
             name: self.name.clone(),
-            value: self.value.clone().unwrap_or_default(),
             input: self.input.with_defaults(),
         }
     }
