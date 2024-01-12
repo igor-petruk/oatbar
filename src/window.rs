@@ -20,7 +20,10 @@ use std::{
 };
 use xcb::{x, xinput, Xid};
 
-use crate::{bar, config, drawing, parse, state, timer, wmready, xutils};
+use crate::{
+    bar::{self, Updates},
+    config, drawing, parse, state, timer, wmready, xutils,
+};
 use tracing::*;
 
 pub struct VisibilityControl {
@@ -456,7 +459,21 @@ impl Window {
         //     &state.build_error_msg(),
         //     pointer_position,
         // );
-        let mut updates = self.bar.update(&self.back_buffer_context, &state.vars)?;
+        let mut error = state.build_error_msg();
+
+        let mut updates = match self.bar.update(&self.back_buffer_context, &state.vars) {
+            Ok(updates) => updates,
+            Err(e) => {
+                error = Some(format!("Error: {:?}", e));
+                Updates {
+                    redraw: bar::RedrawScope::All,
+                    popup: Default::default(),
+                    visible_from_vars: None,
+                }
+            }
+        };
+
+        self.bar.set_error(&self.back_buffer_context, error);
 
         if from_os {
             updates.redraw = bar::RedrawScope::All;

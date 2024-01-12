@@ -1197,27 +1197,8 @@ pub fn default_display() -> DisplayOptions<Placeholder> {
     }
 }
 
-pub fn default_error_display() -> DisplayOptions<String> {
-    let decorations = Decorations {
-        foreground: "#dddddd".into(),
-        background: "#191919".into(),
-        overline_color: "".into(),
-        underline_color: "".into(),
-        edgeline_color: "".into(),
-        line_width: Some(1.1),
-    };
-    DisplayOptions {
-        popup_value: "".into(),
-        output_format: "".into(),
-        font: "monospace 12".into(),
-        pango_markup: Some(true),
-        margin: Some(0.0),
-        padding: Some(8.0),
-        show_if_matches: vec![],
-        popup: None,
-        hover_decorations: decorations.clone(),
-        decorations,
-    }
+pub fn default_error_display() -> DisplayOptions<Placeholder> {
+    default_display()
 }
 
 fn default_active_display() -> DisplayOptions<Placeholder> {

@@ -1035,7 +1035,8 @@ pub struct Bar {
     bar_config: config::Bar<Placeholder>,
     // resolved_bar_config: Option<config::Bar<String>>,
     // block_data: HashMap<String, state::BlockData>,
-    // error: Option<String>,
+    error: Option<String>,
+    error_block: Box<dyn DebugBlock>,
     // blocks: HashMap<String, Arc<dyn DebugBlock>>,
     // all_blocks: HashSet<String>,
     left_group: BlockGroup,
@@ -1062,7 +1063,6 @@ impl Bar {
         let center_group = Self::make_block_group(&bar_config.blocks_center, config, &bar_config);
         let right_group = Self::make_block_group(&bar_config.blocks_right, config, &bar_config);
         Ok(Self {
-            bar_config: bar_config.clone(),
             left_group,
             center_group,
             right_group,
@@ -1070,7 +1070,8 @@ impl Bar {
             // bar: bar.clone(),
             // resolved_bar_config: None,
             // block_data: HashMap::new(),
-            // error: None,
+            error: None,
+            error_block: Self::error_block(&bar_config),
             // blocks: HashMap::new(),
             // left_group: BlockGroup::new(&[]),
             // center_group: BlockGroup::new(&[]),
@@ -1078,6 +1079,7 @@ impl Bar {
             // right_group: BlockGroup::new(&[]),
             right_group_pos: 0.0,
             // last_update_pointer_position: None,
+            bar_config,
         })
     }
 
@@ -1202,26 +1204,32 @@ impl Bar {
         }
     }
 
-    // fn error_block(error: &str) -> (String, state::BlockData) {
-    //     let name = ERROR_BLOCK_NAME.to_string();
-    //     let error_block: config::TextBlock<String> = config::TextBlock {
-    //         name: name.clone(),
-    //         input: config::Input {
-    //             value: error.into(),
-    //             ..Default::default()
-    //         },
-    //         display: config::DisplayOptions {
-    //             ..config::default_error_display()
-    //         },
-    //         ..Default::default()
-    //     };
-    //     (
-    //         name,
-    //         state::BlockData {
-    //             config: config::Block::Text(error_block),
-    //         },
-    //     )
-    // }
+    fn error_block(bar_config: &config::Bar<Placeholder>) -> Box<dyn DebugBlock> {
+        let name = ERROR_BLOCK_NAME.to_string();
+        let config = config::TextBlock {
+            name: name.clone(),
+            input: config::Input {
+                value: Placeholder::infallable("${error}"),
+                ..Default::default()
+            },
+            display: config::DisplayOptions {
+                ..config::default_error_display()
+            },
+            ..Default::default()
+        };
+        Self::build_widget(bar_config, &config::Block::Text(config)).unwrap()
+    }
+
+    pub fn set_error(&mut self, drawing_context: &drawing::Context, error: Option<String>) {
+        self.error = error;
+        if let Some(error) = &self.error {
+            let mut vars = HashMap::new();
+            vars.insert("error".to_string(), error.clone());
+            if let Err(e) = self.error_block.update(drawing_context, &vars) {
+                tracing::error!("Failed displaying error block: {:?}", e);
+            }
+        }
+    }
 
     pub fn update(
         &mut self,
@@ -1404,26 +1412,31 @@ impl Bar {
         context.save()?;
         context.translate(bar.margin.left.into(), bar.margin.top.into());
 
-        context.save()?;
-        self.left_group
-            .render(&drawing_context, redraw)
-            .context("left_group")?;
-        context.restore()?;
+        if self.error.is_some() {
+            self.error_block
+                .render(&drawing_context)
+                .context("error_block")?;
+        } else {
+            context.save()?;
+            self.left_group
+                .render(&drawing_context, redraw)
+                .context("left_group")?;
+            context.restore()?;
 
-        context.save()?;
-        context.translate(self.center_group_pos, 0.0);
-        self.center_group
-            .render(&drawing_context, redraw)
-            .context("center_group")?;
-        context.restore()?;
+            context.save()?;
+            context.translate(self.center_group_pos, 0.0);
+            self.center_group
+                .render(&drawing_context, redraw)
+                .context("center_group")?;
+            context.restore()?;
 
-        context.save()?;
-        context.translate(self.right_group_pos, 0.0);
-        self.right_group
-            .render(&drawing_context, redraw)
-            .context("right_group")?;
-        context.restore()?;
-
+            context.save()?;
+            context.translate(self.right_group_pos, 0.0);
+            self.right_group
+                .render(&drawing_context, redraw)
+                .context("right_group")?;
+            context.restore()?;
+        }
         context.restore()?;
         Ok(())
     }
