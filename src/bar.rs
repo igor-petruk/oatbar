@@ -25,7 +25,8 @@ use pangocairo::pango;
 use tracing::error;
 
 use crate::{
-    config, drawing,
+    config::{self, AnyUpdated},
+    drawing,
     parse::{self, Placeholder},
     process, state,
 };
@@ -76,13 +77,6 @@ impl<'a> parse::PlaceholderContext for PlaceholderContextWithValue<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum UpdateResult {
-    Same,
-    Redraw,
-    Resize,
-}
-
 trait Block {
     fn name(&self) -> &str;
     fn get_dimensions(&self) -> Dimensions;
@@ -91,7 +85,7 @@ trait Block {
         &mut self,
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
-    ) -> anyhow::Result<UpdateResult>;
+    ) -> anyhow::Result<bool>;
     fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()>;
     fn separator_type(&self) -> Option<config::SeparatorType> {
         None
@@ -204,9 +198,12 @@ impl Block for BaseBlock {
         &mut self,
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
-    ) -> anyhow::Result<UpdateResult> {
-        self.display_options.update(vars)?;
-        self.inner_block.update(drawing_context, vars)
+    ) -> anyhow::Result<bool> {
+        Ok([
+            self.display_options.update(vars)?,
+            self.inner_block.update(drawing_context, vars)?,
+        ]
+        .any_updated())
     }
 
     fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
@@ -405,18 +402,21 @@ impl Block for TextBlock {
         &mut self,
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
-    ) -> anyhow::Result<UpdateResult> {
+    ) -> anyhow::Result<bool> {
         // TODO: font
         let old_value = self.config.display.output_format.value.to_string();
-        self.config.display.update(vars)?;
-        self.config.input.update(vars)?;
-        self.config
-            .display
-            .output_format
-            .update(&PlaceholderContextWithValue {
-                vars,
-                value: &self.config.input.value.to_string(),
-            })?;
+        let any_updated = [
+            self.config.display.update(vars)?,
+            self.config.input.update(vars)?,
+            self.config
+                .display
+                .output_format
+                .update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &self.config.input.value.to_string(),
+                })?,
+        ]
+        .any_updated();
         if old_value != self.config.display.output_format.value {
             if let Some(pango_context) = &drawing_context.pango_context {
                 self.pango_layout = {
@@ -434,8 +434,10 @@ impl Block for TextBlock {
                     Some(pango_layout)
                 };
             }
+            Ok(true)
+        } else {
+            Ok(any_updated)
         }
-        Ok(UpdateResult::Same)
     }
 
     fn name(&self) -> &str {
@@ -817,17 +819,18 @@ impl Block for TextBlock {
 struct BlockGroup {
     blocks: Vec<Box<dyn DebugBlock>>,
     dimensions: Dimensions,
+    layout: Vec<(usize, Dimensions)>,
 }
 
 impl BlockGroup {
-    fn collapsed<'a>(&'a mut self) -> Vec<&'a mut Box<dyn DebugBlock>> {
+    fn build_layout(&self) -> Vec<(usize, Dimensions)> {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(self.blocks.len());
 
         let mut eat_separators = true;
         let mut last_edge = Some(Left);
 
-        for b in self.blocks.iter_mut() {
+        for (block_idx, b) in self.blocks.iter().enumerate() {
             if !b.is_visible() {
                 continue;
             }
@@ -851,7 +854,7 @@ impl BlockGroup {
                 Some(Right) | None => false,
             };
 
-            output.push(b);
+            output.push((block_idx, b.get_dimensions()));
         }
 
         // After this SR and LR pairs are possible. Remove:
@@ -860,7 +863,8 @@ impl BlockGroup {
         let mut input_iter = input.into_iter().peekable();
         last_edge = None;
 
-        while let Some(b) = input_iter.next() {
+        while let Some((block_idx, dim)) = input_iter.next() {
+            let b = self.blocks.get(block_idx).unwrap();
             let sep_type = &b.separator_type();
             match sep_type {
                 Some(Left) | Some(Right) => {
@@ -870,7 +874,8 @@ impl BlockGroup {
             };
 
             if last_edge == Some(Left) {
-                if let Some(next_b) = input_iter.peek() {
+                if let Some((next_block_idx, _)) = input_iter.peek() {
+                    let next_b: &_ = self.blocks.get(*next_block_idx).unwrap();
                     let next_sep_type = &next_b.separator_type();
                     match (sep_type, next_sep_type) {
                         (Some(Gap), Some(Right)) => {
@@ -886,7 +891,7 @@ impl BlockGroup {
                 }
             }
 
-            output.push(b);
+            output.push((block_idx, dim));
         }
 
         output
@@ -896,33 +901,36 @@ impl BlockGroup {
         &mut self,
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
-    ) -> anyhow::Result<UpdateResult> {
-        use UpdateResult::*;
-        let mut result = Same;
+    ) -> anyhow::Result<RedrawScope> {
+        let old_layout = self.layout.clone();
+
+        let mut updated_blocks = HashSet::new();
         for block in &mut self.blocks {
             let block_result = block.update(drawing_context, vars)?;
-            // TODO: make max
-            result = match (result, block_result) {
-                (Same, Resize) => Resize,
-                (Same, Redraw) => Redraw,
-                (Redraw, Resize) => Resize,
-                _ => result,
-            };
+            if block_result {
+                updated_blocks.insert(block.name().to_string());
+            }
         }
+
+        self.layout = self.build_layout();
         let mut dim = Dimensions {
             width: 0.0,
             height: 0.0,
         };
-
         self.dimensions.height = 0.0;
-        for block in self.collapsed().iter() {
-            let b_dim = block.get_dimensions();
+        for (_, b_dim) in self.layout.iter() {
             dim.width += b_dim.width;
             dim.height = dim.height.max(b_dim.height);
         }
-        // tracing::info!("{:?}", dim);
         self.dimensions = dim;
-        Ok(result)
+
+        if old_layout != self.layout {
+            Ok(RedrawScope::All)
+        } else if updated_blocks.is_empty() {
+            Ok(RedrawScope::None)
+        } else {
+            Ok(RedrawScope::Partial(updated_blocks))
+        }
     }
 
     // fn new(blocks: &[Arc<dyn DebugBlock>]) -> Self {
@@ -945,51 +953,47 @@ impl BlockGroup {
     //     }
     // }
 
-    fn lookup_block<'a>(
-        &'a mut self,
-        group_pos: f64,
-        x: f64,
-    ) -> anyhow::Result<Option<(f64, &'a mut Box<dyn DebugBlock>)>> {
-        let mut pos: f64 = 0.0;
-        let x = x - group_pos;
-        for block in self.collapsed().into_iter() {
-            if !block.is_visible() {
-                continue;
-            }
-            let b_dim = block.get_dimensions();
-            let next_pos = pos + b_dim.width;
-            if pos <= x && x <= next_pos {
-                return Ok(Some((pos + group_pos, block)));
-            }
-            pos = next_pos;
-        }
-        Ok(None)
-    }
+    // fn lookup_block<'a>(
+    //     &'a mut self,
+    //     group_pos: f64,
+    //     x: f64,
+    // ) -> anyhow::Result<Option<(f64, &'a mut Box<dyn DebugBlock>)>> {
+    //     let mut pos: f64 = 0.0;
+    //     let x = x - group_pos;
+    //     for (block_idx, dim) in self.layout.iter() {
+    //         let mut block = self.blocks.get_mut(*block_idx).unwrap();
+    //         let b_dim = block.get_dimensions();
+    //         let next_pos = pos + b_dim.width;
+    //         if pos <= x && x <= next_pos {
+    //             return Ok(Some((pos + group_pos, block)));
+    //         }
+    //         pos = next_pos;
+    //     }
+    //     Ok(None)
+    // }
 
     fn render(
         &mut self,
         drawing_context: &drawing::Context,
-        // redraw: &RedrawScope,
+        redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let mut pos: f64 = 0.0;
-        for block in self.collapsed().iter_mut() {
-            if !block.is_visible() {
-                continue;
-            }
+        for (block_idx, _) in self.layout.iter() {
+            let block = self.blocks.get_mut(*block_idx).unwrap();
             let b_dim = block.get_dimensions();
             context.save()?;
             context.translate(pos, 0.0);
-            // let render = if let RedrawScope::Partial(render_only) = redraw {
-            //     render_only.contains(block.name())
-            // } else {
-            //     true
-            // };
-            // if render {
-            block
-                .render(drawing_context)
-                .with_context(|| format!("block: {:?}", block))?;
-            // }
+            let render = if let RedrawScope::Partial(render_only) = redraw {
+                render_only.contains(block.name())
+            } else {
+                true
+            };
+            if render {
+                block
+                    .render(drawing_context)
+                    .with_context(|| format!("block: {:?}", block))?;
+            }
             context.restore()?;
             pos += b_dim.width;
         }
@@ -1004,11 +1008,28 @@ pub enum RedrawScope {
     None,
 }
 
-// pub struct Updates {
-//     pub popup: HashMap<config::PopupMode, HashSet<String>>,
-//     pub redraw: RedrawScope,
-//     pub visible_from_vars: Option<bool>,
-// }
+impl RedrawScope {
+    fn combine(self, other: RedrawScope) -> Self {
+        use RedrawScope::*;
+        match (self, other) {
+            (All, _) => All,
+            (_, All) => All,
+            (p @ Partial(_), None) => p,
+            (None, p @ Partial(_)) => p,
+            (Partial(mut a), Partial(b)) => {
+                a.extend(b.into_iter());
+                Partial(a)
+            }
+            (None, None) => None,
+        }
+    }
+}
+
+pub struct Updates {
+    pub popup: HashMap<config::PopupMode, HashSet<String>>,
+    pub redraw: RedrawScope,
+    pub visible_from_vars: Option<bool>,
+}
 
 pub struct Bar {
     bar_config: config::Bar<Placeholder>,
@@ -1071,6 +1092,7 @@ impl Bar {
                 .filter_map(|name| config.blocks.get(name))
                 .filter_map(|block| Self::build_widget(bar_config, block))
                 .collect(),
+            layout: vec![],
             dimensions: Dimensions {
                 width: 0.0,
                 height: 0.0,
@@ -1205,13 +1227,17 @@ impl Bar {
         &mut self,
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Updates> {
         self.bar_config.background.update(vars)?;
 
-        let _ = self.left_group.update(drawing_context, vars)?;
-        let _ = self.center_group.update(drawing_context, vars)?;
-        let _ = self.right_group.update(drawing_context, vars)?;
-        Ok(())
+        let left_redraw = self.left_group.update(drawing_context, vars)?;
+        let center_redraw = self.center_group.update(drawing_context, vars)?;
+        let right_redraw = self.right_group.update(drawing_context, vars)?;
+        Ok(Updates {
+            popup: Default::default(),
+            redraw: left_redraw.combine(center_redraw).combine(right_redraw),
+            visible_from_vars: None,
+        })
     }
     // pub fn update(
     //     &mut self,
@@ -1314,56 +1340,11 @@ impl Bar {
     //     }
     // }
 
-    pub fn layout_blocks(
-        &mut self,
-        drawing_area_width: f64,
-        // show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) {
-        //     let bar = &self.bar;
-
-        //     if self.error.is_some() {
-        //         let flat_left = Self::flatten(&self.blocks, true, &None, &[ERROR_BLOCK_NAME.into()]);
-        //         self.left_group = BlockGroup::new(&flat_left);
-        //         self.center_group = BlockGroup::new(&[]);
-        //         self.right_group = BlockGroup::new(&[]);
-        //     } else {
-        //         let all_blocks: Vec<String> = bar
-        //             .blocks_left
-        //             .iter()
-        //             .chain(bar.blocks_center.iter())
-        //             .chain(bar.blocks_right.iter())
-        //             .cloned()
-        //             .collect();
-        //         let entire_bar_visible =
-        //             Self::visible_per_popup_mode(show_only, config::PopupMode::Bar, &all_blocks);
-
-        //         let flat_left = Self::flatten(
-        //             &self.blocks,
-        //             entire_bar_visible,
-        //             show_only,
-        //             &self.bar.blocks_left,
-        //         );
-        //         let flat_center = Self::flatten(
-        //             &self.blocks,
-        //             entire_bar_visible,
-        //             show_only,
-        //             &self.bar.blocks_center,
-        //         );
-        //         let flat_right = Self::flatten(
-        //             &self.blocks,
-        //             entire_bar_visible,
-        //             show_only,
-        //             &self.bar.blocks_right,
-        //         );
-
+    pub fn layout_groups(&mut self, drawing_area_width: f64) {
         let width = drawing_area_width
             - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;
-        // self.left_group = BlockGroup::new(&flat_left);
-        // self.center_group = BlockGroup::new(&flat_center);
         self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
-        // self.right_group = BlockGroup::new(&flat_right);
         self.right_group_pos = width - self.right_group.dimensions.width;
-        //     }
     }
 
     // pub fn handle_button_press(&self, x: i16, y: i16, button: Button) -> anyhow::Result<()> {
@@ -1392,7 +1373,7 @@ impl Bar {
     pub fn render(
         &mut self,
         drawing_context: &drawing::Context,
-        // redraw: &RedrawScope,
+        redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
         let drawing_context = drawing_context.clone();
         // drawing_context.pointer_position = self.last_update_pointer_position;
@@ -1407,39 +1388,39 @@ impl Bar {
         //     }
         // };
 
-        // if *redraw == RedrawScope::All {
-        let background: &str = &self.bar_config.background;
-        if !background.is_empty() {
-            context.save()?;
-            drawing_context
-                .set_source_rgba_background(background)
-                .context("bar.background")?;
-            context.set_operator(cairo::Operator::Source);
-            context.paint()?;
-            context.restore()?;
+        if *redraw == RedrawScope::All {
+            let background: &str = &self.bar_config.background;
+            if !background.is_empty() {
+                context.save()?;
+                drawing_context
+                    .set_source_rgba_background(background)
+                    .context("bar.background")?;
+                context.set_operator(cairo::Operator::Source);
+                context.paint()?;
+                context.restore()?;
+            }
         }
-        // }
 
         context.save()?;
         context.translate(bar.margin.left.into(), bar.margin.top.into());
 
         context.save()?;
         self.left_group
-            .render(&drawing_context)
+            .render(&drawing_context, redraw)
             .context("left_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate(self.center_group_pos, 0.0);
         self.center_group
-            .render(&drawing_context)
+            .render(&drawing_context, redraw)
             .context("center_group")?;
         context.restore()?;
 
         context.save()?;
         context.translate(self.right_group_pos, 0.0);
         self.right_group
-            .render(&drawing_context)
+            .render(&drawing_context, redraw)
             .context("right_group")?;
         context.restore()?;
 

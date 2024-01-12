@@ -45,16 +45,28 @@ pub struct Decorations<Dynamic: Clone + Default + Debug> {
     pub line_width: Option<f64>,
 }
 
+pub trait AnyUpdated {
+    fn any_updated(&self) -> bool;
+}
+
+impl AnyUpdated for [bool] {
+    fn any_updated(&self) -> bool {
+        self.iter().any(|updated| *updated)
+    }
+}
+
 impl Decorations<Placeholder> {
-    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<()> {
-        self.foreground.update(vars).context("foreground")?;
-        self.background.update(vars).context("background")?;
-        self.overline_color.update(vars).context("overline_color")?;
-        self.underline_color
-            .update(vars)
-            .context("underline_color")?;
-        self.edgeline_color.update(vars).context("edgeline_color")?;
-        Ok(())
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<bool> {
+        Ok([
+            self.foreground.update(vars).context("foreground")?,
+            self.background.update(vars).context("background")?,
+            self.overline_color.update(vars).context("overline_color")?,
+            self.underline_color
+                .update(vars)
+                .context("underline_color")?,
+            self.edgeline_color.update(vars).context("edgeline_color")?,
+        ]
+        .any_updated())
     }
 }
 
@@ -125,18 +137,21 @@ pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
 }
 
 impl DisplayOptions<Placeholder> {
-    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<()> {
-        self.font.update(vars).context("font")?;
-        self.popup_value.update(vars).context("popup_value")?;
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<bool> {
         // self.output_format is resolved later
-        self.decorations.update(vars).context("decorations")?;
-        self.hover_decorations
-            .update(vars)
-            .context("hover_decorations")?;
+        let mut updates = Vec::with_capacity(self.show_if_matches.len() + 4);
+        updates.extend_from_slice(&[
+            self.font.update(vars).context("font")?,
+            self.popup_value.update(vars).context("popup_value")?,
+            self.decorations.update(vars).context("decorations")?,
+            self.hover_decorations
+                .update(vars)
+                .context("hover_decorations")?,
+        ]);
         for (expr, _) in self.show_if_matches.iter_mut() {
-            expr.update(vars)?;
+            updates.push(expr.update(vars)?);
         }
-        Ok(())
+        Ok(updates.any_updated())
     }
 }
 
@@ -1033,11 +1048,14 @@ impl Input<Placeholder> {
     //         replace: self.replace.resolve(vars).context("replace")?,
     //     })
     // }
-    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<()> {
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<bool> {
+        let old_value = self.value.value.clone();
         self.value.update(vars)?;
         self.replace.update(vars)?;
-        self.value.value = self.replace.apply(self.replace_first_match, &self.value);
-        Ok(())
+        let new_value = self.replace.apply(self.replace_first_match, &self.value);
+        let updated = old_value != new_value;
+        self.value.value = new_value.clone();
+        Ok(updated)
     }
 }
 

@@ -429,10 +429,9 @@ impl Window {
         })
     }
 
-    // fn render_bar(&self, redraw: bar::RedrawScope) -> anyhow::Result<()> {
-    fn render_bar(&mut self) -> anyhow::Result<()> {
-        self.bar.render(&self.back_buffer_context)?;
-        self.bar.render(&self.shape_buffer_context)?;
+    fn render_bar(&mut self, redraw: &bar::RedrawScope) -> anyhow::Result<()> {
+        self.bar.render(&self.back_buffer_context, redraw)?;
+        self.bar.render(&self.shape_buffer_context, redraw)?;
 
         self.swap_buffers()?;
         self.apply_shape()?;
@@ -457,47 +456,45 @@ impl Window {
         //     &state.build_error_msg(),
         //     pointer_position,
         // );
-        self.bar.update(&self.back_buffer_context, &state.vars)?;
-        self.bar.layout_blocks(self.back_buffer_context.width);
+        let mut updates = self.bar.update(&self.back_buffer_context, &state.vars)?;
 
-        // if from_os {
-        //     updates.redraw = bar::RedrawScope::All;
-        // }
+        if from_os {
+            updates.redraw = bar::RedrawScope::All;
+        }
 
-        // if self.bar_config.popup && !updates.popup.is_empty() {
-        //     if let Err(e) = VisibilityControl::show_or_prolong_popup(&self.visibility_control) {
-        //         tracing::error!("Showing popup failed: {:?}", e);
-        //     }
-        // }
-        // let (visible, show_only, redraw) = {
-        //     let mut visibility_control = self.visibility_control.write().unwrap();
-        //     if let Some(visible_from_vars) = updates.visible_from_vars {
-        //         visibility_control.set_default_visibility(visible_from_vars)?;
-        //     }
-        //     if self.bar_config.popup {
-        //         visibility_control.extend_show_only(updates.popup);
-        //         let redraw_mode = if visibility_control.show_only.is_some() {
-        //             bar::RedrawScope::All
-        //         } else {
-        //             updates.redraw
-        //         };
-        //         // Maybe there is a race condition between visibility and rendering.
-        //         (
-        //             visibility_control.visible,
-        //             visibility_control.show_only.clone(),
-        //             redraw_mode,
-        //         )
-        //     } else {
-        //         (visibility_control.visible, None, updates.redraw)
-        //     }
-        // };
+        if self.bar_config.popup && !updates.popup.is_empty() {
+            if let Err(e) = VisibilityControl::show_or_prolong_popup(&self.visibility_control) {
+                tracing::error!("Showing popup failed: {:?}", e);
+            }
+        }
+        let (visible, _show_only, redraw) = {
+            let mut visibility_control = self.visibility_control.write().unwrap();
+            if let Some(visible_from_vars) = updates.visible_from_vars {
+                visibility_control.set_default_visibility(visible_from_vars)?;
+            }
+            if self.bar_config.popup {
+                visibility_control.extend_show_only(updates.popup);
+                let redraw_mode = if visibility_control.show_only.is_some() {
+                    bar::RedrawScope::All
+                } else {
+                    updates.redraw
+                };
+                // Maybe there is a race condition between visibility and rendering.
+                (
+                    visibility_control.visible,
+                    visibility_control.show_only.clone(),
+                    redraw_mode,
+                )
+            } else {
+                (visibility_control.visible, None, updates.redraw)
+            }
+        };
 
-        // if visible && redraw != bar::RedrawScope::None {
-        //     self.bar
-        //         .layout_blocks(self.back_buffer_context.width, &show_only);
+        if visible && redraw != bar::RedrawScope::None {
+            self.bar.layout_groups(self.back_buffer_context.width);
 
-        self.render_bar()?;
-        // }
+            self.render_bar(&redraw)?;
+        }
         Ok(())
     }
 

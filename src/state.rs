@@ -14,14 +14,12 @@
 #![allow(clippy::dead_code)]
 
 use crate::config;
-use crate::parse::{self, PlaceholderExt};
+use crate::parse;
+use crate::parse::AlignDirection;
 
 use anyhow::Context;
 
-use std::{
-    cmp::Ordering,
-    collections::{BTreeMap, HashMap},
-};
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockData {
@@ -497,37 +495,24 @@ impl State {
                 .vars
                 .get_mut(var_name)
                 .expect("var from var_order should be present in the map");
-            let update_result = var
+            match var
                 .input
                 .update(&self.vars)
-                .with_context(|| format!("var: '{}'", var.name));
-            match update_result {
-                Ok(_) => {
-                    //         Ok(input) => {
+                .with_context(|| format!("var: '{}'", var.name))
+            {
+                Ok(updated) if updated => {
                     let processed: &str = &var.input.value;
-                    let old_value = self
+                    self.vars.insert(var.name.clone(), processed.to_string());
+                    var_snapshot_update
                         .vars
-                        .insert(var.name.clone(), processed.to_string())
-                        .unwrap_or_default();
-                    if old_value != processed {
-                        var_snapshot_update
-                            .vars
-                            .insert(var.name.clone(), processed.to_string());
-                    }
-                    //         }
-                    //         Err(e) => {
-                    //             self.error = Some(format_error_str(&format!("{:?}", e)));
-                    //         }
+                        .insert(var.name.clone(), processed.to_string());
                 }
                 Err(e) => {
                     self.error = Some(format_error_str(&format!("{:?}", e)));
                 }
+                _ => {}
             }
         }
-
-        // if let Err(e) = self.update_blocks().context("update failed") {
-        //     self.error = Some(format_error_str(&format!("{:?}", e)));
-        // }
 
         if let Some(command_name) = var_update.command_name {
             if let Some(error) = var_update.error {
