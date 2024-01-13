@@ -12,23 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(clippy::new_ret_no_self, dead_code)]
+#![allow(clippy::new_ret_no_self)]
 
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
-    sync::Arc,
 };
 
 use anyhow::Context;
 use pangocairo::pango;
-use tracing::error;
 
 use crate::{
     config::{self, AnyUpdated},
     drawing,
     parse::{self, Placeholder},
-    process, state,
+    // process,
 };
 
 use config::VecStringRegexEx;
@@ -59,7 +57,7 @@ pub struct ButtonPress {
 
 #[derive(Debug, Clone, PartialEq)]
 enum BlockEvent {
-    ButtonPress(ButtonPress),
+    // ButtonPress(ButtonPress),
 }
 
 struct PlaceholderContextWithValue<'a> {
@@ -95,32 +93,32 @@ trait Block {
 
 trait DebugBlock: Block + Debug {}
 
-fn handle_block_event(
-    event_handlers: &config::EventHandlers<String>,
-    block_event: &BlockEvent,
-    name: &str,
-    value: &str,
-    extra_envs: Vec<(String, String)>,
-) -> anyhow::Result<()> {
-    match block_event {
-        BlockEvent::ButtonPress(e) => {
-            let command = match e.button {
-                Button::Left => &event_handlers.on_mouse_left,
-                Button::Middle => &event_handlers.on_mouse_middle,
-                Button::Right => &event_handlers.on_mouse_right,
-                Button::ScrollUp => &event_handlers.on_scroll_up,
-                Button::ScrollDown => &event_handlers.on_scroll_down,
-            };
-            if !command.trim().is_empty() {
-                let mut envs = extra_envs;
-                envs.push(("BLOCK_NAME".into(), name.into()));
-                envs.push(("BLOCK_VALUE".into(), value.into()));
-                process::run_detached(command, envs)?;
-            }
-        }
-    }
-    Ok(())
-}
+// fn handle_block_event(
+//     event_handlers: &config::EventHandlers<String>,
+//     block_event: &BlockEvent,
+//     name: &str,
+//     value: &str,
+//     extra_envs: Vec<(String, String)>,
+// ) -> anyhow::Result<()> {
+//     match block_event {
+//         BlockEvent::ButtonPress(e) => {
+//             let command = match e.button {
+//                 Button::Left => &event_handlers.on_mouse_left,
+//                 Button::Middle => &event_handlers.on_mouse_middle,
+//                 Button::Right => &event_handlers.on_mouse_right,
+//                 Button::ScrollUp => &event_handlers.on_scroll_up,
+//                 Button::ScrollDown => &event_handlers.on_scroll_down,
+//             };
+//             if !command.trim().is_empty() {
+//                 let mut envs = extra_envs;
+//                 envs.push(("BLOCK_NAME".into(), name.into()));
+//                 envs.push(("BLOCK_VALUE".into(), value.into()));
+//                 process::run_detached(command, envs)?;
+//             }
+//         }
+//     }
+//     Ok(())
+// }
 
 #[derive(Debug)]
 struct BaseBlock {
@@ -191,7 +189,7 @@ impl Block for BaseBlock {
     }
 
     fn separator_type(&self) -> Option<config::SeparatorType> {
-        self.separator_type.clone()
+        self.separator_type
     }
 
     fn update(
@@ -387,7 +385,7 @@ impl TextBlock {
 }
 
 impl Block for TextBlock {
-    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
         // handle_block_event(
         //     &self.event_handlers,
         //     event,
@@ -473,7 +471,7 @@ impl Block for TextBlock {
             drawing_context.set_source_rgba(color)?;
         }
         if let Some(pango_layout) = &self.pango_layout {
-            pangocairo::show_layout(context, &pango_layout);
+            pangocairo::show_layout(context, pango_layout);
         }
         context.restore()?;
         Ok(())
@@ -838,7 +836,7 @@ impl BlockGroup {
 
             match sep_type {
                 Some(Left) | Some(Right) => {
-                    last_edge = sep_type.clone();
+                    last_edge = *sep_type;
                 }
                 _ => {}
             };
@@ -868,7 +866,7 @@ impl BlockGroup {
             let sep_type = &b.separator_type();
             match sep_type {
                 Some(Left) | Some(Right) => {
-                    last_edge = sep_type.clone();
+                    last_edge = *sep_type;
                 }
                 _ => {}
             };
@@ -1017,7 +1015,7 @@ impl RedrawScope {
             (p @ Partial(_), None) => p,
             (None, p @ Partial(_)) => p,
             (Partial(mut a), Partial(b)) => {
-                a.extend(b.into_iter());
+                a.extend(b);
                 Partial(a)
             }
             (None, None) => None,

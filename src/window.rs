@@ -141,7 +141,7 @@ pub struct Window {
     shape_buffer_context: drawing::Context,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
-    bar_index: usize,
+    // bar_index: usize,
     bar_config: config::Bar<parse::Placeholder>,
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
@@ -152,7 +152,7 @@ pub struct Window {
 impl Window {
     pub fn create_and_show(
         name: String,
-        bar_index: usize,
+        // bar_index: usize,
         config: &config::Config<parse::Placeholder>,
         bar_config: config::Bar<parse::Placeholder>,
         conn: Arc<xcb::Connection>,
@@ -413,7 +413,7 @@ impl Window {
             back_buffer_context,
             shape_buffer_context,
             swap_gc,
-            bar_index,
+            // bar_index,
             bar,
             state,
             state_update_tx,
@@ -515,7 +515,12 @@ impl Window {
         Ok(())
     }
 
-    pub fn handle_button_press(&self, x: i16, y: i16, button: bar::Button) -> anyhow::Result<()> {
+    pub fn handle_button_press(
+        &self,
+        _x: i16,
+        _y: i16,
+        _button: bar::Button,
+    ) -> anyhow::Result<()> {
         Ok(())
         // self.bar.handle_button_press(x, y, button)
     }

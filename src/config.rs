@@ -416,7 +416,7 @@ impl TextBlock<Option<Placeholder>> {
             inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
             input: self.input.with_defaults(),
-            separator_type: self.separator_type.clone(),
+            separator_type: self.separator_type,
             separator_radius: self.separator_radius,
             event_handlers: self.event_handlers.with_default(),
         }

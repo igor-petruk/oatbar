@@ -11,45 +11,44 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#![allow(clippy::dead_code)]
 
 use crate::config;
 use crate::parse;
-use crate::parse::AlignDirection;
+// use crate::parse::AlignDirection;
 
 use anyhow::Context;
 
 use std::collections::{BTreeMap, HashMap};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct BlockData {
-    pub config: config::Block<String>,
-}
+// #[derive(Clone, Debug, PartialEq)]
+// pub struct BlockData {
+//     pub config: config::Block<String>,
+// }
 
-impl BlockData {
-    pub fn popup(&self) -> Option<config::PopupMode> {
-        match &self.config {
-            config::Block::Text(b) => b.display.popup,
-            config::Block::Enum(b) => b.display.popup,
-            config::Block::Number(b) => b.display.popup,
-            config::Block::Image(b) => b.display.popup,
-        }
-    }
+// impl BlockData {
+//     pub fn popup(&self) -> Option<config::PopupMode> {
+//         match &self.config {
+//             config::Block::Text(b) => b.display.popup,
+//             config::Block::Enum(b) => b.display.popup,
+//             config::Block::Number(b) => b.display.popup,
+//             config::Block::Image(b) => b.display.popup,
+//         }
+//     }
 
-    pub fn popup_value(&self) -> &str {
-        match &self.config {
-            config::Block::Text(b) => &b.display.popup_value,
-            config::Block::Enum(b) => &b.display.popup_value,
-            config::Block::Number(b) => &b.display.popup_value,
-            config::Block::Image(b) => &b.display.popup_value,
-        }
-    }
-}
+//     pub fn popup_value(&self) -> &str {
+//         match &self.config {
+//             config::Block::Text(b) => &b.display.popup_value,
+//             config::Block::Enum(b) => &b.display.popup_value,
+//             config::Block::Number(b) => &b.display.popup_value,
+//             config::Block::Image(b) => &b.display.popup_value,
+//         }
+//     }
+// }
 
 #[derive(Clone, Debug, Default)]
 pub struct State {
     pub vars: HashMap<String, String>,
-    pub blocks: HashMap<String, BlockData>,
+    // pub blocks: HashMap<String, BlockData>,
     pub bars: Vec<config::Bar<String>>,
     pub error: Option<String>,
     pub command_errors: BTreeMap<String, String>,

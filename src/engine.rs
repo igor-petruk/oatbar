@@ -73,7 +73,7 @@ impl Engine {
         for (index, bar) in config.bar.iter().enumerate() {
             let window = window::Window::create_and_show(
                 format!("bar{}", index),
-                index,
+                // index,
                 &config,
                 bar.clone(),
                 conn.clone(),
