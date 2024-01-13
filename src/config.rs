@@ -337,8 +337,6 @@ pub struct EnumBlock<Dynamic: Clone + Default + Debug> {
     pub inherit: Option<String>,
     pub active: Dynamic,
     pub variants: Dynamic,
-    #[serde(skip)]
-    pub variants_vec: Vec<String>,
     #[serde(flatten)]
     pub input: Input<Dynamic>,
     #[serde(flatten)]
@@ -358,7 +356,6 @@ impl EnumBlock<Option<Placeholder>> {
             active: self.active.unwrap_or_default(),
             enum_separator: self.enum_separator,
             variants: self.variants.unwrap_or_default(),
-            variants_vec: vec![],
             input: self.input.with_defaults(),
             display: self.display.clone().with_default(&default_block.display),
             active_display: self
@@ -1027,7 +1024,7 @@ impl Input<Option<Placeholder>> {
             value: self
                 .value
                 .clone()
-                .unwrap_or_else(|| Placeholder::infallable("")),
+                .unwrap_or_else(|| Placeholder::infallable("${value}")),
             replace_first_match: self.replace_first_match,
             replace: Replace(
                 self.replace
@@ -1266,7 +1263,6 @@ mod tests {
             inherit: None,
             active: Placeholder::infallable("a ${foo} b"),
             variants: Placeholder::infallable(""),
-            variants_vec: vec![],
             display: DisplayOptions {
                 font: Placeholder::infallable("b ${foo} c"),
                 ..Default::default()

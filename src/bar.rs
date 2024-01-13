@@ -604,119 +604,205 @@ impl Block for TextBlock {
 //     block: Box<dyn DebugBlock>,
 // }
 
-// #[derive(Debug)]
-// struct EnumBlock {
-//     name: String,
-//     variant_blocks: Vec<VariantBlock>,
-//     dim: Dimensions,
-//     block: config::EnumBlock<String>,
-//     event_handlers: config::EventHandlers<String>,
-// }
+#[derive(Debug)]
+struct EnumBlock {
+    height: f64,
+    config: config::EnumBlock<Placeholder>,
+    active: usize,
+    active_block: Option<Box<dyn DebugBlock>>,
+    inactive_blocks: Vec<Box<dyn DebugBlock>>,
+    dim: Dimensions,
+}
 
-// impl EnumBlock {
-//     fn new(
-//         name: String,
-//         drawing_context: &drawing::Context,
-//         block: &config::EnumBlock<String>,
-//         height: f64,
-//         event_handlers: config::EventHandlers<String>,
-//     ) -> Self {
-//         let mut variant_blocks = vec![];
-//         let mut width: f64 = 0.0;
-//         let active: usize = block.active.parse().unwrap_or_default();
-//         for (index, item) in block.variants_vec.iter().enumerate() {
-//             if item.is_empty() {
-//                 continue;
-//             }
-//             let display_options = if index == active {
-//                 block.active_display.clone()
-//             } else {
-//                 block.display.clone()
-//             };
-//             let variant_block = VariantBlock {
-//                 index,
-//                 block: TextBlock::new_in_base_block(
-//                     "".into(),
-//                     item.clone(),
-//                     drawing_context,
-//                     display_options.clone(),
-//                     height,
-//                     None,
-//                     None,
-//                     event_handlers.clone(),
-//                 ),
-//                 original_value: item.clone(),
-//             };
-//             width += variant_block.block.get_dimensions().width;
-//             variant_blocks.push(variant_block);
-//         }
-//         let dim = Dimensions { width, height };
-//         EnumBlock {
-//             name,
-//             variant_blocks,
-//             dim,
-//             block: block.clone(),
-//             event_handlers,
-//         }
-//     }
-// }
+impl EnumBlock {
+    fn new(height: f64, config: config::EnumBlock<Placeholder>) -> Self {
+        EnumBlock {
+            height,
+            config,
+            active: 0,
+            active_block: None,
+            inactive_blocks: vec![],
+            dim: Dimensions {
+                width: 0.0,
+                height: 0.0,
+            },
+        }
+    }
 
-// impl DebugBlock for EnumBlock {}
+    fn variant_text_block(&self, index: usize, active: bool) -> Box<dyn DebugBlock> {
+        let name = if active { "active" } else { "inactive" };
+        let display = if active {
+            &self.config.active_display
+        } else {
+            &self.config.display
+        };
+        TextBlock::new_in_base_block(
+            self.height,
+            config::TextBlock {
+                name: format!("{}.{}.{}", self.name(), name, index),
+                inherit: self.config.inherit.clone(),
+                input: self.config.input.clone(),
+                separator_type: None,
+                separator_radius: None,
+                event_handlers: self.config.event_handlers.clone(),
+                display: display.clone(),
+            },
+        )
+    }
 
-// impl Block for EnumBlock {
-//     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
-//         match event {
-//             BlockEvent::ButtonPress(button_press) => {
-//                 let mut pos: f64 = 0.0;
-//                 for variant_block in self.variant_blocks.iter() {
-//                     let next_pos = pos + variant_block.block.get_dimensions().width;
-//                     if pos <= button_press.x && button_press.x <= next_pos {
-//                         handle_block_event(
-//                             &self.event_handlers,
-//                             event,
-//                             self.name(),
-//                             &variant_block.original_value,
-//                             vec![("BLOCK_INDEX".into(), format!("{}", variant_block.index))],
-//                         )?;
-//                         break;
-//                     }
-//                     pos = next_pos;
-//                 }
-//             }
-//         }
+    fn update_dim(&mut self) {
+        let mut dim = Dimensions {
+            width: 0.0,
+            height: 0.0,
+        };
+        for index in 0..self.inactive_blocks.len() {
+            let block = if index == self.active {
+                self.active_block.as_ref()
+            } else {
+                self.inactive_blocks.get(index)
+            };
+            if let Some(block) = block {
+                let b_dim = block.get_dimensions();
+                dim.width += b_dim.width;
+                dim.height = dim.height.max(b_dim.height);
+            }
+        }
+        self.dim = dim;
+    }
 
-//         Ok(())
-//     }
+    fn allocate_text_blocks(&mut self, variants: &Vec<String>) -> anyhow::Result<()> {
+        if self.active_block.is_none() {
+            self.active_block = Some(self.variant_text_block(0, true));
+        }
+        if variants.len() != self.inactive_blocks.len() {
+            self.inactive_blocks = Vec::with_capacity(variants.len());
+            for variant in 0..variants.len() {
+                self.inactive_blocks
+                    .push(self.variant_text_block(variant, false));
+            }
+        }
+        Ok(())
+    }
+}
 
-//     fn name(&self) -> &str {
-//         &self.name
-//     }
+impl DebugBlock for EnumBlock {}
 
-//     fn get_dimensions(&self) -> Dimensions {
-//         self.dim.clone()
-//     }
+impl Block for EnumBlock {
+    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
+        // match event {
+        //     BlockEvent::ButtonPress(button_press) => {
+        //         let mut pos: f64 = 0.0;
+        //         for variant_block in self.variant_blocks.iter() {
+        //             let next_pos = pos + variant_block.block.get_dimensions().width;
+        //             if pos <= button_press.x && button_press.x <= next_pos {
+        //                 handle_block_event(
+        //                     &self.event_handlers,
+        //                     event,
+        //                     self.name(),
+        //                     &variant_block.original_value,
+        //                     vec![("BLOCK_INDEX".into(), format!("{}", variant_block.index))],
+        //                 )?;
+        //                 break;
+        //             }
+        //             pos = next_pos;
+        //         }
+        //     }
+        // }
 
-//     fn update(&mut self, _vars: &dyn parse::PlaceholderContext) -> anyhow::Result<UpdateResult> {
-//         Ok(UpdateResult::Same)
-//     }
+        Ok(())
+    }
 
-//     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
-//         let context = &drawing_context.context;
-//         let mut x_offset: f64 = 0.0;
-//         for variant_block in self.variant_blocks.iter() {
-//             context.save()?;
-//             context.translate(x_offset, 0.0);
-//             variant_block.block.render(drawing_context)?;
-//             context.restore()?;
-//             x_offset += variant_block.block.get_dimensions().width;
-//         }
-//         Ok(())
-//     }
+    fn name(&self) -> &str {
+        &self.config.name
+    }
 
-//     fn is_visible(&self) -> bool {
-//         self.block.display.show_if_matches.all_match()
-//     }
-// }
+    fn get_dimensions(&self) -> Dimensions {
+        self.dim.clone()
+    }
+
+    fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        self.config.variants.update(vars).context("variants")?;
+        let enum_separator = self.config.enum_separator.as_deref().unwrap_or(",");
+        let (variants, errors): (Vec<_>, Vec<_>) = self
+            .config
+            .variants
+            .value
+            .split(enum_separator)
+            .map(|value| {
+                match self.config.input.update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &value.to_string(),
+                }) {
+                    Ok(_) => Ok(self.config.input.value.to_string()),
+                    Err(e) => Err(e),
+                }
+            })
+            .partition(|r| r.is_ok());
+
+        if let Some(Err(err)) = errors.into_iter().next() {
+            return Err(err);
+        }
+
+        let variants = variants.into_iter().map(|i| i.unwrap()).collect::<Vec<_>>();
+        let mut updates: Vec<bool> = Vec::with_capacity(variants.len() + 1);
+
+        updates.push(self.config.active.update(vars).context("input")?);
+        self.active = if self.config.active.trim().is_empty() {
+            0
+        } else {
+            self.config.active.parse().unwrap()
+        };
+
+        self.allocate_text_blocks(&variants)?;
+
+        for (index, value) in variants.iter().enumerate() {
+            if let Some(block) = self.inactive_blocks.get_mut(index) {
+                updates.push(block.update(
+                    drawing_context,
+                    &PlaceholderContextWithValue { vars, value },
+                )?);
+            }
+            if index == self.active {
+                if let Some(block) = &mut self.active_block {
+                    updates.push(block.update(
+                        drawing_context,
+                        &PlaceholderContextWithValue { vars, value },
+                    )?);
+                }
+            }
+        }
+        self.update_dim();
+        Ok(updates.any_updated())
+    }
+
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
+        let mut x_offset: f64 = 0.0;
+        for index in 0..self.inactive_blocks.len() {
+            context.save()?;
+            context.translate(x_offset, 0.0);
+            let block = if index == self.active {
+                self.active_block.as_mut()
+            } else {
+                self.inactive_blocks.get_mut(index)
+            };
+            if let Some(block) = block {
+                block.render(drawing_context)?;
+                x_offset += block.get_dimensions().width;
+            }
+            context.restore()?;
+        }
+        Ok(())
+    }
+
+    fn is_visible(&self) -> bool {
+        self.config.display.show_if_matches.all_match()
+    }
+}
 
 // #[derive(Debug)]
 // struct ImageBlock {
@@ -1155,6 +1241,10 @@ impl Bar {
                 bar_config.height as f64,
                 text.clone(),
             )),
+            config::Block::Enum(e) => Some(Box::new(EnumBlock::new(
+                bar_config.height as f64,
+                e.clone(),
+            ))),
             _ => None,
             //         config::Block::Number(number) => match &number
             //             .number_display
