@@ -1261,7 +1261,7 @@ mod tests {
     fn test_placeholder_replace() {
         let mut map = HashMap::new();
         map.insert("foo".into(), "hello".into());
-        let mut block = Block::Enum(EnumBlock {
+        let mut block = EnumBlock {
             name: "".into(),
             inherit: None,
             active: Placeholder::infallable("a ${foo} b"),
@@ -1277,12 +1277,11 @@ mod tests {
             input: Default::default(),
             enum_separator: None,
             event_handlers: Default::default(),
-        });
-        let block = block.resolve(&map).unwrap();
-        if let Block::Enum(e) = block {
-            assert_eq!(e.active, "a hello b");
-            assert_eq!(e.display.font, "b hello c");
-        }
+        };
+        block.active.update(&map).unwrap();
+        block.display.update(&map).unwrap();
+        assert_eq!(block.active.value, "a hello b");
+        assert_eq!(block.display.font.value, "b hello c");
     }
 
     #[test]
