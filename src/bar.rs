@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(clippy::new_ret_no_self)]
+#![allow(clippy::new_ret_no_self, dead_code)]
 
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     fmt::Debug,
 };
@@ -347,22 +348,6 @@ impl DebugBlock for TextBlock {}
 
 impl TextBlock {
     fn new(config: config::TextBlock<Placeholder>) -> Self {
-        // let pango_layout = match &drawing_context.pango_context {
-        //     Some(pango_context) => {
-        //         let pango_layout = pango::Layout::new(pango_context);
-        //         if display_options.pango_markup == Some(true) {
-        //             // TODO: fix this.
-        //             pango_layout.set_markup(value.as_str());
-        //         } else {
-        //             pango_layout.set_text(value.as_str());
-        //         }
-        //         let mut font_cache = drawing_context.font_cache.lock().unwrap();
-        //         let fd = font_cache.get(display_options.font.as_str());
-        //         pango_layout.set_font_description(Some(fd));
-        //         Some(pango_layout)
-        //     }
-        //     None => None,
-        // };
         Self {
             config,
             pango_layout: None,
@@ -481,128 +466,257 @@ impl Block for TextBlock {
     }
 }
 
-// #[derive(Debug)]
-// struct TextProgressBarNumberBlock {
-//     text_block: Box<dyn DebugBlock>,
-// }
+#[derive(Debug)]
+struct NumberBlock {
+    text_block: Box<dyn DebugBlock>,
+    number: config::NumberBlock<Placeholder>,
+}
 
-// impl TextProgressBarNumberBlock {
-//     fn new(
-//         name: String,
-//         drawing_context: &drawing::Context,
-//         number_block: &config::NumberBlock<String>,
-//         height: f64,
-//         event_handlers: config::EventHandlers<String>,
-//     ) -> Self {
-//         let display = config::DisplayOptions {
-//             pango_markup: Some(true), // TODO: fix
-//             ..number_block.display.clone()
-//         };
-//         let text_block = TextBlock::new_in_base_block(
-//             name,
-//             number_block.parsed_data.text_bar_string.clone(),
-//             drawing_context,
-//             display,
-//             height,
-//             None,
-//             None,
-//             event_handlers,
-//         );
-//         Self { text_block }
-//     }
-// }
+impl NumberBlock {
+    fn new(height: f64, number: config::NumberBlock<Placeholder>) -> Self {
+        let text_block = TextBlock::new_in_base_block(
+            height,
+            config::TextBlock {
+                name: number.name.clone(),
+                inherit: number.inherit.clone(),
+                input: config::Input {
+                    value: Placeholder::infallable("${value}"),
+                    ..number.input.clone()
+                },
+                separator_type: None,
+                separator_radius: None,
+                event_handlers: number.event_handlers.clone(),
+                display: number.display.clone(),
+            },
+        );
+        Self { text_block, number }
+    }
 
-// impl DebugBlock for TextProgressBarNumberBlock {}
+    fn segment_ramp_pass(
+        number_type: &config::NumberType,
+        i_value: f64,
+        ramp: &[(String, String)],
+    ) -> anyhow::Result<String> {
+        let mut segment = " ";
+        for (ramp, ramp_format) in ramp {
+            if let Some(ramp_number) = number_type.parse_str(ramp)? {
+                if i_value < ramp_number {
+                    break;
+                }
+            }
+            segment = ramp_format;
+        }
+        Ok(segment.into())
+    }
 
-// impl Block for TextProgressBarNumberBlock {
-//     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
-//         self.text_block.handle_event(event)
-//     }
+    fn progress_bar_string(
+        &self,
+        text_progress_bar: config::TextProgressBarDisplay<Placeholder>,
+        value: Option<f64>,
+        min_value: Option<f64>,
+        max_value: Option<f64>,
+        width: usize,
+    ) -> anyhow::Result<String> {
+        let number_type = &self.number.number_type;
+        let empty_result = (0..width).map(|_| ' ');
+        if max_value.is_none() || min_value.is_none() || value.is_none() {
+            return Ok(empty_result.collect());
+        }
+        let min_value = min_value.unwrap();
 
-//     fn name(&self) -> &str {
-//         self.text_block.name()
-//     }
+        let max_value = max_value.unwrap();
+        if min_value >= max_value {
+            return Ok(empty_result.collect()); // error
+        }
+        let mut value = value.unwrap();
+        if value < min_value {
+            value = min_value;
+        }
+        if value > max_value {
+            value = max_value;
+        }
+        let fill = &text_progress_bar.fill;
+        let empty = &text_progress_bar.empty;
+        let indicator = &text_progress_bar.indicator;
+        let indicator_position =
+            ((value - min_value) / (max_value - min_value) * width as f64) as i32;
+        let segments: Vec<String> = (0..(width + 1) as i32)
+            .map(|i| {
+                let i_value = (i as f64) / (width as f64) * (max_value - min_value) + min_value;
+                Ok(match i.cmp(&indicator_position) {
+                    Ordering::Less => Self::segment_ramp_pass(number_type, i_value, fill)?,
+                    Ordering::Equal => Self::segment_ramp_pass(number_type, i_value, indicator)?,
+                    Ordering::Greater => Self::segment_ramp_pass(number_type, i_value, empty)?,
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        Ok(segments.join(""))
+    }
 
-//     fn get_dimensions(&self) -> Dimensions {
-//         self.text_block.get_dimensions()
-//     }
+    fn number_text(
+        number_text_display: config::NumberTextDisplay<Placeholder>,
+        value: Option<f64>,
+    ) -> anyhow::Result<String> {
+        if value.is_none() {
+            return Ok("".into());
+        }
+        let value = value.unwrap();
 
-//     fn update(&mut self, _vars: &dyn parse::PlaceholderContext) -> anyhow::Result<UpdateResult> {
-//         Ok(UpdateResult::Same)
-//     }
+        let text = match number_text_display.number_type.unwrap() {
+            config::NumberType::Percent => format!("{}%", value),
+            config::NumberType::Number => format!("{}", value),
+            config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
+        };
+        Ok(text)
+    }
 
-//     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
-//         self.text_block.render(drawing_context)
-//     }
-//     fn is_visible(&self) -> bool {
-//         self.text_block.is_visible()
-//     }
-// }
+    fn ramp_pass(
+        &self,
+        vars: &dyn parse::PlaceholderContext,
+        text: &str,
+        value: f64,
+        ramp: &[(String, parse::Placeholder)],
+    ) -> anyhow::Result<String> {
+        let mut format: Option<&parse::Placeholder> = None;
+        let number_type = &self.number.number_type;
+        for (ramp, ramp_format) in ramp {
+            if let Some(ramp_number) = number_type.parse_str(ramp)? {
+                if value < ramp_number {
+                    break;
+                }
+            }
+            format = Some(ramp_format);
+        }
+        match format {
+            None => Ok(text.into()),
+            Some(format) => {
+                let mut format = format.clone(); // TODO fix
+                format.update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &text.to_string(),
+                })?;
+                Ok(format.value.clone())
+            }
+        }
+    }
 
-// #[derive(Debug)]
-// struct TextNumberBlock {
-//     text_block: Box<dyn DebugBlock>,
-// }
+    fn parse_min_max(
+        number_block: &config::NumberBlock<Placeholder>,
+    ) -> anyhow::Result<(Option<f64>, Option<f64>)> {
+        let number_type = number_block.number_type;
+        Ok(match number_type {
+            config::NumberType::Percent => (Some(0.0), Some(100.0)),
+            _ => (
+                number_type
+                    .parse_str(&number_block.min_value)
+                    .context("min_value")?,
+                number_type
+                    .parse_str(&number_block.max_value)
+                    .context("max_value")?,
+            ),
+        })
+    }
+}
 
-// impl TextNumberBlock {
-//     fn new(
-//         name: String,
-//         drawing_context: &drawing::Context,
-//         number_block: &config::NumberBlock<String>,
-//         height: f64,
-//         event_handlers: config::EventHandlers<String>,
-//     ) -> Self {
-//         let display = config::DisplayOptions {
-//             pango_markup: Some(true), // TODO: fix
-//             ..number_block.display.clone()
-//         };
-//         let text_block = TextBlock::new_in_base_block(
-//             name,
-//             number_block.parsed_data.text_bar_string.clone(),
-//             drawing_context,
-//             display,
-//             height,
-//             None,
-//             None,
-//             event_handlers,
-//         );
-//         Self { text_block }
-//     }
-// }
+impl DebugBlock for NumberBlock {}
 
-// impl DebugBlock for TextNumberBlock {}
+impl Block for NumberBlock {
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        self.text_block.handle_event(event)
+    }
 
-// impl Block for TextNumberBlock {
-//     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
-//         self.text_block.handle_event(event)
-//     }
+    fn name(&self) -> &str {
+        self.text_block.name()
+    }
 
-//     fn name(&self) -> &str {
-//         self.text_block.name()
-//     }
+    fn get_dimensions(&self) -> Dimensions {
+        self.text_block.get_dimensions()
+    }
 
-//     fn get_dimensions(&self) -> Dimensions {
-//         self.text_block.get_dimensions()
-//     }
+    fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        let ramp = self.number.ramp.clone();
+        self.number.input.update(vars)?;
+        let value = &self.number.input.value.value;
+        let value = self.number.number_type.parse_str(value).context("value")?;
 
-//     fn update(&mut self, _vars: &dyn parse::PlaceholderContext) -> anyhow::Result<UpdateResult> {
-//         Ok(UpdateResult::Same)
-//     }
+        let (min_value, max_value) = Self::parse_min_max(&self.number)?;
+        if let Some(min_value) = min_value {
+            if let Some(max_value) = max_value {
+                if min_value > max_value {
+                    return Err(anyhow::anyhow!(
+                        "min_value={}, max_value={}",
+                        min_value,
+                        max_value,
+                    ));
+                }
+            }
+        }
+        let value = value.map(|mut value| {
+            if let Some(min_value) = min_value {
+                if value < min_value {
+                    value = min_value;
+                }
+            }
+            if let Some(max_value) = max_value {
+                if value > max_value {
+                    value = max_value;
+                }
+            }
+            value
+        });
 
-//     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
-//         self.text_block.render(drawing_context)
-//     }
-//     fn is_visible(&self) -> bool {
-//         self.text_block.is_visible()
-//     }
-// }
+        let text = match self.number.number_display.as_ref().unwrap() {
+            config::NumberDisplay::ProgressBar(text_progress_bar) => self.progress_bar_string(
+                text_progress_bar.clone(),
+                value,
+                min_value,
+                max_value,
+                text_progress_bar.progress_bar_size,
+            )?,
+            config::NumberDisplay::Text(number_text_display) => {
+                Self::number_text(number_text_display.clone(), value)?
+            }
+        };
 
-// #[derive(Debug)]
-// struct VariantBlock {
-//     index: usize,
-//     original_value: String,
-//     block: Box<dyn DebugBlock>,
-// }
+        let text = if self.number.ramp.is_empty() {
+            text
+        } else if let Some(value) = value {
+            match (min_value, max_value) {
+                (Some(min), Some(max)) => {
+                    let value = if value < min {
+                        min
+                    } else if value > max {
+                        max
+                    } else {
+                        value
+                    };
+                    self.ramp_pass(vars, &text, value, &ramp)?
+                }
+                _ => {
+                    return Err(anyhow::anyhow!("ramp with no min_value or max_value"));
+                }
+            }
+        } else {
+            text
+        };
+
+        self.text_block.update(
+            drawing_context,
+            &PlaceholderContextWithValue { vars, value: &text },
+        )
+    }
+
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+        self.text_block.render(drawing_context)
+    }
+    fn is_visible(&self) -> bool {
+        self.text_block.is_visible()
+    }
+}
 
 #[derive(Debug)]
 struct EnumBlock {
@@ -670,7 +784,7 @@ impl EnumBlock {
         self.dim = dim;
     }
 
-    fn allocate_text_blocks(&mut self, variants: &Vec<String>) -> anyhow::Result<()> {
+    fn allocate_text_blocks(&mut self, variants: &[String]) -> anyhow::Result<()> {
         if self.active_block.is_none() {
             self.active_block = Some(self.variant_text_block(0, true));
         }
@@ -1117,12 +1231,8 @@ pub struct Updates {
 
 pub struct Bar {
     bar_config: config::Bar<Placeholder>,
-    // resolved_bar_config: Option<config::Bar<String>>,
-    // block_data: HashMap<String, state::BlockData>,
     error: Option<String>,
     error_block: Box<dyn DebugBlock>,
-    // blocks: HashMap<String, Arc<dyn DebugBlock>>,
-    // all_blocks: HashSet<String>,
     left_group: BlockGroup,
     center_group: BlockGroup,
     center_group_pos: f64,
@@ -1136,13 +1246,6 @@ impl Bar {
         config: &config::Config<parse::Placeholder>,
         bar_config: config::Bar<Placeholder>,
     ) -> anyhow::Result<Self> {
-        // let all_blocks: HashSet<String> = bar
-        //     .blocks_left
-        //     .iter()
-        //     .chain(bar.blocks_center.iter())
-        //     .chain(bar.blocks_right.iter())
-        //     .cloned()
-        //     .collect();
         let left_group = Self::make_block_group(&bar_config.blocks_left, config, &bar_config);
         let center_group = Self::make_block_group(&bar_config.blocks_center, config, &bar_config);
         let right_group = Self::make_block_group(&bar_config.blocks_right, config, &bar_config);
@@ -1150,17 +1253,9 @@ impl Bar {
             left_group,
             center_group,
             right_group,
-            // all_blocks,
-            // bar: bar.clone(),
-            // resolved_bar_config: None,
-            // block_data: HashMap::new(),
             error: None,
             error_block: Self::error_block(&bar_config),
-            // blocks: HashMap::new(),
-            // left_group: BlockGroup::new(&[]),
-            // center_group: BlockGroup::new(&[]),
             center_group_pos: 0.0,
-            // right_group: BlockGroup::new(&[]),
             right_group_pos: 0.0,
             // last_update_pointer_position: None,
             bar_config,
@@ -1245,43 +1340,11 @@ impl Bar {
                 bar_config.height as f64,
                 e.clone(),
             ))),
+            config::Block::Number(number) => Some(Box::new(NumberBlock::new(
+                bar_config.height as f64,
+                number.clone(),
+            ))),
             _ => None,
-            //         config::Block::Number(number) => match &number
-            //             .number_display
-            //             .as_ref()
-            //             .expect("number_display must be set")
-            //         {
-            //             config::NumberDisplay::ProgressBar(_) => {
-            //                 let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
-            //                     name,
-            //                     drawing_context,
-            //                     number,
-            //                     self.bar.height as f64,
-            //                     number.event_handlers.clone(),
-            //                 ));
-            //                 b
-            //             }
-            //             config::NumberDisplay::Text(_) => {
-            //                 let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
-            //                     name,
-            //                     drawing_context,
-            //                     number,
-            //                     self.bar.height as f64,
-            //                     number.event_handlers.clone(),
-            //                 ));
-            //                 b
-            //             }
-            //         },
-            //         config::Block::Enum(enum_block) => {
-            //             let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
-            //                 name,
-            //                 drawing_context,
-            //                 enum_block,
-            //                 self.bar.height as f64,
-            //                 enum_block.event_handlers.clone(),
-            //             ));
-            //             b
-            //         }
             //         config::Block::Image(image) => ImageBlock::new(
             //             name,
             //             image.input.value.clone(),
@@ -1476,13 +1539,6 @@ impl Bar {
 
         let context = &drawing_context.context;
         let bar = &self.bar_config;
-
-        // let background = match &self.resolved_bar_config {
-        //     Some(bar_config) => &bar_config.background,
-        //     None => {
-        //         return Ok(());
-        //     }
-        // };
 
         if *redraw == RedrawScope::All {
             let background: &str = &self.bar_config.background;

@@ -1051,7 +1051,7 @@ impl Input<Placeholder> {
         self.replace.update(vars)?;
         let new_value = self.replace.apply(self.replace_first_match, &self.value);
         let updated = old_value != new_value;
-        self.value.value = new_value.clone();
+        self.value.value = new_value;
         Ok(updated)
     }
 }
