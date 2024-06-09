@@ -231,6 +231,21 @@ pub struct EventHandlers<Dynamic: Clone + Default + Debug> {
     pub on_scroll_down: Dynamic,
 }
 
+impl EventHandlers<Placeholder> {
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<bool> {
+        let mut updates = Vec::with_capacity(5);
+        updates.extend_from_slice(&[self.on_mouse_left.update(vars).context("on_mouse_left")?]);
+        updates.extend_from_slice(&[self
+            .on_mouse_middle
+            .update(vars)
+            .context("on_mouse_middle")?]);
+        updates.extend_from_slice(&[self.on_mouse_right.update(vars).context("on_mouse_right")?]);
+        updates.extend_from_slice(&[self.on_scroll_up.update(vars).context("on_scroll_up")?]);
+        updates.extend_from_slice(&[self.on_scroll_down.update(vars).context("on_scroll_down")?]);
+        Ok(updates.any_updated())
+    }
+}
+
 // impl PlaceholderExt for EventHandlers<Placeholder> {
 //     type R = EventHandlers<String>;
 

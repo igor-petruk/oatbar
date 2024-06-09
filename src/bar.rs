@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(clippy::new_ret_no_self, dead_code)]
+#![allow(clippy::new_ret_no_self)]
 
 use std::{
     cmp::Ordering,
@@ -27,7 +27,7 @@ use crate::{
     config::{self, AnyUpdated},
     drawing,
     parse::{self, Placeholder},
-    // process,
+    process,
 };
 
 use config::VecStringRegexEx;
@@ -58,7 +58,7 @@ pub struct ButtonPress {
 
 #[derive(Debug, Clone, PartialEq)]
 enum BlockEvent {
-    // ButtonPress(ButtonPress),
+    ButtonPress(ButtonPress),
 }
 
 struct PlaceholderContextWithValue<'a> {
@@ -94,32 +94,32 @@ trait Block {
 
 trait DebugBlock: Block + Debug {}
 
-// fn handle_block_event(
-//     event_handlers: &config::EventHandlers<String>,
-//     block_event: &BlockEvent,
-//     name: &str,
-//     value: &str,
-//     extra_envs: Vec<(String, String)>,
-// ) -> anyhow::Result<()> {
-//     match block_event {
-//         BlockEvent::ButtonPress(e) => {
-//             let command = match e.button {
-//                 Button::Left => &event_handlers.on_mouse_left,
-//                 Button::Middle => &event_handlers.on_mouse_middle,
-//                 Button::Right => &event_handlers.on_mouse_right,
-//                 Button::ScrollUp => &event_handlers.on_scroll_up,
-//                 Button::ScrollDown => &event_handlers.on_scroll_down,
-//             };
-//             if !command.trim().is_empty() {
-//                 let mut envs = extra_envs;
-//                 envs.push(("BLOCK_NAME".into(), name.into()));
-//                 envs.push(("BLOCK_VALUE".into(), value.into()));
-//                 process::run_detached(command, envs)?;
-//             }
-//         }
-//     }
-//     Ok(())
-// }
+fn handle_block_event(
+    event_handlers: &config::EventHandlers<Placeholder>,
+    block_event: &BlockEvent,
+    name: &str,
+    value: &str,
+    extra_envs: Vec<(String, String)>,
+) -> anyhow::Result<()> {
+    match block_event {
+        BlockEvent::ButtonPress(e) => {
+            let command = match e.button {
+                Button::Left => &event_handlers.on_mouse_left,
+                Button::Middle => &event_handlers.on_mouse_middle,
+                Button::Right => &event_handlers.on_mouse_right,
+                Button::ScrollUp => &event_handlers.on_scroll_up,
+                Button::ScrollDown => &event_handlers.on_scroll_down,
+            };
+            if !command.trim().is_empty() {
+                let mut envs = extra_envs;
+                envs.push(("BLOCK_NAME".into(), name.into()));
+                envs.push(("BLOCK_VALUE".into(), value.into()));
+                process::run_detached(command, envs)?;
+            }
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug)]
 struct BaseBlock {
@@ -370,15 +370,14 @@ impl TextBlock {
 }
 
 impl Block for TextBlock {
-    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        // handle_block_event(
-        //     &self.event_handlers,
-        //     event,
-        //     self.name(),
-        //     &self.value,
-        //     vec![],
-        // )
-        Ok(())
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        handle_block_event(
+            &self.config.event_handlers,
+            event,
+            self.name(),
+            &self.config.display.output_format.value,
+            vec![],
+        )
     }
 
     fn update(
@@ -389,6 +388,7 @@ impl Block for TextBlock {
         // TODO: font
         let old_value = self.config.display.output_format.value.to_string();
         let any_updated = [
+            self.config.event_handlers.update(vars)?,
             self.config.display.update(vars)?,
             self.config.input.update(vars)?,
             self.config
@@ -723,6 +723,7 @@ struct EnumBlock {
     height: f64,
     config: config::EnumBlock<Placeholder>,
     active: usize,
+    values: Vec<String>,
     active_block: Option<Box<dyn DebugBlock>>,
     inactive_blocks: Vec<Box<dyn DebugBlock>>,
     dim: Dimensions,
@@ -734,6 +735,7 @@ impl EnumBlock {
             height,
             config,
             active: 0,
+            values: vec![],
             active_block: None,
             inactive_blocks: vec![],
             dim: Dimensions {
@@ -802,26 +804,35 @@ impl EnumBlock {
 impl DebugBlock for EnumBlock {}
 
 impl Block for EnumBlock {
-    fn handle_event(&self, _event: &BlockEvent) -> anyhow::Result<()> {
-        // match event {
-        //     BlockEvent::ButtonPress(button_press) => {
-        //         let mut pos: f64 = 0.0;
-        //         for variant_block in self.variant_blocks.iter() {
-        //             let next_pos = pos + variant_block.block.get_dimensions().width;
-        //             if pos <= button_press.x && button_press.x <= next_pos {
-        //                 handle_block_event(
-        //                     &self.event_handlers,
-        //                     event,
-        //                     self.name(),
-        //                     &variant_block.original_value,
-        //                     vec![("BLOCK_INDEX".into(), format!("{}", variant_block.index))],
-        //                 )?;
-        //                 break;
-        //             }
-        //             pos = next_pos;
-        //         }
-        //     }
-        // }
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        match event {
+            BlockEvent::ButtonPress(button_press) => {
+                let mut pos: f64 = 0.0;
+                for index in 0..self.inactive_blocks.len() {
+                    let block = if index == self.active && self.active_block.is_some() {
+                        self.active_block.as_ref()
+                    } else {
+                        self.inactive_blocks.get(index)
+                    };
+                    if block.is_none() {
+                        return Ok(());
+                    }
+                    let block = block.unwrap();
+                    let next_pos = pos + block.get_dimensions().width;
+                    if pos <= button_press.x && button_press.x <= next_pos {
+                        handle_block_event(
+                            &self.config.event_handlers,
+                            event,
+                            self.name(),
+                            &self.values.get(index).cloned().unwrap_or_default(),
+                            vec![("BLOCK_INDEX".into(), format!("{}", index))],
+                        )?;
+                        break;
+                    }
+                    pos = next_pos;
+                }
+            }
+        }
 
         Ok(())
     }
@@ -839,7 +850,14 @@ impl Block for EnumBlock {
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
     ) -> anyhow::Result<bool> {
-        self.config.variants.update(vars).context("variants")?;
+        let mut updates: Vec<bool> = Vec::with_capacity(self.config.variants.len() + 3);
+        updates.push(self.config.variants.update(vars).context("variants")?);
+        updates.push(
+            self.config
+                .event_handlers
+                .update(vars)
+                .context("event_handlers")?,
+        );
         let enum_separator = self.config.enum_separator.as_deref().unwrap_or(",");
         let (variants, errors): (Vec<_>, Vec<_>) = self
             .config
@@ -862,7 +880,6 @@ impl Block for EnumBlock {
         }
 
         let variants = variants.into_iter().map(|i| i.unwrap()).collect::<Vec<_>>();
-        let mut updates: Vec<bool> = Vec::with_capacity(variants.len() + 1);
 
         updates.push(self.config.active.update(vars).context("input")?);
         self.active = if self.config.active.trim().is_empty() {
@@ -890,6 +907,7 @@ impl Block for EnumBlock {
             }
         }
         self.update_dim();
+        self.values = variants;
         Ok(updates.any_updated())
     }
 
@@ -1151,24 +1169,27 @@ impl BlockGroup {
     //     }
     // }
 
-    // fn lookup_block<'a>(
-    //     &'a mut self,
-    //     group_pos: f64,
-    //     x: f64,
-    // ) -> anyhow::Result<Option<(f64, &'a mut Box<dyn DebugBlock>)>> {
-    //     let mut pos: f64 = 0.0;
-    //     let x = x - group_pos;
-    //     for (block_idx, dim) in self.layout.iter() {
-    //         let mut block = self.blocks.get_mut(*block_idx).unwrap();
-    //         let b_dim = block.get_dimensions();
-    //         let next_pos = pos + b_dim.width;
-    //         if pos <= x && x <= next_pos {
-    //             return Ok(Some((pos + group_pos, block)));
-    //         }
-    //         pos = next_pos;
-    //     }
-    //     Ok(None)
-    // }
+    fn lookup_block(
+        &mut self,
+        group_pos: f64,
+        x: f64,
+    ) -> anyhow::Result<Option<(f64, &mut Box<dyn DebugBlock>)>> {
+        let mut pos: f64 = 0.0;
+        let x = x - group_pos;
+        for (block_idx, dim) in self.layout.iter() {
+            // let block = self.blocks.get(*block_idx).unwrap();
+            // let b_dim = block.get_dimensions();
+            let next_pos = pos + dim.width;
+            if pos <= x && x <= next_pos {
+                return Ok(Some((
+                    pos + group_pos,
+                    self.blocks.get_mut(*block_idx).unwrap(),
+                )));
+            }
+            pos = next_pos;
+        }
+        Ok(None)
+    }
 
     fn render(
         &mut self,
@@ -1506,28 +1527,28 @@ impl Bar {
         self.right_group_pos = width - self.right_group.dimensions.width;
     }
 
-    // pub fn handle_button_press(&self, x: i16, y: i16, button: Button) -> anyhow::Result<()> {
-    //     let x = (x - self.bar.margin.left as i16) as f64;
-    //     let y = (y - self.bar.margin.top as i16) as f64;
+    pub fn handle_button_press(&mut self, x: i16, y: i16, button: Button) -> anyhow::Result<()> {
+        let x = (x - self.bar_config.margin.left as i16) as f64;
+        let y = (y - self.bar_config.margin.top as i16) as f64;
 
-    //     let block_pair = if x >= self.right_group_pos {
-    //         self.right_group.lookup_block(self.right_group_pos, x)
-    //     } else if x >= self.center_group_pos {
-    //         self.center_group.lookup_block(self.center_group_pos, x)
-    //     } else {
-    //         self.left_group.lookup_block(0.0, x)
-    //     }?;
+        let block_pair = if x >= self.right_group_pos {
+            self.right_group.lookup_block(self.right_group_pos, x)
+        } else if x >= self.center_group_pos {
+            self.center_group.lookup_block(self.center_group_pos, x)
+        } else {
+            self.left_group.lookup_block(0.0, x)
+        }?;
 
-    //     if let Some((block_pos, block)) = block_pair {
-    //         block.handle_event(&BlockEvent::ButtonPress(ButtonPress {
-    //             x: x - block_pos,
-    //             y,
-    //             button,
-    //         }))?
-    //     }
+        if let Some((block_pos, block)) = block_pair {
+            block.handle_event(&BlockEvent::ButtonPress(ButtonPress {
+                x: x - block_pos,
+                y,
+                button,
+            }))?
+        }
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     pub fn render(
         &mut self,

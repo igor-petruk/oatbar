@@ -516,13 +516,12 @@ impl Window {
     }
 
     pub fn handle_button_press(
-        &self,
-        _x: i16,
-        _y: i16,
-        _button: bar::Button,
+        &mut self,
+        x: i16,
+        y: i16,
+        button: bar::Button,
     ) -> anyhow::Result<()> {
-        Ok(())
-        // self.bar.handle_button_press(x, y, button)
+        self.bar.handle_button_press(x, y, button)
     }
 
     pub fn handle_raw_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
