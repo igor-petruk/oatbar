@@ -451,7 +451,7 @@ impl Window {
         //         return Ok(());
         //     }
         // };
-        // let pointer_position = state.pointer_position.get(&self.name).copied();
+        let pointer_position = state.pointer_position.get(&self.name).copied();
         // let mut updates = self.bar.update(
         //     &self.back_buffer_context,
         //     bar_config,
@@ -461,17 +461,21 @@ impl Window {
         // );
         let mut error = state.build_error_msg();
 
-        let mut updates = match self.bar.update(&self.back_buffer_context, &state.vars) {
-            Ok(updates) => updates,
-            Err(e) => {
-                error = Some(format!("Error: {:?}", e));
-                Updates {
-                    redraw: bar::RedrawScope::All,
-                    popup: Default::default(),
-                    visible_from_vars: None,
+        let mut updates =
+            match self
+                .bar
+                .update(&self.back_buffer_context, &state.vars, pointer_position)
+            {
+                Ok(updates) => updates,
+                Err(e) => {
+                    error = Some(format!("Error: {:?}", e));
+                    Updates {
+                        redraw: bar::RedrawScope::All,
+                        popup: Default::default(),
+                        visible_from_vars: None,
+                    }
                 }
-            }
-        };
+            };
 
         self.bar.set_error(&self.back_buffer_context, error);
 

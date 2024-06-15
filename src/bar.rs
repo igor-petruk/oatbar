@@ -1239,7 +1239,7 @@ pub struct Bar {
     center_group_pos: f64,
     right_group: BlockGroup,
     right_group_pos: f64,
-    // last_update_pointer_position: Option<(i16, i16)>,
+    last_update_pointer_position: Option<(i16, i16)>,
 }
 
 impl Bar {
@@ -1258,7 +1258,7 @@ impl Bar {
             error_block: Self::error_block(&bar_config),
             center_group_pos: 0.0,
             right_group_pos: 0.0,
-            // last_update_pointer_position: None,
+            last_update_pointer_position: None,
             bar_config,
         })
     }
@@ -1387,15 +1387,24 @@ impl Bar {
         &mut self,
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
+        pointer_position: Option<(i16, i16)>,
     ) -> anyhow::Result<Updates> {
         self.bar_config.background.update(vars)?;
 
         let left_redraw = self.left_group.update(drawing_context, vars)?;
         let center_redraw = self.center_group.update(drawing_context, vars)?;
         let right_redraw = self.right_group.update(drawing_context, vars)?;
+
+        let mut redraw = left_redraw.combine(center_redraw).combine(right_redraw);
+
+        if pointer_position != self.last_update_pointer_position {
+            self.last_update_pointer_position = pointer_position;
+            redraw = RedrawScope::All;
+        }
+
         Ok(Updates {
             popup: Default::default(),
-            redraw: left_redraw.combine(center_redraw).combine(right_redraw),
+            redraw,
             visible_from_vars: None,
         })
     }
@@ -1535,8 +1544,8 @@ impl Bar {
         drawing_context: &drawing::Context,
         redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
-        let drawing_context = drawing_context.clone();
-        // drawing_context.pointer_position = self.last_update_pointer_position;
+        let mut drawing_context = drawing_context.clone();
+        drawing_context.pointer_position = self.last_update_pointer_position;
 
         let context = &drawing_context.context;
         let bar = &self.bar_config;
