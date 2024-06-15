@@ -1149,26 +1149,6 @@ impl BlockGroup {
         }
     }
 
-    // fn new(blocks: &[Arc<dyn DebugBlock>]) -> Self {
-    //     let mut dim = Dimensions {
-    //         width: 0.0,
-    //         height: 0.0,
-    //     };
-
-    //     let blocks = BlockGroup::collapse_separators(blocks);
-
-    //     for block in blocks.iter() {
-    //         let b_dim = block.get_dimensions();
-    //         dim.width += b_dim.width;
-    //         dim.height = dim.height.max(b_dim.height);
-    //     }
-
-    //     Self {
-    //         blocks,
-    //         dimensions: dim,
-    //     }
-    // }
-
     fn lookup_block(
         &mut self,
         group_pos: f64,
