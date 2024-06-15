@@ -456,7 +456,7 @@ impl Block for TextBlock {
             drawing_context.set_source_rgba(color)?;
         }
         if let Some(pango_layout) = &self.pango_layout {
-            pangocairo::show_layout(context, pango_layout);
+            pangocairo::functions::show_layout(context, pango_layout);
         }
         context.restore()?;
         Ok(())
