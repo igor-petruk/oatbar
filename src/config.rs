@@ -246,26 +246,6 @@ impl EventHandlers<Placeholder> {
     }
 }
 
-// impl PlaceholderExt for EventHandlers<Placeholder> {
-//     type R = EventHandlers<String>;
-
-//     fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<EventHandlers<String>> {
-//         Ok(EventHandlers {
-//             on_mouse_left: self.on_mouse_left.resolve(vars).context("on_mouse_left")?,
-//             on_mouse_middle: self
-//                 .on_mouse_middle
-//                 .resolve(vars)
-//                 .context("on_mouse_middle")?,
-//             on_mouse_right: self
-//                 .on_mouse_right
-//                 .resolve(vars)
-//                 .context("on_mouse_right")?,
-//             on_scroll_up: self.on_scroll_up.resolve(vars).context("on_scroll_up")?,
-//             on_scroll_down: self.on_scroll_down.resolve(vars).context("on_mouse_down")?,
-//         })
-//     }
-// }
-
 impl EventHandlers<Option<Placeholder>> {
     pub fn with_default(self) -> EventHandlers<Placeholder> {
         EventHandlers {
@@ -581,21 +561,6 @@ impl ImageBlock<Option<Placeholder>> {
         }
     }
 }
-
-// impl ImageBlock<Placeholder> {
-//     pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<ImageBlock<String>> {
-//         Ok(ImageBlock {
-//             name: self.name.clone(),
-//             inherit: self.inherit.clone(),
-//             display: self.display.resolve(vars).context("display")?,
-//             input: self.input.resolve(vars).context("input")?,
-//             event_handlers: self
-//                 .event_handlers
-//                 .resolve(vars)
-//                 .context("event_handlers")?,
-//         })
-//     }
-// }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
