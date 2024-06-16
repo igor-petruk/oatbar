@@ -1402,10 +1402,16 @@ impl Bar {
             redraw = RedrawScope::All;
         }
 
+        let visible_from_vars = if self.bar_config.show_if_matches.is_empty() {
+            None
+        } else {
+            Some(self.bar_config.show_if_matches.all_match())
+        };
+
         Ok(Updates {
             popup: Default::default(),
             redraw,
-            visible_from_vars: None,
+            visible_from_vars,
         })
     }
     // pub fn update(

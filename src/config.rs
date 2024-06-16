@@ -183,6 +183,12 @@ pub trait VecStringRegexEx {
     fn all_match(&self) -> bool;
 }
 
+impl VecStringRegexEx for Vec<(String, Regex)> {
+    fn all_match(&self) -> bool {
+        !self.iter().any(|(s, r)| !r.is_match(s))
+    }
+}
+
 impl VecStringRegexEx for Vec<(Placeholder, Regex)> {
     fn all_match(&self) -> bool {
         !self.iter().any(|(s, r)| !r.is_match(s))

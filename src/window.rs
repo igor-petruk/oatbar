@@ -61,6 +61,7 @@ impl VisibilityControl {
                 },
             )?;
         }
+        tracing::info!("Setting {} visibility: {}", self.name, visible);
         self.conn.flush()?;
         self.visible = visible;
         Ok(())
