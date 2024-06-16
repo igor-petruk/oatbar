@@ -46,6 +46,10 @@ impl Placeholder {
         }
         Ok(updated)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
+    }
 }
 
 impl Deref for Placeholder {

@@ -90,6 +90,8 @@ trait Block {
         None
     }
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()>;
+    fn popup(&self) -> Option<config::PopupMode>;
+    fn popup_value(&self) -> &Placeholder;
 }
 
 trait DebugBlock: Block + Debug {}
@@ -172,6 +174,14 @@ impl Block for BaseBlock {
 
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         self.inner_block.handle_event(event)
+    }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.inner_block.popup()
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        self.inner_block.popup_value()
     }
 
     fn get_dimensions(&self) -> Dimensions {
@@ -461,8 +471,17 @@ impl Block for TextBlock {
         context.restore()?;
         Ok(())
     }
+
     fn is_visible(&self) -> bool {
         self.config.display.show_if_matches.all_match()
+    }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.config.display.popup
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        &self.config.display.popup_value
     }
 }
 
@@ -713,8 +732,17 @@ impl Block for NumberBlock {
     fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         self.text_block.render(drawing_context)
     }
+
     fn is_visible(&self) -> bool {
         self.text_block.is_visible()
+    }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.text_block.popup()
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        self.text_block.popup_value()
     }
 }
 
@@ -934,6 +962,14 @@ impl Block for EnumBlock {
     fn is_visible(&self) -> bool {
         self.config.display.show_if_matches.all_match()
     }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.config.display.popup
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        &self.config.display.popup_value
+    }
 }
 
 // #[derive(Debug)]
@@ -1117,13 +1153,30 @@ impl BlockGroup {
         &mut self,
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
-    ) -> anyhow::Result<RedrawScope> {
+    ) -> anyhow::Result<BlockUpdates> {
         let old_layout = self.layout.clone();
+        let mut popup: HashMap<config::PopupMode, HashSet<String>> = HashMap::new();
 
         let mut updated_blocks = HashSet::new();
         for block in &mut self.blocks {
-            let block_result = block.update(drawing_context, vars)?;
-            if block_result {
+            let old_popup_value = block.popup_value().to_string();
+            let block_updated = block.update(drawing_context, vars)?;
+            if let Some(popup_mode) = block.popup() {
+                let use_popup_value = !block.popup_value().is_empty();
+                let popped_up = if use_popup_value {
+                    old_popup_value != block.popup_value().value
+                } else {
+                    block_updated
+                };
+                if popped_up {
+                    tracing::info!("{} popped up", block.name());
+                    popup
+                        .entry(popup_mode)
+                        .or_default()
+                        .insert(block.name().to_string());
+                }
+            }
+            if block_updated {
                 updated_blocks.insert(block.name().to_string());
             }
         }
@@ -1140,13 +1193,14 @@ impl BlockGroup {
         }
         self.dimensions = dim;
 
-        if old_layout != self.layout {
-            Ok(RedrawScope::All)
+        let redraw = if old_layout != self.layout {
+            RedrawScope::All
         } else if updated_blocks.is_empty() {
-            Ok(RedrawScope::None)
+            RedrawScope::None
         } else {
-            Ok(RedrawScope::Partial(updated_blocks))
-        }
+            RedrawScope::Partial(updated_blocks)
+        };
+        Ok(BlockUpdates { redraw, popup })
     }
 
     fn lookup_block(
@@ -1200,7 +1254,7 @@ impl BlockGroup {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RedrawScope {
     All,
     Partial(HashSet<String>),
@@ -1208,7 +1262,7 @@ pub enum RedrawScope {
 }
 
 impl RedrawScope {
-    fn combine(self, other: RedrawScope) -> Self {
+    fn combine(self, other: Self) -> Self {
         use RedrawScope::*;
         match (self, other) {
             (All, _) => All,
@@ -1224,9 +1278,20 @@ impl RedrawScope {
     }
 }
 
-pub struct Updates {
+pub struct BlockUpdates {
     pub popup: HashMap<config::PopupMode, HashSet<String>>,
     pub redraw: RedrawScope,
+}
+
+impl BlockUpdates {
+    fn merge(&mut self, other: Self) {
+        self.popup.extend(other.popup);
+        self.redraw = self.redraw.clone().combine(other.redraw);
+    }
+}
+
+pub struct BarUpdates {
+    pub block_updates: BlockUpdates,
     pub visible_from_vars: Option<bool>,
 }
 
@@ -1388,18 +1453,16 @@ impl Bar {
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         pointer_position: Option<(i16, i16)>,
-    ) -> anyhow::Result<Updates> {
+    ) -> anyhow::Result<BarUpdates> {
         self.bar_config.background.update(vars)?;
 
-        let left_redraw = self.left_group.update(drawing_context, vars)?;
-        let center_redraw = self.center_group.update(drawing_context, vars)?;
-        let right_redraw = self.right_group.update(drawing_context, vars)?;
-
-        let mut redraw = left_redraw.combine(center_redraw).combine(right_redraw);
+        let mut block_updates = self.left_group.update(drawing_context, vars)?;
+        block_updates.merge(self.center_group.update(drawing_context, vars)?);
+        block_updates.merge(self.right_group.update(drawing_context, vars)?);
 
         if pointer_position != self.last_update_pointer_position {
             self.last_update_pointer_position = pointer_position;
-            redraw = RedrawScope::All;
+            block_updates.redraw = RedrawScope::All;
         }
 
         let visible_from_vars = if self.bar_config.show_if_matches.is_empty() {
@@ -1408,9 +1471,8 @@ impl Bar {
             Some(self.bar_config.show_if_matches.all_match())
         };
 
-        Ok(Updates {
-            popup: Default::default(),
-            redraw,
+        Ok(BarUpdates {
+            block_updates,
             visible_from_vars,
         })
     }

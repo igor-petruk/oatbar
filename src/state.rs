@@ -20,31 +20,6 @@ use anyhow::Context;
 
 use std::collections::{BTreeMap, HashMap};
 
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct BlockData {
-//     pub config: config::Block<String>,
-// }
-
-// impl BlockData {
-//     pub fn popup(&self) -> Option<config::PopupMode> {
-//         match &self.config {
-//             config::Block::Text(b) => b.display.popup,
-//             config::Block::Enum(b) => b.display.popup,
-//             config::Block::Number(b) => b.display.popup,
-//             config::Block::Image(b) => b.display.popup,
-//         }
-//     }
-
-//     pub fn popup_value(&self) -> &str {
-//         match &self.config {
-//             config::Block::Text(b) => &b.display.popup_value,
-//             config::Block::Enum(b) => &b.display.popup_value,
-//             config::Block::Number(b) => &b.display.popup_value,
-//             config::Block::Image(b) => &b.display.popup_value,
-//         }
-//     }
-// }
-
 #[derive(Clone, Debug, Default)]
 pub struct State {
     pub vars: HashMap<String, String>,
@@ -76,17 +51,6 @@ impl State {
             ..Default::default()
         }
     }
-
-    // fn apply_output_format(
-    //     &self,
-    //     output_format: &parse::Placeholder,
-    //     value: &String,
-    // ) -> anyhow::Result<String> {
-    //     output_format.resolve(&PlaceholderContextWithValue {
-    //         vars: &self.vars,
-    //         value,
-    //     })
-    // }
 
     pub fn build_error_msg(&self) -> Option<String> {
         if let Some(error) = &self.error {

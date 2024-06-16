@@ -21,7 +21,7 @@ use std::{
 use xcb::{x, xinput, Xid};
 
 use crate::{
-    bar::{self, Updates},
+    bar::{self, BarUpdates, BlockUpdates},
     config, drawing, parse, state, timer, wmready, xutils,
 };
 use tracing::*;
@@ -61,7 +61,6 @@ impl VisibilityControl {
                 },
             )?;
         }
-        tracing::info!("Setting {} visibility: {}", self.name, visible);
         self.conn.flush()?;
         self.visible = visible;
         Ok(())
@@ -470,9 +469,11 @@ impl Window {
                 Ok(updates) => updates,
                 Err(e) => {
                     error = Some(format!("Error: {:?}", e));
-                    Updates {
-                        redraw: bar::RedrawScope::All,
-                        popup: Default::default(),
+                    BarUpdates {
+                        block_updates: BlockUpdates {
+                            redraw: bar::RedrawScope::All,
+                            popup: Default::default(),
+                        },
                         visible_from_vars: None,
                     }
                 }
@@ -481,10 +482,10 @@ impl Window {
         self.bar.set_error(&self.back_buffer_context, error);
 
         if from_os {
-            updates.redraw = bar::RedrawScope::All;
+            updates.block_updates.redraw = bar::RedrawScope::All;
         }
 
-        if self.bar_config.popup && !updates.popup.is_empty() {
+        if self.bar_config.popup && !updates.block_updates.popup.is_empty() {
             if let Err(e) = VisibilityControl::show_or_prolong_popup(&self.visibility_control) {
                 tracing::error!("Showing popup failed: {:?}", e);
             }
@@ -495,11 +496,11 @@ impl Window {
                 visibility_control.set_default_visibility(visible_from_vars)?;
             }
             if self.bar_config.popup {
-                visibility_control.extend_show_only(updates.popup);
+                visibility_control.extend_show_only(updates.block_updates.popup);
                 let redraw_mode = if visibility_control.show_only.is_some() {
                     bar::RedrawScope::All
                 } else {
-                    updates.redraw
+                    updates.block_updates.redraw
                 };
                 // Maybe there is a race condition between visibility and rendering.
                 (
@@ -508,7 +509,11 @@ impl Window {
                     redraw_mode,
                 )
             } else {
-                (visibility_control.visible, None, updates.redraw)
+                (
+                    visibility_control.visible,
+                    None,
+                    updates.block_updates.redraw,
+                )
             }
         };
 
