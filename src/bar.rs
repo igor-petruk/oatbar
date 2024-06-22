@@ -1121,7 +1121,7 @@ impl BlockGroup {
             if !entire_bar_visible
                 && !entire_partial_visible
                 && !block_visible
-                && !b.separator_type().is_some()
+                && b.separator_type().is_none()
             {
                 continue;
             }
