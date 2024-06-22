@@ -1075,15 +1075,54 @@ struct BlockGroup {
 }
 
 impl BlockGroup {
-    fn build_layout(&self) -> Vec<(usize, Dimensions)> {
+    fn visible_per_popup_mode(
+        &self,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+        popup_mode: config::PopupMode,
+    ) -> bool {
+        let partial_show = show_only.is_some();
+        !partial_show
+            || show_only
+                .as_ref()
+                .map(move |m| {
+                    let trigger_blocks = m.get(&popup_mode).cloned().unwrap_or_default();
+                    self.blocks
+                        .iter()
+                        .any(|block| trigger_blocks.contains(block.name()))
+                })
+                .unwrap_or_default()
+    }
+
+    fn build_layout(
+        &self,
+        entire_bar_visible: bool,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+    ) -> Vec<(usize, Dimensions)> {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(self.blocks.len());
 
         let mut eat_separators = true;
         let mut last_edge = Some(Left);
 
+        let single_blocks = show_only
+            .as_ref()
+            .and_then(|m| m.get(&config::PopupMode::Block))
+            .cloned()
+            .unwrap_or_default();
+
+        let entire_partial_visible =
+            self.visible_per_popup_mode(show_only, config::PopupMode::PartialBar);
+
         for (block_idx, b) in self.blocks.iter().enumerate() {
             if !b.is_visible() {
+                continue;
+            }
+            let block_visible = single_blocks.contains(b.name());
+            if !entire_bar_visible
+                && !entire_partial_visible
+                && !block_visible
+                && !b.separator_type().is_some()
+            {
                 continue;
             }
             let sep_type = &b.separator_type();
@@ -1181,7 +1220,22 @@ impl BlockGroup {
             }
         }
 
-        self.layout = self.build_layout();
+        let redraw = if old_layout != self.layout {
+            RedrawScope::All
+        } else if updated_blocks.is_empty() {
+            RedrawScope::None
+        } else {
+            RedrawScope::Partial(updated_blocks)
+        };
+        Ok(BlockUpdates { redraw, popup })
+    }
+
+    fn layout_group(
+        &mut self,
+        entire_bar_visible: bool,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+    ) {
+        self.layout = self.build_layout(entire_bar_visible, show_only);
         let mut dim = Dimensions {
             width: 0.0,
             height: 0.0,
@@ -1192,15 +1246,6 @@ impl BlockGroup {
             dim.height = dim.height.max(b_dim.height);
         }
         self.dimensions = dim;
-
-        let redraw = if old_layout != self.layout {
-            RedrawScope::All
-        } else if updated_blocks.is_empty() {
-            RedrawScope::None
-        } else {
-            RedrawScope::Partial(updated_blocks)
-        };
-        Ok(BlockUpdates { redraw, popup })
     }
 
     fn lookup_block(
@@ -1347,52 +1392,6 @@ impl Bar {
         }
     }
 
-    // fn visible_per_popup_mode(
-    //     show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    //     popup_mode: config::PopupMode,
-    //     block_names: &[String],
-    // ) -> bool {
-    //     let partial_show = show_only.is_some();
-    //     !partial_show
-    //         || show_only
-    //             .as_ref()
-    //             .map(move |m| {
-    //                 let trigger_blocks = m.get(&popup_mode).cloned().unwrap_or_default();
-    //                 block_names.iter().any(|name| trigger_blocks.contains(name))
-    //             })
-    //             .unwrap_or_default()
-    // }
-
-    // fn flatten(
-    //     blocks: &HashMap<String, Arc<dyn DebugBlock>>,
-    //     entire_bar_visible: bool,
-    //     show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    //     names: &[String],
-    // ) -> Vec<Arc<dyn DebugBlock>> {
-    //     let mut result = Vec::with_capacity(names.len());
-    //     let single_blocks = show_only
-    //         .as_ref()
-    //         .and_then(|m| m.get(&config::PopupMode::Block))
-    //         .cloned()
-    //         .unwrap_or_default();
-
-    //     let entire_partial_visible =
-    //      Self::visible_per_popup_mode(show_only, config::PopupMode::PartialBar, names);
-    //     for name in names {
-    //         let block_visible = single_blocks.contains(name);
-    //         if let Some(block) = blocks.get(name) {
-    //             if entire_bar_visible
-    //                 || entire_partial_visible
-    //                 || block_visible
-    //                 || block.separator_type().is_some()
-    //             {
-    //                 result.push(block.clone());
-    //             }
-    //         }
-    //     }
-    //     result
-    // }
-
     fn build_widget(
         bar_config: &config::Bar<Placeholder>,
         block: &config::Block<Placeholder>,
@@ -1476,108 +1475,27 @@ impl Bar {
             visible_from_vars,
         })
     }
-    // pub fn update(
-    //     &mut self,
-    //     resolved_bar_config: &config::Bar<String>,
-    //     block_data: &HashMap<String, state::BlockData>,
-    //     error: &Option<String>,
-    //     pointer_position: Option<(i16, i16)>,
-    // ) -> Updates {
-    //     self.resolved_bar_config = Some(resolved_bar_config.clone());
-    //     let mut redraw_all = false;
-    //     if self.error.is_some() != error.is_some() {
-    //         redraw_all = true;
-    //     }
-    //     self.error = error.clone();
 
-    //     if pointer_position != self.last_update_pointer_position {
-    //         self.last_update_pointer_position = pointer_position;
-    //         redraw_all = true;
-    //     }
+    pub fn layout_groups(
+        &mut self,
+        drawing_area_width: f64,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+    ) {
+        let entire_bar_visible = self
+            .left_group
+            .visible_per_popup_mode(show_only, config::PopupMode::Bar)
+            || self
+                .center_group
+                .visible_per_popup_mode(show_only, config::PopupMode::Bar)
+            || self
+                .right_group
+                .visible_per_popup_mode(show_only, config::PopupMode::Bar);
 
-    //     let mut popup: HashMap<config::PopupMode, HashSet<String>> =
-    //         HashMap::with_capacity(block_data.len());
-    //     let mut redraw: HashSet<String> = HashSet::new();
+        self.left_group.layout_group(entire_bar_visible, show_only);
+        self.center_group
+            .layout_group(entire_bar_visible, show_only);
+        self.right_group.layout_group(entire_bar_visible, show_only);
 
-    // if let Some(error) = error {
-    //     let (name, block_data) = Self::error_block(error);
-    //     self.blocks.insert(
-    //         name.clone(),
-    //         self.build_widget(name, drawing_context, &block_data).into(),
-    //     );
-    // };
-
-    // for (name, data) in block_data.iter() {
-    //     if !self.all_blocks.contains(name) {
-    //         continue;
-    //     }
-    // let entry = self.block_data.entry(name.clone());
-    // use std::collections::hash_map::Entry;
-
-    // let updated = match entry {
-    //     Entry::Occupied(mut o) => {
-    //         let old_data = o.get();
-    //         if (!data.popup_value().is_empty()
-    //             && old_data.popup_value() != data.popup_value())
-    //             || (data.popup_value().is_empty() && data != o.get())
-    //         {
-    //             o.insert(data.clone());
-    //             true
-    //         } else {
-    //             false
-    //         }
-    //     }
-    //     Entry::Vacant(v) => {
-    //         v.insert(data.clone());
-    //         true
-    //     }
-    // };
-    // if updated {
-    //     // For now recreating, but it can be updated.
-    //     let block = self.build_widget(name.into(), drawing_context, data);
-    //     let entry = self.blocks.entry(name.into());
-    //     // tracing::debug!("Updated '{}': {:?}", name, block);
-    //     redraw.insert(name.into());
-    //     match entry {
-    //         Entry::Occupied(mut o) => {
-    //             if o.get().get_dimensions() != block.get_dimensions() {
-    //                 redraw_all = true
-    //             }
-    //             if o.get().is_visible() != block.is_visible() {
-    //                 redraw_all = true
-    //             }
-    //             o.insert(block.into());
-    //         }
-    //         Entry::Vacant(v) => {
-    //             v.insert(block.into());
-    //         }
-    //     };
-    //     if let Some(popup_mode) = data.popup() {
-    //         popup.entry(popup_mode).or_default().insert(name.clone());
-    //     }
-    // }
-    //     }
-
-    //     let visible_from_vars = if resolved_bar_config.show_if_matches.is_empty() {
-    //         None
-    //     } else {
-    //         Some(resolved_bar_config.show_if_matches.all_match())
-    //     };
-
-    //     Updates {
-    //         popup,
-    //         redraw: if redraw_all || self.error.is_some() {
-    //             RedrawScope::All
-    //         } else if !redraw.is_empty() {
-    //             RedrawScope::Partial(redraw)
-    //         } else {
-    //             RedrawScope::None
-    //         },
-    //         visible_from_vars,
-    //     }
-    // }
-
-    pub fn layout_groups(&mut self, drawing_area_width: f64) {
         let width = drawing_area_width
             - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;
         self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;

@@ -445,20 +445,7 @@ impl Window {
     pub fn render(&mut self, from_os: bool) -> anyhow::Result<()> {
         let state = self.state.clone();
         let state = state.read().unwrap();
-        // let bar_config = match state.bars.get(self.bar_index) {
-        //     Some(bar_config) => bar_config,
-        //     None => {
-        //         return Ok(());
-        //     }
-        // };
         let pointer_position = state.pointer_position.get(&self.name).copied();
-        // let mut updates = self.bar.update(
-        //     &self.back_buffer_context,
-        //     bar_config,
-        //     &state.blocks,
-        //     &state.build_error_msg(),
-        //     pointer_position,
-        // );
         let mut error = state.build_error_msg();
 
         let mut updates =
@@ -490,7 +477,7 @@ impl Window {
                 tracing::error!("Showing popup failed: {:?}", e);
             }
         }
-        let (visible, _show_only, redraw) = {
+        let (visible, show_only, redraw) = {
             let mut visibility_control = self.visibility_control.write().unwrap();
             if let Some(visible_from_vars) = updates.visible_from_vars {
                 visibility_control.set_default_visibility(visible_from_vars)?;
@@ -518,7 +505,8 @@ impl Window {
         };
 
         if visible && redraw != bar::RedrawScope::None {
-            self.bar.layout_groups(self.back_buffer_context.width);
+            self.bar
+                .layout_groups(self.back_buffer_context.width, &show_only);
 
             self.render_bar(&redraw)?;
         }
