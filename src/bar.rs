@@ -982,8 +982,8 @@ impl DebugBlock for ImageBlock {}
 
 impl ImageBlock {
     fn load_image(file_name: &str) -> anyhow::Result<cairo::ImageSurface> {
-        let mut file = std::fs::File::open(file_name).context("Unable to open PNG")?;
-        let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open image")?;
+        let mut file = std::fs::File::open(file_name).context("Unable to open file")?;
+        let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open PNG")?;
         Ok(image)
     }
 
@@ -1051,7 +1051,11 @@ impl Block for ImageBlock {
         ]
         .any_updated();
         if old_value != self.config.input.value.value {
-            self.image_buf = Some(Self::load_image(&self.config.input.value.value)?);
+            let filename = &self.config.input.value.value;
+            self.image_buf = Some(
+                Self::load_image(&filename)
+                    .with_context(|| format!("Cannot load image from {:?}", filename))?,
+            );
             Ok(true)
         } else {
             Ok(any_updated)
@@ -1449,13 +1453,13 @@ impl Bar {
     }
 
     pub fn set_error(&mut self, drawing_context: &drawing::Context, error: Option<String>) {
-        self.error = error;
-        if let Some(error) = &self.error {
+        if let Some(ref error) = error {
             let mut vars = HashMap::new();
-            vars.insert("error".to_string(), error.clone());
+            vars.insert("error".to_string(), error.replace("\n", " "));
             if let Err(e) = self.error_block.update(drawing_context, &vars) {
                 tracing::error!("Failed displaying error block: {:?}", e);
             }
+            self.error = Some(error.clone());
         }
     }
 
