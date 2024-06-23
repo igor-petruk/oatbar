@@ -972,101 +972,118 @@ impl Block for EnumBlock {
     }
 }
 
-// #[derive(Debug)]
-// struct ImageBlock {
-//     name: String,
-//     value: String,
-//     display_options: config::DisplayOptions<String>,
-//     image_buf: anyhow::Result<cairo::ImageSurface>,
-//     event_handlers: config::EventHandlers<String>,
-// }
+#[derive(Debug)]
+struct ImageBlock {
+    config: config::ImageBlock<Placeholder>,
+    image_buf: Option<cairo::ImageSurface>,
+}
 
-// impl DebugBlock for ImageBlock {}
+impl DebugBlock for ImageBlock {}
 
-// impl ImageBlock {
-//     fn load_image(file_name: &str) -> anyhow::Result<cairo::ImageSurface> {
-//         let mut file = std::fs::File::open(file_name).context("Unable to open PNG")?;
-//         let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open image")?;
-//         Ok(image)
-//     }
+impl ImageBlock {
+    fn load_image(file_name: &str) -> anyhow::Result<cairo::ImageSurface> {
+        let mut file = std::fs::File::open(file_name).context("Unable to open PNG")?;
+        let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open image")?;
+        Ok(image)
+    }
 
-//     fn new(
-//         name: String,
-//         value: String,
-//         display_options: config::DisplayOptions<String>,
-//         height: f64,
-//         event_handlers: config::EventHandlers<String>,
-//     ) -> Box<dyn DebugBlock> {
-//         let image_buf = Self::load_image(value.as_str());
-//         if let Err(e) = &image_buf {
-//             error!("Error loading PNG file: {:?}", e)
-//         }
-//         let image_block = Self {
-//             name,
-//             value,
-//             image_buf,
-//             display_options: display_options.clone(),
-//             event_handlers,
-//         };
-//         Box::new(BaseBlock::new(
-//             display_options,
-//             Box::new(image_block),
-//             height,
-//             None,
-//             None,
-//         ))
-//     }
-// }
+    fn new(height: f64, config: config::ImageBlock<Placeholder>) -> Box<dyn DebugBlock> {
+        let display = config.display.clone();
+        let image_block = Self {
+            config,
+            image_buf: None,
+        };
+        Box::new(BaseBlock::new(
+            display,
+            height,
+            None,
+            None,
+            Box::new(image_block),
+        ))
+    }
+}
 
-// impl Block for ImageBlock {
-//     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
-//         handle_block_event(
-//             &self.event_handlers,
-//             event,
-//             self.name(),
-//             &self.value,
-//             vec![],
-//         )
-//     }
+impl Block for ImageBlock {
+    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
+        handle_block_event(
+            &self.config.event_handlers,
+            event,
+            self.name(),
+            &self.config.display.output_format.value,
+            vec![],
+        )
+    }
 
-//     fn name(&self) -> &str {
-//         &self.name
-//     }
+    fn name(&self) -> &str {
+        &self.config.name
+    }
 
-//     fn get_dimensions(&self) -> Dimensions {
-//         match &self.image_buf {
-//             Ok(image_buf) => Dimensions {
-//                 width: image_buf.width().into(),
-//                 height: image_buf.height().into(),
-//             },
-//             _ => Dimensions {
-//                 width: 0.0,
-//                 height: 0.0,
-//             },
-//         }
-//     }
+    fn get_dimensions(&self) -> Dimensions {
+        match &self.image_buf {
+            Some(image_buf) => Dimensions {
+                width: image_buf.width().into(),
+                height: image_buf.height().into(),
+            },
+            _ => Dimensions {
+                width: 0.0,
+                height: 0.0,
+            },
+        }
+    }
 
-//     fn update(&mut self, _vars: &dyn parse::PlaceholderContext) -> anyhow::Result<UpdateResult> {
-//         Ok(UpdateResult::Same)
-//     }
+    fn update(
+        &mut self,
+        _drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        let old_value = self.config.input.value.value.clone();
+        let any_updated = [
+            self.config.event_handlers.update(vars)?,
+            self.config.display.update(vars)?,
+            self.config.input.update(vars)?,
+            self.config
+                .display
+                .output_format
+                .update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &self.config.input.value.to_string(),
+                })?,
+        ]
+        .any_updated();
+        if old_value != self.config.input.value.value {
+            self.image_buf = Some(Self::load_image(&self.config.input.value.value)?);
+            Ok(true)
+        } else {
+            Ok(any_updated)
+        }
+    }
 
-//     fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
-//         let context = &drawing_context.context;
-//         if let Ok(image_buf) = &self.image_buf {
-//             context.save()?;
-//             let dim = self.get_dimensions();
-//             context.set_operator(cairo::Operator::Over);
-//             context.set_source_surface(image_buf, 0.0, 0.0)?;
-//             context.rectangle(0.0, 0.0, dim.width, dim.height);
-//             context.fill()?;
-//             context.restore()?;
-//         }
-//         Ok(())
-//     }
-//     fn is_visible(&self) -> bool {
-//         self.display_options.show_if_matches.all_match()
-//     }
-// }
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+        let context = &drawing_context.context;
+        if let Some(image_buf) = &self.image_buf {
+            context.save()?;
+            let dim = self.get_dimensions();
+            context.set_operator(cairo::Operator::Over);
+            context.set_source_surface(image_buf, 0.0, 0.0)?;
+            context.rectangle(0.0, 0.0, dim.width, dim.height);
+            context.fill()?;
+            context.restore()?;
+        }
+        Ok(())
+    }
+
+    fn is_visible(&self) -> bool {
+        self.config.display.show_if_matches.all_match()
+    }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.config.display.popup
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        &self.config.display.popup_value
+    }
+}
 
 struct BlockGroup {
     blocks: Vec<Box<dyn DebugBlock>>,
@@ -1409,14 +1426,9 @@ impl Bar {
                 bar_config.height as f64,
                 number.clone(),
             ))),
-            _ => None,
-            //         config::Block::Image(image) => ImageBlock::new(
-            //             name,
-            //             image.input.value.clone(),
-            //             image.display.clone(),
-            //             self.bar.height as f64,
-            //             image.event_handlers.clone(),
-            //         ),
+            config::Block::Image(image) => {
+                Some(ImageBlock::new(bar_config.height as f64, image.clone()))
+            }
         }
     }
 
