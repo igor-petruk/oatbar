@@ -1053,7 +1053,7 @@ impl Block for ImageBlock {
         if old_value != self.config.input.value.value {
             let filename = &self.config.input.value.value;
             self.image_buf = Some(
-                Self::load_image(&filename)
+                Self::load_image(filename)
                     .with_context(|| format!("Cannot load image from {:?}", filename))?,
             );
             Ok(true)
@@ -1455,7 +1455,7 @@ impl Bar {
     pub fn set_error(&mut self, drawing_context: &drawing::Context, error: Option<String>) {
         if let Some(ref error) = error {
             let mut vars = HashMap::new();
-            vars.insert("error".to_string(), error.replace("\n", " "));
+            vars.insert("error".to_string(), error.replace('\n', " "));
             if let Err(e) = self.error_block.update(drawing_context, &vars) {
                 tracing::error!("Failed displaying error block: {:?}", e);
             }
