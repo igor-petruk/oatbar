@@ -541,13 +541,7 @@ impl NumberBlock<Option<Placeholder>> {
 #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct ImageOptions {
-    #[serde(default = "default_use_cache")]
-    pub cache_images: bool,
     pub max_image_height: Option<u32>,
-}
-
-fn default_use_cache() -> bool {
-    true
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -559,6 +553,7 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub display: DisplayOptions<Dynamic>,
     #[serde(flatten)]
     pub image_options: ImageOptions,
+    pub updater_value: Dynamic,
     #[serde(flatten)]
     pub input: Input<Dynamic>,
     #[serde(flatten)]
@@ -575,6 +570,7 @@ impl ImageBlock<Option<Placeholder>> {
             inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
             image_options: self.image_options,
+            updater_value: self.updater_value.unwrap_or_default(),
             input: self.input.with_defaults(),
             event_handlers: self.event_handlers.with_default(),
         }

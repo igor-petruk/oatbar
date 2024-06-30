@@ -399,7 +399,6 @@ impl Block for TextBlock {
         vars: &dyn parse::PlaceholderContext,
         _fit_to_height: f64,
     ) -> anyhow::Result<bool> {
-        let old_value = self.config.display.output_format.value.to_string();
         let any_updated = [
             self.config.event_handlers.update(vars)?,
             self.config.display.update(vars)?,
@@ -413,7 +412,7 @@ impl Block for TextBlock {
                 })?,
         ]
         .any_updated();
-        if old_value != self.config.display.output_format.value {
+        if any_updated {
             if let Some(pango_context) = &drawing_context.pango_context {
                 self.pango_layout = {
                     let value: &str = &self.config.display.output_format;
@@ -430,10 +429,8 @@ impl Block for TextBlock {
                     Some(pango_layout)
                 };
             }
-            Ok(true)
-        } else {
-            Ok(any_updated)
         }
+        Ok(any_updated)
     }
 
     fn name(&self) -> &str {
@@ -994,6 +991,7 @@ impl ImageBlock {
         drawing_context: &mut drawing::Context,
         file_name: &str,
         mut fit_to_height: f64,
+        cache_images: bool,
     ) -> anyhow::Result<cairo::ImageSurface> {
         if let Some(max_image_height) = self.config.image_options.max_image_height {
             tracing::info!("MIH: {}", max_image_height);
@@ -1001,11 +999,9 @@ impl ImageBlock {
                 fit_to_height = max_image_height as f64;
             }
         }
-        drawing_context.image_loader.load_image(
-            file_name,
-            fit_to_height,
-            self.config.image_options.cache_images,
-        )
+        drawing_context
+            .image_loader
+            .load_image(file_name, fit_to_height, cache_images)
     }
 
     fn new(height: f64, config: config::ImageBlock<Placeholder>) -> Box<dyn DebugBlock> {
@@ -1058,8 +1054,9 @@ impl Block for ImageBlock {
         vars: &dyn parse::PlaceholderContext,
         fit_to_height: f64,
     ) -> anyhow::Result<bool> {
-        let old_value = self.config.input.value.value.clone();
+        let updater_updated = self.config.updater_value.update(vars)?;
         let any_updated = [
+            updater_updated,
             self.config.event_handlers.update(vars)?,
             self.config.display.update(vars)?,
             self.config.input.update(vars)?,
@@ -1072,17 +1069,19 @@ impl Block for ImageBlock {
                 })?,
         ]
         .any_updated();
-        if old_value != self.config.input.value.value {
+        if any_updated {
             let filename = &self.config.input.value.value;
-            tracing::info!("{:#?}", self.config.display);
-            self.image_buf = Some(
-                self.load_image(drawing_context, filename, fit_to_height)
-                    .with_context(|| format!("Cannot load image from {:?}", filename))?,
-            );
-            Ok(true)
-        } else {
-            Ok(any_updated)
+            if filename.trim().is_empty() {
+                self.image_buf = None
+            } else {
+                let cache_images = !updater_updated;
+                self.image_buf = Some(
+                    self.load_image(drawing_context, filename, fit_to_height, cache_images)
+                        .with_context(|| format!("Cannot load image from {:?}", filename))?,
+                );
+            }
         }
+        Ok(any_updated)
     }
 
     fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
