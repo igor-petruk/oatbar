@@ -16,7 +16,7 @@
 extern crate macro_rules_attribute;
 
 mod bar;
-#[allow(unused)]
+// #[allow(unused)]
 mod config;
 mod drawing;
 mod engine;

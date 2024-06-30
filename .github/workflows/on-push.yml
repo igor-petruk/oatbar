@@ -12,7 +12,8 @@ env:
 
 jobs:
   build-and-test:
-      runs-on: ubuntu-latest
+      #runs-on: ubuntu-latest
+      runs-on: ubuntu-24.04  # Temporary set this because it is newer than -latest
       steps:
       - name: Checkout sources
         uses: actions/checkout@v2

@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -9,10 +11,17 @@ pub trait PlaceholderContext {
     fn get(&self, key: &str) -> Option<&String>;
 }
 
+impl PlaceholderContext for HashMap<String, String> {
+    fn get(&self, key: &str) -> Option<&String> {
+        self.get(key)
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Placeholder {
     tokens: Arc<Vec<Token>>,
+    pub value: String,
 }
 
 impl Placeholder {
@@ -21,11 +30,33 @@ impl Placeholder {
             parse_expr(expr).with_context(|| format!("Failed to parse expression: {:?}", expr))?;
         Ok(Self {
             tokens: Arc::new(tokens),
+            value: "".into(),
         })
     }
 
     pub fn infallable(value: &str) -> Self {
         Self::new(value).unwrap()
+    }
+
+    pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<bool> {
+        let new_value = self.resolve(vars)?;
+        let updated = new_value != self.value;
+        if updated {
+            self.value = new_value;
+        }
+        Ok(updated)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
+    }
+}
+
+impl Deref for Placeholder {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
     }
 }
 

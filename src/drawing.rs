@@ -78,7 +78,7 @@ impl Context {
         context.set_line_join(cairo::LineJoin::Round);
         context.set_line_cap(cairo::LineCap::Square);
         let pango_context = match mode {
-            Mode::Full => Some(pangocairo::create_context(&context)),
+            Mode::Full => Some(pangocairo::functions::create_context(&context)),
             Mode::Shape => None,
         };
         Ok(Self {

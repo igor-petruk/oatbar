@@ -73,7 +73,8 @@ impl Engine {
         for (index, bar) in config.bar.iter().enumerate() {
             let window = window::Window::create_and_show(
                 format!("bar{}", index),
-                index,
+                // index,
+                &config,
                 bar.clone(),
                 conn.clone(),
                 state.clone(),
@@ -157,7 +158,7 @@ impl Engine {
                 }
             }
             xcb::Event::X(x::Event::ButtonPress(event)) => {
-                for window in self.windows.values() {
+                for window in self.windows.values_mut() {
                     if window.id == event.event() {
                         tracing::trace!(
                             "Button press: X={}, Y={}, button={}",

@@ -15,16 +15,20 @@
 #![allow(clippy::new_ret_no_self)]
 
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     fmt::Debug,
-    sync::Arc,
 };
 
 use anyhow::Context;
 use pangocairo::pango;
-use tracing::error;
 
-use crate::{config, drawing, parse, process, state};
+use crate::{
+    config::{self, AnyUpdated},
+    drawing,
+    parse::{self, Placeholder},
+    process,
+};
 
 use config::VecStringRegexEx;
 
@@ -57,21 +61,43 @@ enum BlockEvent {
     ButtonPress(ButtonPress),
 }
 
+struct PlaceholderContextWithValue<'a> {
+    vars: &'a dyn parse::PlaceholderContext,
+    value: &'a String,
+}
+
+impl<'a> parse::PlaceholderContext for PlaceholderContextWithValue<'a> {
+    fn get(&self, key: &str) -> Option<&String> {
+        if key == "value" {
+            Some(self.value)
+        } else {
+            self.vars.get(key)
+        }
+    }
+}
+
 trait Block {
     fn name(&self) -> &str;
     fn get_dimensions(&self) -> Dimensions;
     fn is_visible(&self) -> bool;
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()>;
+    fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool>;
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()>;
     fn separator_type(&self) -> Option<config::SeparatorType> {
         None
     }
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()>;
+    fn popup(&self) -> Option<config::PopupMode>;
+    fn popup_value(&self) -> &Placeholder;
 }
 
 trait DebugBlock: Block + Debug {}
 
 fn handle_block_event(
-    event_handlers: &config::EventHandlers<String>,
+    event_handlers: &config::EventHandlers<Placeholder>,
     block_event: &BlockEvent,
     name: &str,
     value: &str,
@@ -104,17 +130,18 @@ struct BaseBlock {
     padding: f64,
     separator_type: Option<config::SeparatorType>,
     separator_radius: Option<f64>,
-    display_options: config::DisplayOptions<String>,
+    display_options: config::DisplayOptions<Placeholder>,
+    // resolved_display_options: config::DisplayOptions<String>,
     inner_block: Box<dyn DebugBlock>,
 }
 
 impl BaseBlock {
     fn new(
-        display_options: config::DisplayOptions<String>,
-        inner_block: Box<dyn DebugBlock>,
+        display_options: config::DisplayOptions<Placeholder>,
         height: f64,
         separator_type: Option<config::SeparatorType>,
         separator_radius: Option<f64>,
+        inner_block: Box<dyn DebugBlock>,
     ) -> Self {
         let margin = display_options.margin.unwrap_or_default();
         let padding = if separator_type.is_none() {
@@ -149,6 +176,14 @@ impl Block for BaseBlock {
         self.inner_block.handle_event(event)
     }
 
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.inner_block.popup()
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        self.inner_block.popup_value()
+    }
+
     fn get_dimensions(&self) -> Dimensions {
         let inner_dim = self.inner_block.get_dimensions();
         // TODO: figure out correct handling of padding.
@@ -165,10 +200,22 @@ impl Block for BaseBlock {
     }
 
     fn separator_type(&self) -> Option<config::SeparatorType> {
-        self.separator_type.clone()
+        self.separator_type
     }
 
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+    fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        Ok([
+            self.display_options.update(vars)?,
+            self.inner_block.update(drawing_context, vars)?,
+        ]
+        .any_updated())
+    }
+
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let inner_dim = self.inner_block.get_dimensions();
         context.save()?;
@@ -303,71 +350,31 @@ impl Block for BaseBlock {
 
 #[derive(Debug)]
 struct TextBlock {
-    name: String,
-    value: String,
+    config: config::TextBlock<Placeholder>,
     pango_layout: Option<pango::Layout>,
-    display_options: config::DisplayOptions<String>,
-    event_handlers: config::EventHandlers<String>,
 }
 
 impl DebugBlock for TextBlock {}
 
 impl TextBlock {
-    fn new(
-        name: String,
-        value: String,
-        drawing_context: &drawing::Context,
-        display_options: config::DisplayOptions<String>,
-        event_handlers: config::EventHandlers<String>,
-    ) -> Self {
-        let pango_layout = match &drawing_context.pango_context {
-            Some(pango_context) => {
-                let pango_layout = pango::Layout::new(pango_context);
-                if display_options.pango_markup == Some(true) {
-                    // TODO: fix this.
-                    pango_layout.set_markup(value.as_str());
-                } else {
-                    pango_layout.set_text(value.as_str());
-                }
-                let mut font_cache = drawing_context.font_cache.lock().unwrap();
-                let fd = font_cache.get(display_options.font.as_str());
-                pango_layout.set_font_description(Some(fd));
-                Some(pango_layout)
-            }
-            None => None,
-        };
+    fn new(config: config::TextBlock<Placeholder>) -> Self {
         Self {
-            name,
-            value,
-            pango_layout,
-            display_options,
-            event_handlers,
+            config,
+            pango_layout: None,
         }
     }
 
     #[allow(clippy::too_many_arguments)]
     fn new_in_base_block(
-        name: String,
-        value: String,
-        drawing_context: &drawing::Context,
-        display_options: config::DisplayOptions<String>,
         height: f64,
-        separator_type: Option<config::SeparatorType>,
-        separator_radius: Option<f64>,
-        event_handlers: config::EventHandlers<String>,
+        config: config::TextBlock<Placeholder>,
     ) -> Box<dyn DebugBlock> {
         Box::new(BaseBlock::new(
-            display_options.clone(),
-            Box::new(Self::new(
-                name,
-                value,
-                drawing_context,
-                display_options,
-                event_handlers,
-            )),
+            config.display.clone(),
             height,
-            separator_type,
-            separator_radius,
+            config.separator_type,
+            config.separator_radius,
+            Box::new(Self::new(config)),
         ))
     }
 }
@@ -375,16 +382,59 @@ impl TextBlock {
 impl Block for TextBlock {
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         handle_block_event(
-            &self.event_handlers,
+            &self.config.event_handlers,
             event,
             self.name(),
-            &self.value,
+            &self.config.display.output_format.value,
             vec![],
         )
     }
 
+    fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        // TODO: font
+        let old_value = self.config.display.output_format.value.to_string();
+        let any_updated = [
+            self.config.event_handlers.update(vars)?,
+            self.config.display.update(vars)?,
+            self.config.input.update(vars)?,
+            self.config
+                .display
+                .output_format
+                .update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &self.config.input.value.to_string(),
+                })?,
+        ]
+        .any_updated();
+        if old_value != self.config.display.output_format.value {
+            if let Some(pango_context) = &drawing_context.pango_context {
+                self.pango_layout = {
+                    let value: &str = &self.config.display.output_format;
+                    let pango_layout = pango::Layout::new(pango_context);
+                    if self.config.display.pango_markup == Some(true) {
+                        // TODO: fix this.
+                        pango_layout.set_markup(value);
+                    } else {
+                        pango_layout.set_text(value);
+                    }
+                    let mut font_cache = drawing_context.font_cache.lock().unwrap();
+                    let fd = font_cache.get(&self.config.display.font);
+                    pango_layout.set_font_description(Some(fd));
+                    Some(pango_layout)
+                };
+            }
+            Ok(true)
+        } else {
+            Ok(any_updated)
+        }
+    }
+
     fn name(&self) -> &str {
-        &self.name
+        &self.config.name
     }
 
     fn get_dimensions(&self) -> Dimensions {
@@ -402,64 +452,194 @@ impl Block for TextBlock {
         }
     }
 
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         context.save()?;
 
         let decorations = if drawing_context.hover {
-            &self.display_options.hover_decorations
+            &self.config.display.hover_decorations
         } else {
-            &self.display_options.decorations
+            &self.config.display.decorations
         };
         let color = &decorations.foreground;
         if !color.is_empty() {
             drawing_context.set_source_rgba(color)?;
         }
         if let Some(pango_layout) = &self.pango_layout {
-            pangocairo::show_layout(context, pango_layout);
+            pangocairo::functions::show_layout(context, pango_layout);
         }
         context.restore()?;
         Ok(())
     }
+
     fn is_visible(&self) -> bool {
-        self.display_options.show_if_matches.all_match()
+        self.config.display.show_if_matches.all_match()
+    }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.config.display.popup
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        &self.config.display.popup_value
     }
 }
 
 #[derive(Debug)]
-struct TextProgressBarNumberBlock {
+struct NumberBlock {
     text_block: Box<dyn DebugBlock>,
+    number: config::NumberBlock<Placeholder>,
 }
 
-impl TextProgressBarNumberBlock {
-    fn new(
-        name: String,
-        drawing_context: &drawing::Context,
-        number_block: &config::NumberBlock<String>,
-        height: f64,
-        event_handlers: config::EventHandlers<String>,
-    ) -> Self {
-        let display = config::DisplayOptions {
-            pango_markup: Some(true), // TODO: fix
-            ..number_block.display.clone()
-        };
+impl NumberBlock {
+    fn new(height: f64, number: config::NumberBlock<Placeholder>) -> Self {
         let text_block = TextBlock::new_in_base_block(
-            name,
-            number_block.parsed_data.text_bar_string.clone(),
-            drawing_context,
-            display,
             height,
-            None,
-            None,
-            event_handlers,
+            config::TextBlock {
+                name: number.name.clone(),
+                inherit: number.inherit.clone(),
+                input: config::Input {
+                    value: Placeholder::infallable("${value}"),
+                    ..number.input.clone()
+                },
+                separator_type: None,
+                separator_radius: None,
+                event_handlers: number.event_handlers.clone(),
+                display: number.display.clone(),
+            },
         );
-        Self { text_block }
+        Self { text_block, number }
+    }
+
+    fn segment_ramp_pass(
+        number_type: &config::NumberType,
+        i_value: f64,
+        ramp: &[(String, String)],
+    ) -> anyhow::Result<String> {
+        let mut segment = " ";
+        for (ramp, ramp_format) in ramp {
+            if let Some(ramp_number) = number_type.parse_str(ramp)? {
+                if i_value < ramp_number {
+                    break;
+                }
+            }
+            segment = ramp_format;
+        }
+        Ok(segment.into())
+    }
+
+    fn progress_bar_string(
+        &self,
+        text_progress_bar: config::TextProgressBarDisplay<Placeholder>,
+        value: Option<f64>,
+        min_value: Option<f64>,
+        max_value: Option<f64>,
+        width: usize,
+    ) -> anyhow::Result<String> {
+        let number_type = &self.number.number_type;
+        let empty_result = (0..width).map(|_| ' ');
+        if max_value.is_none() || min_value.is_none() || value.is_none() {
+            return Ok(empty_result.collect());
+        }
+        let min_value = min_value.unwrap();
+
+        let max_value = max_value.unwrap();
+        if min_value >= max_value {
+            return Ok(empty_result.collect()); // error
+        }
+        let mut value = value.unwrap();
+        if value < min_value {
+            value = min_value;
+        }
+        if value > max_value {
+            value = max_value;
+        }
+        let fill = &text_progress_bar.fill;
+        let empty = &text_progress_bar.empty;
+        let indicator = &text_progress_bar.indicator;
+        let indicator_position =
+            ((value - min_value) / (max_value - min_value) * width as f64) as i32;
+        let segments: Vec<String> = (0..(width + 1) as i32)
+            .map(|i| {
+                let i_value = (i as f64) / (width as f64) * (max_value - min_value) + min_value;
+                Ok(match i.cmp(&indicator_position) {
+                    Ordering::Less => Self::segment_ramp_pass(number_type, i_value, fill)?,
+                    Ordering::Equal => Self::segment_ramp_pass(number_type, i_value, indicator)?,
+                    Ordering::Greater => Self::segment_ramp_pass(number_type, i_value, empty)?,
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        Ok(segments.join(""))
+    }
+
+    fn number_text(
+        number_text_display: config::NumberTextDisplay<Placeholder>,
+        value: Option<f64>,
+    ) -> anyhow::Result<String> {
+        if value.is_none() {
+            return Ok("".into());
+        }
+        let value = value.unwrap();
+
+        let text = match number_text_display.number_type.unwrap() {
+            config::NumberType::Percent => format!("{}%", value),
+            config::NumberType::Number => format!("{}", value),
+            config::NumberType::Bytes => bytesize::ByteSize::b(value as u64).to_string(),
+        };
+        Ok(text)
+    }
+
+    fn ramp_pass(
+        &self,
+        vars: &dyn parse::PlaceholderContext,
+        text: &str,
+        value: f64,
+        ramp: &[(String, parse::Placeholder)],
+    ) -> anyhow::Result<String> {
+        let mut format: Option<&parse::Placeholder> = None;
+        let number_type = &self.number.number_type;
+        for (ramp, ramp_format) in ramp {
+            if let Some(ramp_number) = number_type.parse_str(ramp)? {
+                if value < ramp_number {
+                    break;
+                }
+            }
+            format = Some(ramp_format);
+        }
+        match format {
+            None => Ok(text.into()),
+            Some(format) => {
+                let mut format = format.clone(); // TODO fix
+                format.update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &text.to_string(),
+                })?;
+                Ok(format.value.clone())
+            }
+        }
+    }
+
+    fn parse_min_max(
+        number_block: &config::NumberBlock<Placeholder>,
+    ) -> anyhow::Result<(Option<f64>, Option<f64>)> {
+        let number_type = number_block.number_type;
+        Ok(match number_type {
+            config::NumberType::Percent => (Some(0.0), Some(100.0)),
+            _ => (
+                number_type
+                    .parse_str(&number_block.min_value)
+                    .context("min_value")?,
+                number_type
+                    .parse_str(&number_block.max_value)
+                    .context("max_value")?,
+            ),
+        })
     }
 }
 
-impl DebugBlock for TextProgressBarNumberBlock {}
+impl DebugBlock for NumberBlock {}
 
-impl Block for TextProgressBarNumberBlock {
+impl Block for NumberBlock {
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         self.text_block.handle_event(event)
     }
@@ -472,129 +652,180 @@ impl Block for TextProgressBarNumberBlock {
         self.text_block.get_dimensions()
     }
 
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
-        self.text_block.render(drawing_context)
-    }
-    fn is_visible(&self) -> bool {
-        self.text_block.is_visible()
-    }
-}
-
-#[derive(Debug)]
-struct TextNumberBlock {
-    text_block: Box<dyn DebugBlock>,
-}
-
-impl TextNumberBlock {
-    fn new(
-        name: String,
+    fn update(
+        &mut self,
         drawing_context: &drawing::Context,
-        number_block: &config::NumberBlock<String>,
-        height: f64,
-        event_handlers: config::EventHandlers<String>,
-    ) -> Self {
-        let display = config::DisplayOptions {
-            pango_markup: Some(true), // TODO: fix
-            ..number_block.display.clone()
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        let ramp = self.number.ramp.clone();
+        self.number.input.update(vars)?;
+        let value = &self.number.input.value.value;
+        let value = self.number.number_type.parse_str(value).context("value")?;
+
+        let (min_value, max_value) = Self::parse_min_max(&self.number)?;
+        if let Some(min_value) = min_value {
+            if let Some(max_value) = max_value {
+                if min_value > max_value {
+                    return Err(anyhow::anyhow!(
+                        "min_value={}, max_value={}",
+                        min_value,
+                        max_value,
+                    ));
+                }
+            }
+        }
+        let value = value.map(|mut value| {
+            if let Some(min_value) = min_value {
+                if value < min_value {
+                    value = min_value;
+                }
+            }
+            if let Some(max_value) = max_value {
+                if value > max_value {
+                    value = max_value;
+                }
+            }
+            value
+        });
+
+        let text = match self.number.number_display.as_ref().unwrap() {
+            config::NumberDisplay::ProgressBar(text_progress_bar) => self.progress_bar_string(
+                text_progress_bar.clone(),
+                value,
+                min_value,
+                max_value,
+                text_progress_bar.progress_bar_size,
+            )?,
+            config::NumberDisplay::Text(number_text_display) => {
+                Self::number_text(number_text_display.clone(), value)?
+            }
         };
-        let text_block = TextBlock::new_in_base_block(
-            name,
-            number_block.parsed_data.text_bar_string.clone(),
+
+        let text = if self.number.ramp.is_empty() {
+            text
+        } else if let Some(value) = value {
+            match (min_value, max_value) {
+                (Some(min), Some(max)) => {
+                    let value = if value < min {
+                        min
+                    } else if value > max {
+                        max
+                    } else {
+                        value
+                    };
+                    self.ramp_pass(vars, &text, value, &ramp)?
+                }
+                _ => {
+                    return Err(anyhow::anyhow!("ramp with no min_value or max_value"));
+                }
+            }
+        } else {
+            text
+        };
+
+        self.text_block.update(
             drawing_context,
-            display,
-            height,
-            None,
-            None,
-            event_handlers,
-        );
-        Self { text_block }
-    }
-}
-
-impl DebugBlock for TextNumberBlock {}
-
-impl Block for TextNumberBlock {
-    fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
-        self.text_block.handle_event(event)
+            &PlaceholderContextWithValue { vars, value: &text },
+        )
     }
 
-    fn name(&self) -> &str {
-        self.text_block.name()
-    }
-
-    fn get_dimensions(&self) -> Dimensions {
-        self.text_block.get_dimensions()
-    }
-
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         self.text_block.render(drawing_context)
     }
+
     fn is_visible(&self) -> bool {
         self.text_block.is_visible()
     }
-}
 
-#[derive(Debug)]
-struct VariantBlock {
-    index: usize,
-    original_value: String,
-    block: Box<dyn DebugBlock>,
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.text_block.popup()
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        self.text_block.popup_value()
+    }
 }
 
 #[derive(Debug)]
 struct EnumBlock {
-    name: String,
-    variant_blocks: Vec<VariantBlock>,
+    height: f64,
+    config: config::EnumBlock<Placeholder>,
+    active: usize,
+    values: Vec<String>,
+    active_block: Option<Box<dyn DebugBlock>>,
+    inactive_blocks: Vec<Box<dyn DebugBlock>>,
     dim: Dimensions,
-    block: config::EnumBlock<String>,
-    event_handlers: config::EventHandlers<String>,
 }
 
 impl EnumBlock {
-    fn new(
-        name: String,
-        drawing_context: &drawing::Context,
-        block: &config::EnumBlock<String>,
-        height: f64,
-        event_handlers: config::EventHandlers<String>,
-    ) -> Self {
-        let mut variant_blocks = vec![];
-        let mut width: f64 = 0.0;
-        let active: usize = block.active.parse().unwrap_or_default();
-        for (index, item) in block.variants_vec.iter().enumerate() {
-            if item.is_empty() {
-                continue;
-            }
-            let display_options = if index == active {
-                block.active_display.clone()
-            } else {
-                block.display.clone()
-            };
-            let variant_block = VariantBlock {
-                index,
-                block: TextBlock::new_in_base_block(
-                    "".into(),
-                    item.clone(),
-                    drawing_context,
-                    display_options.clone(),
-                    height,
-                    None,
-                    None,
-                    event_handlers.clone(),
-                ),
-                original_value: item.clone(),
-            };
-            width += variant_block.block.get_dimensions().width;
-            variant_blocks.push(variant_block);
-        }
-        let dim = Dimensions { width, height };
+    fn new(height: f64, config: config::EnumBlock<Placeholder>) -> Self {
         EnumBlock {
-            name,
-            variant_blocks,
-            dim,
-            block: block.clone(),
-            event_handlers,
+            height,
+            config,
+            active: 0,
+            values: vec![],
+            active_block: None,
+            inactive_blocks: vec![],
+            dim: Dimensions {
+                width: 0.0,
+                height: 0.0,
+            },
         }
+    }
+
+    fn variant_text_block(&self, index: usize, active: bool) -> Box<dyn DebugBlock> {
+        let name = if active { "active" } else { "inactive" };
+        let display = if active {
+            &self.config.active_display
+        } else {
+            &self.config.display
+        };
+        TextBlock::new_in_base_block(
+            self.height,
+            config::TextBlock {
+                name: format!("{}.{}.{}", self.name(), name, index),
+                inherit: self.config.inherit.clone(),
+                input: self.config.input.clone(),
+                separator_type: None,
+                separator_radius: None,
+                event_handlers: self.config.event_handlers.clone(),
+                display: display.clone(),
+            },
+        )
+    }
+
+    fn update_dim(&mut self) {
+        let mut dim = Dimensions {
+            width: 0.0,
+            height: 0.0,
+        };
+        for index in 0..self.inactive_blocks.len() {
+            let block = if index == self.active {
+                self.active_block.as_ref()
+            } else {
+                self.inactive_blocks.get(index)
+            };
+            if let Some(block) = block {
+                let b_dim = block.get_dimensions();
+                dim.width += b_dim.width;
+                dim.height = dim.height.max(b_dim.height);
+            }
+        }
+        self.dim = dim;
+    }
+
+    fn allocate_text_blocks(&mut self, variants: &[String]) -> anyhow::Result<()> {
+        if self.active_block.is_none() {
+            self.active_block = Some(self.variant_text_block(0, true));
+        }
+        if variants.len() != self.inactive_blocks.len() {
+            self.inactive_blocks = Vec::with_capacity(variants.len());
+            for variant in 0..variants.len() {
+                self.inactive_blocks
+                    .push(self.variant_text_block(variant, false));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -605,15 +836,24 @@ impl Block for EnumBlock {
         match event {
             BlockEvent::ButtonPress(button_press) => {
                 let mut pos: f64 = 0.0;
-                for variant_block in self.variant_blocks.iter() {
-                    let next_pos = pos + variant_block.block.get_dimensions().width;
+                for index in 0..self.inactive_blocks.len() {
+                    let block = if index == self.active && self.active_block.is_some() {
+                        self.active_block.as_ref()
+                    } else {
+                        self.inactive_blocks.get(index)
+                    };
+                    if block.is_none() {
+                        return Ok(());
+                    }
+                    let block = block.unwrap();
+                    let next_pos = pos + block.get_dimensions().width;
                     if pos <= button_press.x && button_press.x <= next_pos {
                         handle_block_event(
-                            &self.event_handlers,
+                            &self.config.event_handlers,
                             event,
                             self.name(),
-                            &variant_block.original_value,
-                            vec![("BLOCK_INDEX".into(), format!("{}", variant_block.index))],
+                            &self.values.get(index).cloned().unwrap_or_default(),
+                            vec![("BLOCK_INDEX".into(), format!("{}", index))],
                         )?;
                         break;
                     }
@@ -626,73 +866,139 @@ impl Block for EnumBlock {
     }
 
     fn name(&self) -> &str {
-        &self.name
+        &self.config.name
     }
 
     fn get_dimensions(&self) -> Dimensions {
         self.dim.clone()
     }
 
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+    fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        let mut updates: Vec<bool> = Vec::with_capacity(self.config.variants.len() + 3);
+        updates.push(self.config.variants.update(vars).context("variants")?);
+        updates.push(
+            self.config
+                .event_handlers
+                .update(vars)
+                .context("event_handlers")?,
+        );
+        let enum_separator = self.config.enum_separator.as_deref().unwrap_or(",");
+        let (variants, errors): (Vec<_>, Vec<_>) = self
+            .config
+            .variants
+            .value
+            .split(enum_separator)
+            .map(|value| {
+                match self.config.input.update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &value.to_string(),
+                }) {
+                    Ok(_) => Ok(self.config.input.value.to_string()),
+                    Err(e) => Err(e),
+                }
+            })
+            .partition(|r| r.is_ok());
+
+        if let Some(Err(err)) = errors.into_iter().next() {
+            return Err(err);
+        }
+
+        let variants = variants.into_iter().map(|i| i.unwrap()).collect::<Vec<_>>();
+
+        updates.push(self.config.active.update(vars).context("input")?);
+        self.active = if self.config.active.trim().is_empty() {
+            0
+        } else {
+            self.config.active.parse().unwrap()
+        };
+
+        self.allocate_text_blocks(&variants)?;
+
+        for (index, value) in variants.iter().enumerate() {
+            if let Some(block) = self.inactive_blocks.get_mut(index) {
+                updates.push(block.update(
+                    drawing_context,
+                    &PlaceholderContextWithValue { vars, value },
+                )?);
+            }
+            if index == self.active {
+                if let Some(block) = &mut self.active_block {
+                    updates.push(block.update(
+                        drawing_context,
+                        &PlaceholderContextWithValue { vars, value },
+                    )?);
+                }
+            }
+        }
+        self.update_dim();
+        self.values = variants;
+        Ok(updates.any_updated())
+    }
+
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let mut x_offset: f64 = 0.0;
-        for variant_block in self.variant_blocks.iter() {
+        for index in 0..self.inactive_blocks.len() {
             context.save()?;
             context.translate(x_offset, 0.0);
-            variant_block.block.render(drawing_context)?;
+            let block = if index == self.active {
+                self.active_block.as_mut()
+            } else {
+                self.inactive_blocks.get_mut(index)
+            };
+            if let Some(block) = block {
+                block.render(drawing_context)?;
+                x_offset += block.get_dimensions().width;
+            }
             context.restore()?;
-            x_offset += variant_block.block.get_dimensions().width;
         }
         Ok(())
     }
 
     fn is_visible(&self) -> bool {
-        self.block.display.show_if_matches.all_match()
+        self.config.display.show_if_matches.all_match()
+    }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.config.display.popup
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        &self.config.display.popup_value
     }
 }
 
 #[derive(Debug)]
 struct ImageBlock {
-    name: String,
-    value: String,
-    display_options: config::DisplayOptions<String>,
-    image_buf: anyhow::Result<cairo::ImageSurface>,
-    event_handlers: config::EventHandlers<String>,
+    config: config::ImageBlock<Placeholder>,
+    image_buf: Option<cairo::ImageSurface>,
 }
 
 impl DebugBlock for ImageBlock {}
 
 impl ImageBlock {
     fn load_image(file_name: &str) -> anyhow::Result<cairo::ImageSurface> {
-        let mut file = std::fs::File::open(file_name).context("Unable to open PNG")?;
-        let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open image")?;
+        let mut file = std::fs::File::open(file_name).context("Unable to open file")?;
+        let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open PNG")?;
         Ok(image)
     }
 
-    fn new(
-        name: String,
-        value: String,
-        display_options: config::DisplayOptions<String>,
-        height: f64,
-        event_handlers: config::EventHandlers<String>,
-    ) -> Box<dyn DebugBlock> {
-        let image_buf = Self::load_image(value.as_str());
-        if let Err(e) = &image_buf {
-            error!("Error loading PNG file: {:?}", e)
-        }
+    fn new(height: f64, config: config::ImageBlock<Placeholder>) -> Box<dyn DebugBlock> {
+        let display = config.display.clone();
         let image_block = Self {
-            name,
-            value,
-            image_buf,
-            display_options: display_options.clone(),
-            event_handlers,
+            config,
+            image_buf: None,
         };
         Box::new(BaseBlock::new(
-            display_options,
-            Box::new(image_block),
+            display,
             height,
             None,
             None,
+            Box::new(image_block),
         ))
     }
 }
@@ -700,21 +1006,21 @@ impl ImageBlock {
 impl Block for ImageBlock {
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         handle_block_event(
-            &self.event_handlers,
+            &self.config.event_handlers,
             event,
             self.name(),
-            &self.value,
+            &self.config.display.output_format.value,
             vec![],
         )
     }
 
     fn name(&self) -> &str {
-        &self.name
+        &self.config.name
     }
 
     fn get_dimensions(&self) -> Dimensions {
         match &self.image_buf {
-            Ok(image_buf) => Dimensions {
+            Some(image_buf) => Dimensions {
                 width: image_buf.width().into(),
                 height: image_buf.height().into(),
             },
@@ -725,9 +1031,40 @@ impl Block for ImageBlock {
         }
     }
 
-    fn render(&self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
+    fn update(
+        &mut self,
+        _drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<bool> {
+        let old_value = self.config.input.value.value.clone();
+        let any_updated = [
+            self.config.event_handlers.update(vars)?,
+            self.config.display.update(vars)?,
+            self.config.input.update(vars)?,
+            self.config
+                .display
+                .output_format
+                .update(&PlaceholderContextWithValue {
+                    vars,
+                    value: &self.config.input.value.to_string(),
+                })?,
+        ]
+        .any_updated();
+        if old_value != self.config.input.value.value {
+            let filename = &self.config.input.value.value;
+            self.image_buf = Some(
+                Self::load_image(filename)
+                    .with_context(|| format!("Cannot load image from {:?}", filename))?,
+            );
+            Ok(true)
+        } else {
+            Ok(any_updated)
+        }
+    }
+
+    fn render(&mut self, drawing_context: &drawing::Context) -> anyhow::Result<()> {
         let context = &drawing_context.context;
-        if let Ok(image_buf) = &self.image_buf {
+        if let Some(image_buf) = &self.image_buf {
             context.save()?;
             let dim = self.get_dimensions();
             context.set_operator(cairo::Operator::Over);
@@ -738,33 +1075,82 @@ impl Block for ImageBlock {
         }
         Ok(())
     }
+
     fn is_visible(&self) -> bool {
-        self.display_options.show_if_matches.all_match()
+        self.config.display.show_if_matches.all_match()
+    }
+
+    fn popup(&self) -> Option<config::PopupMode> {
+        self.config.display.popup
+    }
+
+    fn popup_value(&self) -> &Placeholder {
+        &self.config.display.popup_value
     }
 }
 
 struct BlockGroup {
-    blocks: Vec<Arc<dyn DebugBlock>>,
+    blocks: Vec<Box<dyn DebugBlock>>,
     dimensions: Dimensions,
+    layout: Vec<(usize, Dimensions)>,
 }
 
 impl BlockGroup {
-    fn collapse_separators(input: &[Arc<dyn DebugBlock>]) -> Vec<Arc<dyn DebugBlock>> {
+    fn visible_per_popup_mode(
+        &self,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+        popup_mode: config::PopupMode,
+    ) -> bool {
+        let partial_show = show_only.is_some();
+        !partial_show
+            || show_only
+                .as_ref()
+                .map(move |m| {
+                    let trigger_blocks = m.get(&popup_mode).cloned().unwrap_or_default();
+                    self.blocks
+                        .iter()
+                        .any(|block| trigger_blocks.contains(block.name()))
+                })
+                .unwrap_or_default()
+    }
+
+    fn build_layout(
+        &self,
+        entire_bar_visible: bool,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+    ) -> Vec<(usize, Dimensions)> {
         use config::SeparatorType::*;
-        let mut output = Vec::with_capacity(input.len());
+        let mut output = Vec::with_capacity(self.blocks.len());
 
         let mut eat_separators = true;
         let mut last_edge = Some(Left);
 
-        for b in input.iter() {
+        let single_blocks = show_only
+            .as_ref()
+            .and_then(|m| m.get(&config::PopupMode::Block))
+            .cloned()
+            .unwrap_or_default();
+
+        let entire_partial_visible =
+            self.visible_per_popup_mode(show_only, config::PopupMode::PartialBar);
+
+        for (block_idx, b) in self.blocks.iter().enumerate() {
             if !b.is_visible() {
+                continue;
+            }
+            let block_visible = single_blocks.contains(b.name());
+            if !entire_bar_visible
+                && !entire_partial_visible
+                && !block_visible
+                && b.separator_type().is_none()
+            {
                 continue;
             }
             let sep_type = &b.separator_type();
 
             match sep_type {
                 Some(Left) | Some(Right) => {
-                    last_edge = sep_type.clone();
+                    last_edge = *sep_type;
                 }
                 _ => {}
             };
@@ -780,7 +1166,7 @@ impl BlockGroup {
                 Some(Right) | None => false,
             };
 
-            output.push(b);
+            output.push((block_idx, b.get_dimensions()));
         }
 
         // After this SR and LR pairs are possible. Remove:
@@ -789,17 +1175,19 @@ impl BlockGroup {
         let mut input_iter = input.into_iter().peekable();
         last_edge = None;
 
-        while let Some(b) = input_iter.next() {
+        while let Some((block_idx, dim)) = input_iter.next() {
+            let b = self.blocks.get(block_idx).unwrap();
             let sep_type = &b.separator_type();
             match sep_type {
                 Some(Left) | Some(Right) => {
-                    last_edge = sep_type.clone();
+                    last_edge = *sep_type;
                 }
                 _ => {}
             };
 
             if last_edge == Some(Left) {
-                if let Some(next_b) = input_iter.peek() {
+                if let Some((next_block_idx, _)) = input_iter.peek() {
+                    let next_b: &_ = self.blocks.get(*next_block_idx).unwrap();
                     let next_sep_type = &next_b.separator_type();
                     match (sep_type, next_sep_type) {
                         (Some(Gap), Some(Right)) => {
@@ -815,47 +1203,92 @@ impl BlockGroup {
                 }
             }
 
-            output.push(b.clone());
+            output.push((block_idx, dim));
         }
 
         output
     }
 
-    fn new(blocks: &[Arc<dyn DebugBlock>]) -> Self {
+    fn update(
+        &mut self,
+        drawing_context: &drawing::Context,
+        vars: &dyn parse::PlaceholderContext,
+    ) -> anyhow::Result<BlockUpdates> {
+        let mut popup: HashMap<config::PopupMode, HashSet<String>> = HashMap::new();
+        let mut visibility_changed = false;
+
+        let mut updated_blocks = HashSet::new();
+        for block in &mut self.blocks {
+            let old_popup_value = block.popup_value().to_string();
+            let old_visibility_value = block.is_visible();
+            let block_updated = block.update(drawing_context, vars)?;
+            if let Some(popup_mode) = block.popup() {
+                let use_popup_value = !block.popup_value().is_empty();
+                let popped_up = if use_popup_value {
+                    old_popup_value != block.popup_value().value
+                } else {
+                    block_updated
+                };
+                if popped_up {
+                    tracing::info!("{} popped up", block.name());
+                    popup
+                        .entry(popup_mode)
+                        .or_default()
+                        .insert(block.name().to_string());
+                }
+            }
+            if block_updated {
+                updated_blocks.insert(block.name().to_string());
+            }
+            if old_visibility_value != block.is_visible() {
+                visibility_changed = true;
+            }
+        }
+
+        let redraw = if visibility_changed {
+            RedrawScope::All
+        } else if updated_blocks.is_empty() {
+            RedrawScope::None
+        } else {
+            RedrawScope::Partial(updated_blocks)
+        };
+        Ok(BlockUpdates { redraw, popup })
+    }
+
+    fn layout_group(
+        &mut self,
+        entire_bar_visible: bool,
+        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+    ) {
+        self.layout = self.build_layout(entire_bar_visible, show_only);
         let mut dim = Dimensions {
             width: 0.0,
             height: 0.0,
         };
-
-        let blocks = BlockGroup::collapse_separators(blocks);
-
-        for block in blocks.iter() {
-            let b_dim = block.get_dimensions();
+        self.dimensions.height = 0.0;
+        for (_, b_dim) in self.layout.iter() {
             dim.width += b_dim.width;
             dim.height = dim.height.max(b_dim.height);
         }
-
-        Self {
-            blocks,
-            dimensions: dim,
-        }
+        self.dimensions = dim;
     }
 
     fn lookup_block(
-        &self,
+        &mut self,
         group_pos: f64,
         x: f64,
-    ) -> anyhow::Result<Option<(f64, Arc<dyn DebugBlock>)>> {
+    ) -> anyhow::Result<Option<(f64, &mut Box<dyn DebugBlock>)>> {
         let mut pos: f64 = 0.0;
         let x = x - group_pos;
-        for block in self.blocks.iter() {
-            if !block.is_visible() {
-                continue;
-            }
-            let b_dim = block.get_dimensions();
-            let next_pos = pos + b_dim.width;
+        for (block_idx, dim) in self.layout.iter() {
+            // let block = self.blocks.get(*block_idx).unwrap();
+            // let b_dim = block.get_dimensions();
+            let next_pos = pos + dim.width;
             if pos <= x && x <= next_pos {
-                return Ok(Some((pos + group_pos, block.clone())));
+                return Ok(Some((
+                    pos + group_pos,
+                    self.blocks.get_mut(*block_idx).unwrap(),
+                )));
             }
             pos = next_pos;
         }
@@ -863,16 +1296,14 @@ impl BlockGroup {
     }
 
     fn render(
-        &self,
+        &mut self,
         drawing_context: &drawing::Context,
         redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
         let context = &drawing_context.context;
         let mut pos: f64 = 0.0;
-        for block in self.blocks.iter() {
-            if !block.is_visible() {
-                continue;
-            }
+        for (block_idx, _) in self.layout.iter() {
+            let block = self.blocks.get_mut(*block_idx).unwrap();
             let b_dim = block.get_dimensions();
             context.save()?;
             context.translate(pos, 0.0);
@@ -893,13 +1324,53 @@ impl BlockGroup {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum RedrawScope {
+    All,
+    Partial(HashSet<String>),
+    None,
+}
+
+impl RedrawScope {
+    fn combine(self, other: Self) -> Self {
+        use RedrawScope::*;
+        match (self, other) {
+            (All, _) => All,
+            (_, All) => All,
+            (p @ Partial(_), None) => p,
+            (None, p @ Partial(_)) => p,
+            (Partial(mut a), Partial(b)) => {
+                a.extend(b);
+                Partial(a)
+            }
+            (None, None) => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BlockUpdates {
+    pub popup: HashMap<config::PopupMode, HashSet<String>>,
+    pub redraw: RedrawScope,
+}
+
+impl BlockUpdates {
+    fn merge(&mut self, other: Self) {
+        self.popup.extend(other.popup);
+        self.redraw = self.redraw.clone().combine(other.redraw);
+    }
+}
+
+#[derive(Debug)]
+pub struct BarUpdates {
+    pub block_updates: BlockUpdates,
+    pub visible_from_vars: Option<bool>,
+}
+
 pub struct Bar {
-    bar: config::Bar<parse::Placeholder>,
-    resolved_bar_config: Option<config::Bar<String>>,
-    block_data: HashMap<String, state::BlockData>,
+    bar_config: config::Bar<Placeholder>,
     error: Option<String>,
-    blocks: HashMap<String, Arc<dyn DebugBlock>>,
-    all_blocks: HashSet<String>,
+    error_block: Box<dyn DebugBlock>,
     left_group: BlockGroup,
     center_group: BlockGroup,
     center_group_pos: f64,
@@ -909,160 +1380,74 @@ pub struct Bar {
 }
 
 impl Bar {
-    pub fn new(bar: &config::Bar<parse::Placeholder>) -> anyhow::Result<Self> {
-        let all_blocks: HashSet<String> = bar
-            .blocks_left
-            .iter()
-            .chain(bar.blocks_center.iter())
-            .chain(bar.blocks_right.iter())
-            .cloned()
-            .collect();
+    pub fn new(
+        config: &config::Config<parse::Placeholder>,
+        bar_config: config::Bar<Placeholder>,
+    ) -> anyhow::Result<Self> {
+        let left_group = Self::make_block_group(&bar_config.blocks_left, config, &bar_config);
+        let center_group = Self::make_block_group(&bar_config.blocks_center, config, &bar_config);
+        let right_group = Self::make_block_group(&bar_config.blocks_right, config, &bar_config);
         Ok(Self {
-            all_blocks,
-            bar: bar.clone(),
-            resolved_bar_config: None,
-            block_data: HashMap::new(),
+            left_group,
+            center_group,
+            right_group,
             error: None,
-            blocks: HashMap::new(),
-            left_group: BlockGroup::new(&[]),
-            center_group: BlockGroup::new(&[]),
+            error_block: Self::error_block(&bar_config),
             center_group_pos: 0.0,
-            right_group: BlockGroup::new(&[]),
             right_group_pos: 0.0,
             last_update_pointer_position: None,
+            bar_config,
         })
     }
-}
 
-#[derive(Debug, PartialEq)]
-pub enum RedrawScope {
-    All,
-    Partial(HashSet<String>),
-    None,
-}
-
-pub struct Updates {
-    pub popup: HashMap<config::PopupMode, HashSet<String>>,
-    pub redraw: RedrawScope,
-    pub visible_from_vars: Option<bool>,
-}
-
-impl Bar {
-    fn visible_per_popup_mode(
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-        popup_mode: config::PopupMode,
-        block_names: &[String],
-    ) -> bool {
-        let partial_show = show_only.is_some();
-        !partial_show
-            || show_only
-                .as_ref()
-                .map(move |m| {
-                    let trigger_blocks = m.get(&popup_mode).cloned().unwrap_or_default();
-                    block_names.iter().any(|name| trigger_blocks.contains(name))
-                })
-                .unwrap_or_default()
-    }
-
-    fn flatten(
-        blocks: &HashMap<String, Arc<dyn DebugBlock>>,
-        entire_bar_visible: bool,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+    fn make_block_group(
         names: &[String],
-    ) -> Vec<Arc<dyn DebugBlock>> {
-        let mut result = Vec::with_capacity(names.len());
-        let single_blocks = show_only
-            .as_ref()
-            .and_then(|m| m.get(&config::PopupMode::Block))
-            .cloned()
-            .unwrap_or_default();
-
-        let entire_partial_visible =
-            Self::visible_per_popup_mode(show_only, config::PopupMode::PartialBar, names);
-        for name in names {
-            let block_visible = single_blocks.contains(name);
-            if let Some(block) = blocks.get(name) {
-                if entire_bar_visible
-                    || entire_partial_visible
-                    || block_visible
-                    || block.separator_type().is_some()
-                {
-                    result.push(block.clone());
-                }
-            }
+        config: &config::Config<parse::Placeholder>,
+        bar_config: &config::Bar<Placeholder>,
+    ) -> BlockGroup {
+        BlockGroup {
+            blocks: names
+                .iter()
+                .filter_map(|name| config.blocks.get(name))
+                .filter_map(|block| Self::build_widget(bar_config, block))
+                .collect(),
+            layout: vec![],
+            dimensions: Dimensions {
+                width: 0.0,
+                height: 0.0,
+            },
         }
-        result
     }
 
     fn build_widget(
-        &self,
-        name: String,
-        drawing_context: &drawing::Context,
-        block_data: &state::BlockData,
-    ) -> Box<dyn DebugBlock> {
-        match &block_data.config {
-            config::Block::Text(text) => TextBlock::new_in_base_block(
-                name,
-                text.input.value.clone(),
-                drawing_context,
-                text.display.clone(),
-                self.bar.height as f64,
-                text.separator_type.clone(),
-                text.separator_radius,
-                text.event_handlers.clone(),
-            ),
-            config::Block::Number(number) => match &number
-                .number_display
-                .as_ref()
-                .expect("number_display must be set")
-            {
-                config::NumberDisplay::ProgressBar(_) => {
-                    let b: Box<dyn DebugBlock> = Box::new(TextProgressBarNumberBlock::new(
-                        name,
-                        drawing_context,
-                        number,
-                        self.bar.height as f64,
-                        number.event_handlers.clone(),
-                    ));
-                    b
-                }
-                config::NumberDisplay::Text(_) => {
-                    let b: Box<dyn DebugBlock> = Box::new(TextNumberBlock::new(
-                        name,
-                        drawing_context,
-                        number,
-                        self.bar.height as f64,
-                        number.event_handlers.clone(),
-                    ));
-                    b
-                }
-            },
-            config::Block::Enum(enum_block) => {
-                let b: Box<dyn DebugBlock> = Box::new(EnumBlock::new(
-                    name,
-                    drawing_context,
-                    enum_block,
-                    self.bar.height as f64,
-                    enum_block.event_handlers.clone(),
-                ));
-                b
+        bar_config: &config::Bar<Placeholder>,
+        block: &config::Block<Placeholder>,
+    ) -> Option<Box<dyn DebugBlock>> {
+        match &block {
+            config::Block::Text(text) => Some(TextBlock::new_in_base_block(
+                bar_config.height as f64,
+                text.clone(),
+            )),
+            config::Block::Enum(e) => Some(Box::new(EnumBlock::new(
+                bar_config.height as f64,
+                e.clone(),
+            ))),
+            config::Block::Number(number) => Some(Box::new(NumberBlock::new(
+                bar_config.height as f64,
+                number.clone(),
+            ))),
+            config::Block::Image(image) => {
+                Some(ImageBlock::new(bar_config.height as f64, image.clone()))
             }
-            config::Block::Image(image) => ImageBlock::new(
-                name,
-                image.input.value.clone(),
-                image.display.clone(),
-                self.bar.height as f64,
-                image.event_handlers.clone(),
-            ),
         }
     }
 
-    fn error_block(error: &str) -> (String, state::BlockData) {
+    fn error_block(bar_config: &config::Bar<Placeholder>) -> Box<dyn DebugBlock> {
         let name = ERROR_BLOCK_NAME.to_string();
-        let error_block: config::TextBlock<String> = config::TextBlock {
+        let config = config::TextBlock {
             name: name.clone(),
             input: config::Input {
-                value: error.into(),
+                value: Placeholder::infallable("${error}"),
                 ..Default::default()
             },
             display: config::DisplayOptions {
@@ -1070,170 +1455,78 @@ impl Bar {
             },
             ..Default::default()
         };
-        (
-            name,
-            state::BlockData {
-                config: config::Block::Text(error_block),
-            },
-        )
+        Self::build_widget(bar_config, &config::Block::Text(config)).unwrap()
+    }
+
+    pub fn set_error(&mut self, drawing_context: &drawing::Context, error: Option<String>) {
+        if let Some(ref error) = error {
+            let mut vars = HashMap::new();
+            vars.insert("error".to_string(), error.replace('\n', " "));
+            if let Err(e) = self.error_block.update(drawing_context, &vars) {
+                tracing::error!("Failed displaying error block: {:?}", e);
+            }
+            self.error = Some(error.clone());
+        }
     }
 
     pub fn update(
         &mut self,
         drawing_context: &drawing::Context,
-        resolved_bar_config: &config::Bar<String>,
-        block_data: &HashMap<String, state::BlockData>,
-        error: &Option<String>,
+        vars: &dyn parse::PlaceholderContext,
         pointer_position: Option<(i16, i16)>,
-    ) -> Updates {
-        self.resolved_bar_config = Some(resolved_bar_config.clone());
-        let mut redraw_all = false;
-        if self.error.is_some() != error.is_some() {
-            redraw_all = true;
-        }
-        self.error = error.clone();
+    ) -> anyhow::Result<BarUpdates> {
+        self.bar_config.background.update(vars)?;
+
+        let mut block_updates = self.left_group.update(drawing_context, vars)?;
+        block_updates.merge(self.center_group.update(drawing_context, vars)?);
+        block_updates.merge(self.right_group.update(drawing_context, vars)?);
 
         if pointer_position != self.last_update_pointer_position {
             self.last_update_pointer_position = pointer_position;
-            redraw_all = true;
+            block_updates.redraw = RedrawScope::All;
         }
 
-        let mut popup: HashMap<config::PopupMode, HashSet<String>> =
-            HashMap::with_capacity(block_data.len());
-        let mut redraw: HashSet<String> = HashSet::new();
-
-        if let Some(error) = error {
-            let (name, block_data) = Self::error_block(error);
-            self.blocks.insert(
-                name.clone(),
-                self.build_widget(name, drawing_context, &block_data).into(),
-            );
-        };
-
-        for (name, data) in block_data.iter() {
-            if !self.all_blocks.contains(name) {
-                continue;
-            }
-            let entry = self.block_data.entry(name.clone());
-            use std::collections::hash_map::Entry;
-
-            let updated = match entry {
-                Entry::Occupied(mut o) => {
-                    let old_data = o.get();
-                    if (!data.popup_value().is_empty()
-                        && old_data.popup_value() != data.popup_value())
-                        || (data.popup_value().is_empty() && data != o.get())
-                    {
-                        o.insert(data.clone());
-                        true
-                    } else {
-                        false
-                    }
-                }
-                Entry::Vacant(v) => {
-                    v.insert(data.clone());
-                    true
-                }
-            };
-            if updated {
-                // For now recreating, but it can be updated.
-                let block = self.build_widget(name.into(), drawing_context, data);
-                let entry = self.blocks.entry(name.into());
-                // tracing::debug!("Updated '{}': {:?}", name, block);
-                redraw.insert(name.into());
-                match entry {
-                    Entry::Occupied(mut o) => {
-                        if o.get().get_dimensions() != block.get_dimensions() {
-                            redraw_all = true
-                        }
-                        if o.get().is_visible() != block.is_visible() {
-                            redraw_all = true
-                        }
-                        o.insert(block.into());
-                    }
-                    Entry::Vacant(v) => {
-                        v.insert(block.into());
-                    }
-                };
-                if let Some(popup_mode) = data.popup() {
-                    popup.entry(popup_mode).or_default().insert(name.clone());
-                }
-            }
-        }
-
-        let visible_from_vars = if resolved_bar_config.show_if_matches.is_empty() {
+        let visible_from_vars = if self.bar_config.show_if_matches.is_empty() {
             None
         } else {
-            Some(resolved_bar_config.show_if_matches.all_match())
+            Some(self.bar_config.show_if_matches.all_match())
         };
 
-        Updates {
-            popup,
-            redraw: if redraw_all || self.error.is_some() {
-                RedrawScope::All
-            } else if !redraw.is_empty() {
-                RedrawScope::Partial(redraw)
-            } else {
-                RedrawScope::None
-            },
+        Ok(BarUpdates {
+            block_updates,
             visible_from_vars,
-        }
+        })
     }
 
-    pub fn layout_blocks(
+    pub fn layout_groups(
         &mut self,
         drawing_area_width: f64,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
     ) {
-        let bar = &self.bar;
+        let entire_bar_visible = self
+            .left_group
+            .visible_per_popup_mode(show_only, config::PopupMode::Bar)
+            || self
+                .center_group
+                .visible_per_popup_mode(show_only, config::PopupMode::Bar)
+            || self
+                .right_group
+                .visible_per_popup_mode(show_only, config::PopupMode::Bar);
 
-        if self.error.is_some() {
-            let flat_left = Self::flatten(&self.blocks, true, &None, &[ERROR_BLOCK_NAME.into()]);
-            self.left_group = BlockGroup::new(&flat_left);
-            self.center_group = BlockGroup::new(&[]);
-            self.right_group = BlockGroup::new(&[]);
-        } else {
-            let all_blocks: Vec<String> = bar
-                .blocks_left
-                .iter()
-                .chain(bar.blocks_center.iter())
-                .chain(bar.blocks_right.iter())
-                .cloned()
-                .collect();
-            let entire_bar_visible =
-                Self::visible_per_popup_mode(show_only, config::PopupMode::Bar, &all_blocks);
+        self.left_group.layout_group(entire_bar_visible, show_only);
+        self.center_group
+            .layout_group(entire_bar_visible, show_only);
+        self.right_group.layout_group(entire_bar_visible, show_only);
 
-            let flat_left = Self::flatten(
-                &self.blocks,
-                entire_bar_visible,
-                show_only,
-                &self.bar.blocks_left,
-            );
-            let flat_center = Self::flatten(
-                &self.blocks,
-                entire_bar_visible,
-                show_only,
-                &self.bar.blocks_center,
-            );
-            let flat_right = Self::flatten(
-                &self.blocks,
-                entire_bar_visible,
-                show_only,
-                &self.bar.blocks_right,
-            );
-
-            let width = drawing_area_width - (bar.margin.left + bar.margin.right) as f64;
-            self.left_group = BlockGroup::new(&flat_left);
-            self.center_group = BlockGroup::new(&flat_center);
-            self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
-            self.right_group = BlockGroup::new(&flat_right);
-            self.right_group_pos = width - self.right_group.dimensions.width;
-        }
+        let width = drawing_area_width
+            - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;
+        self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
+        self.right_group_pos = width - self.right_group.dimensions.width;
     }
 
-    pub fn handle_button_press(&self, x: i16, y: i16, button: Button) -> anyhow::Result<()> {
-        let x = (x - self.bar.margin.left as i16) as f64;
-        let y = (y - self.bar.margin.top as i16) as f64;
+    pub fn handle_button_press(&mut self, x: i16, y: i16, button: Button) -> anyhow::Result<()> {
+        let x = (x - self.bar_config.margin.left as i16) as f64;
+        let y = (y - self.bar_config.margin.top as i16) as f64;
 
         let block_pair = if x >= self.right_group_pos {
             self.right_group.lookup_block(self.right_group_pos, x)
@@ -1255,7 +1548,7 @@ impl Bar {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         drawing_context: &drawing::Context,
         redraw: &RedrawScope,
     ) -> anyhow::Result<()> {
@@ -1263,48 +1556,49 @@ impl Bar {
         drawing_context.pointer_position = self.last_update_pointer_position;
 
         let context = &drawing_context.context;
-        let bar = &self.bar;
-
-        let background = match &self.resolved_bar_config {
-            Some(bar_config) => &bar_config.background,
-            None => {
-                return Ok(());
-            }
-        };
+        let bar = &self.bar_config;
 
         if *redraw == RedrawScope::All {
-            context.save()?;
-            drawing_context
-                .set_source_rgba_background(background)
-                .context("bar.background")?;
-            context.set_operator(cairo::Operator::Source);
-            context.paint()?;
-            context.restore()?;
+            let background: &str = &self.bar_config.background;
+            if !background.is_empty() {
+                context.save()?;
+                drawing_context
+                    .set_source_rgba_background(background)
+                    .context("bar.background")?;
+                context.set_operator(cairo::Operator::Source);
+                context.paint()?;
+                context.restore()?;
+            }
         }
 
         context.save()?;
         context.translate(bar.margin.left.into(), bar.margin.top.into());
 
-        context.save()?;
-        self.left_group
-            .render(&drawing_context, redraw)
-            .context("left_group")?;
-        context.restore()?;
+        if self.error.is_some() {
+            self.error_block
+                .render(&drawing_context)
+                .context("error_block")?;
+        } else {
+            context.save()?;
+            self.left_group
+                .render(&drawing_context, redraw)
+                .context("left_group")?;
+            context.restore()?;
 
-        context.save()?;
-        context.translate(self.center_group_pos, 0.0);
-        self.center_group
-            .render(&drawing_context, redraw)
-            .context("center_group")?;
-        context.restore()?;
+            context.save()?;
+            context.translate(self.center_group_pos, 0.0);
+            self.center_group
+                .render(&drawing_context, redraw)
+                .context("center_group")?;
+            context.restore()?;
 
-        context.save()?;
-        context.translate(self.right_group_pos, 0.0);
-        self.right_group
-            .render(&drawing_context, redraw)
-            .context("right_group")?;
-        context.restore()?;
-
+            context.save()?;
+            context.translate(self.right_group_pos, 0.0);
+            self.right_group
+                .render(&drawing_context, redraw)
+                .context("right_group")?;
+            context.restore()?;
+        }
         context.restore()?;
         Ok(())
     }

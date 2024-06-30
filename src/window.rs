@@ -20,7 +20,10 @@ use std::{
 };
 use xcb::{x, xinput, Xid};
 
-use crate::{bar, config, drawing, parse, state, timer, wmready, xutils};
+use crate::{
+    bar::{self, BarUpdates, BlockUpdates},
+    config, drawing, parse, state, timer, wmready, xutils,
+};
 use tracing::*;
 
 pub struct VisibilityControl {
@@ -138,7 +141,7 @@ pub struct Window {
     shape_buffer_context: drawing::Context,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
-    bar_index: usize,
+    // bar_index: usize,
     bar_config: config::Bar<parse::Placeholder>,
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
@@ -149,7 +152,8 @@ pub struct Window {
 impl Window {
     pub fn create_and_show(
         name: String,
-        bar_index: usize,
+        // bar_index: usize,
+        config: &config::Config<parse::Placeholder>,
         bar_config: config::Bar<parse::Placeholder>,
         conn: Arc<xcb::Connection>,
         state: Arc<RwLock<state::State>>,
@@ -396,9 +400,9 @@ impl Window {
         }
         conn.flush()?;
 
-        let bar = bar::Bar::new(&bar_config)?;
-
         let visible = !bar_config.popup;
+
+        let bar = bar::Bar::new(config, bar_config.clone())?;
 
         Ok(Self {
             conn: conn.clone(),
@@ -409,7 +413,7 @@ impl Window {
             back_buffer_context,
             shape_buffer_context,
             swap_gc,
-            bar_index,
+            // bar_index,
             bar,
             state,
             state_update_tx,
@@ -428,9 +432,9 @@ impl Window {
         })
     }
 
-    fn render_bar(&self, redraw: bar::RedrawScope) -> anyhow::Result<()> {
-        self.bar.render(&self.back_buffer_context, &redraw)?;
-        self.bar.render(&self.shape_buffer_context, &redraw)?;
+    fn render_bar(&mut self, redraw: &bar::RedrawScope) -> anyhow::Result<()> {
+        self.bar.render(&self.back_buffer_context, redraw)?;
+        self.bar.render(&self.shape_buffer_context, redraw)?;
 
         self.swap_buffers()?;
         self.apply_shape()?;
@@ -439,27 +443,36 @@ impl Window {
     }
 
     pub fn render(&mut self, from_os: bool) -> anyhow::Result<()> {
-        let state = self.state.read().unwrap();
-        let bar_config = match state.bars.get(self.bar_index) {
-            Some(bar_config) => bar_config,
-            None => {
-                return Ok(());
-            }
-        };
+        let state = self.state.clone();
+        let state = state.read().unwrap();
         let pointer_position = state.pointer_position.get(&self.name).copied();
-        let mut updates = self.bar.update(
-            &self.back_buffer_context,
-            bar_config,
-            &state.blocks,
-            &state.build_error_msg(),
-            pointer_position,
-        );
+        let mut error = state.build_error_msg();
+
+        let mut updates =
+            match self
+                .bar
+                .update(&self.back_buffer_context, &state.vars, pointer_position)
+            {
+                Ok(updates) => updates,
+                Err(e) => {
+                    error = Some(format!("Error: {:?}", e));
+                    BarUpdates {
+                        block_updates: BlockUpdates {
+                            redraw: bar::RedrawScope::All,
+                            popup: Default::default(),
+                        },
+                        visible_from_vars: None,
+                    }
+                }
+            };
+
+        self.bar.set_error(&self.back_buffer_context, error);
 
         if from_os {
-            updates.redraw = bar::RedrawScope::All;
+            updates.block_updates.redraw = bar::RedrawScope::All;
         }
 
-        if self.bar_config.popup && !updates.popup.is_empty() {
+        if self.bar_config.popup && !updates.block_updates.popup.is_empty() {
             if let Err(e) = VisibilityControl::show_or_prolong_popup(&self.visibility_control) {
                 tracing::error!("Showing popup failed: {:?}", e);
             }
@@ -470,11 +483,11 @@ impl Window {
                 visibility_control.set_default_visibility(visible_from_vars)?;
             }
             if self.bar_config.popup {
-                visibility_control.extend_show_only(updates.popup);
+                visibility_control.extend_show_only(updates.block_updates.popup);
                 let redraw_mode = if visibility_control.show_only.is_some() {
                     bar::RedrawScope::All
                 } else {
-                    updates.redraw
+                    updates.block_updates.redraw
                 };
                 // Maybe there is a race condition between visibility and rendering.
                 (
@@ -483,20 +496,29 @@ impl Window {
                     redraw_mode,
                 )
             } else {
-                (visibility_control.visible, None, updates.redraw)
+                (
+                    visibility_control.visible,
+                    None,
+                    updates.block_updates.redraw,
+                )
             }
         };
 
         if visible && redraw != bar::RedrawScope::None {
             self.bar
-                .layout_blocks(self.back_buffer_context.width, &show_only);
+                .layout_groups(self.back_buffer_context.width, &show_only);
 
-            self.render_bar(redraw)?;
+            self.render_bar(&redraw)?;
         }
         Ok(())
     }
 
-    pub fn handle_button_press(&self, x: i16, y: i16, button: bar::Button) -> anyhow::Result<()> {
+    pub fn handle_button_press(
+        &mut self,
+        x: i16,
+        y: i16,
+        button: bar::Button,
+    ) -> anyhow::Result<()> {
         self.bar.handle_button_press(x, y, button)
     }
 
