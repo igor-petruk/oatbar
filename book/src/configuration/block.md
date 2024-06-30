@@ -279,6 +279,10 @@ rendered. Supported formats: BMP, ICO, JPEG, PNG, SVG, WEBP.
 ```
 # If set, can shrink the image smaller than automatically determined size.
 max_image_height=20
+# If this value is set and changed, then image caching gets disabled and
+# image is reloaded from the filesystem even if the filename stayed the same.
+# It can be used by a command to generate dynamic images under the same filename.
+updater_value="${image_generator:timestamp}"
 ```
 
 The block offers rich possibilities, provided you can generate your own
