@@ -320,11 +320,13 @@ impl Window {
         )?;
 
         let font_cache = Arc::new(Mutex::new(drawing::FontCache::new()));
+        let image_loader = drawing::ImageLoader::new();
 
         let back_buffer_surface =
             make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
         let back_buffer_context = drawing::Context::new(
             font_cache.clone(),
+            image_loader.clone(),
             back_buffer,
             back_buffer_surface,
             drawing::Mode::Full,
@@ -350,6 +352,7 @@ impl Window {
         )?;
         let shape_buffer_context = drawing::Context::new(
             font_cache,
+            image_loader,
             shape_buffer,
             shape_buffer_surface,
             drawing::Mode::Shape,
@@ -447,7 +450,7 @@ impl Window {
         let mut updates =
             match self
                 .bar
-                .update(&self.back_buffer_context, &state.vars, pointer_position)
+                .update(&mut self.back_buffer_context, &state.vars, pointer_position)
             {
                 Ok(updates) => updates,
                 Err(e) => {
@@ -462,7 +465,7 @@ impl Window {
                 }
             };
 
-        self.bar.set_error(&self.back_buffer_context, error);
+        self.bar.set_error(&mut self.back_buffer_context, error);
 
         if from_os {
             updates.block_updates.redraw = bar::RedrawScope::All;

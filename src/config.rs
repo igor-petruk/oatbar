@@ -541,7 +541,13 @@ impl NumberBlock<Option<Placeholder>> {
 #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct ImageOptions {
+    #[serde(default = "default_use_cache")]
+    pub cache_images: bool,
     pub max_image_height: Option<u32>,
+}
+
+fn default_use_cache() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]

@@ -18,13 +18,10 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     fmt::Debug,
-    path::PathBuf,
-    str::FromStr,
 };
 
 use anyhow::Context;
 use pangocairo::pango;
-use resvg::{tiny_skia, usvg};
 
 use crate::{
     config::{self, AnyUpdated},
@@ -85,7 +82,7 @@ trait Block {
     fn is_visible(&self) -> bool;
     fn update(
         &mut self,
-        drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         fit_to_height: f64,
     ) -> anyhow::Result<bool>;
@@ -209,7 +206,7 @@ impl Block for BaseBlock {
 
     fn update(
         &mut self,
-        drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         fit_to_height: f64,
     ) -> anyhow::Result<bool> {
@@ -398,7 +395,7 @@ impl Block for TextBlock {
 
     fn update(
         &mut self,
-        drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         _fit_to_height: f64,
     ) -> anyhow::Result<bool> {
@@ -660,7 +657,7 @@ impl Block for NumberBlock {
 
     fn update(
         &mut self,
-        drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         fit_to_height: f64,
     ) -> anyhow::Result<bool> {
@@ -883,7 +880,7 @@ impl Block for EnumBlock {
 
     fn update(
         &mut self,
-        drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         fit_to_height: f64,
     ) -> anyhow::Result<bool> {
@@ -992,75 +989,9 @@ struct ImageBlock {
 impl DebugBlock for ImageBlock {}
 
 impl ImageBlock {
-    fn image_from_rgba8(
-        buf: &mut [u8],
-        width: i32,
-        height: i32,
-    ) -> anyhow::Result<cairo::ImageSurface> {
-        let format = cairo::Format::ARgb32;
-        let mut image = cairo::ImageSurface::create(format, width, height)?;
-        // rgba => bgra (reverse argb)
-        for rgba in buf.chunks_mut(4) {
-            rgba.swap(0, 2);
-        }
-        image.data()?.copy_from_slice(buf);
-        Ok(image)
-    }
-
-    fn load_raster(
-        &self,
-        file_name: &str,
-        fit_to_height: f64,
-    ) -> anyhow::Result<cairo::ImageSurface> {
-        let img_buf = image::io::Reader::open(file_name)?
-            .decode()
-            .context("Unable to decode image")?
-            .into_rgba8();
-        let mut scale = fit_to_height as f32 / img_buf.height() as f32;
-        if scale > 1.0 {
-            // Do not scale up.
-            scale = 1.0;
-        }
-        let img_buf = image::imageops::resize(
-            &img_buf,
-            (img_buf.width() as f32 * scale) as u32,
-            (img_buf.height() as f32 * scale) as u32,
-            image::imageops::FilterType::Triangle,
-        );
-        let (w, h) = (img_buf.width(), img_buf.height());
-        Self::image_from_rgba8(&mut img_buf.into_raw(), w.try_into()?, h.try_into()?)
-    }
-
-    fn load_svg(&self, file_name: &str, fit_to_height: f64) -> anyhow::Result<cairo::ImageSurface> {
-        let tree = {
-            let mut opt = usvg::Options {
-                resources_dir: std::fs::canonicalize(file_name)
-                    .ok()
-                    .and_then(|p| p.parent().map(|p| p.to_path_buf())),
-                ..Default::default()
-            };
-            opt.fontdb_mut().load_system_fonts();
-            let svg_data = std::fs::read(file_name).unwrap();
-            usvg::Tree::from_data(&svg_data, &opt).unwrap()
-        };
-        let size = tree.size().to_int_size(); // cannot be zero.
-        let mut scale = fit_to_height as f32 / size.height() as f32;
-        if scale > 1.0 {
-            // Do not scale up.
-            scale = 1.0;
-        }
-        let (w, h) = (size.width() as f32 * scale, size.height() as f32 * scale);
-        let mut pixmap = tiny_skia::Pixmap::new(w as u32, h as u32).unwrap();
-        resvg::render(
-            &tree,
-            tiny_skia::Transform::from_scale(scale, scale),
-            &mut pixmap.as_mut(),
-        );
-        Self::image_from_rgba8(pixmap.data_mut(), w as i32, h as i32)
-    }
-
     fn load_image(
         &self,
+        drawing_context: &mut drawing::Context,
         file_name: &str,
         mut fit_to_height: f64,
     ) -> anyhow::Result<cairo::ImageSurface> {
@@ -1070,10 +1001,11 @@ impl ImageBlock {
                 fit_to_height = max_image_height as f64;
             }
         }
-        match PathBuf::from_str(file_name)?.extension() {
-            Some(s) if s == "svg" => self.load_svg(file_name, fit_to_height),
-            _ => self.load_raster(file_name, fit_to_height),
-        }
+        drawing_context.image_loader.load_image(
+            file_name,
+            fit_to_height,
+            self.config.image_options.cache_images,
+        )
     }
 
     fn new(height: f64, config: config::ImageBlock<Placeholder>) -> Box<dyn DebugBlock> {
@@ -1122,7 +1054,7 @@ impl Block for ImageBlock {
 
     fn update(
         &mut self,
-        _drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         fit_to_height: f64,
     ) -> anyhow::Result<bool> {
@@ -1144,7 +1076,7 @@ impl Block for ImageBlock {
             let filename = &self.config.input.value.value;
             tracing::info!("{:#?}", self.config.display);
             self.image_buf = Some(
-                self.load_image(filename, fit_to_height)
+                self.load_image(drawing_context, filename, fit_to_height)
                     .with_context(|| format!("Cannot load image from {:?}", filename))?,
             );
             Ok(true)
@@ -1302,7 +1234,7 @@ impl BlockGroup {
 
     fn update(
         &mut self,
-        drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         fit_to_height: f64,
     ) -> anyhow::Result<BlockUpdates> {
@@ -1550,7 +1482,7 @@ impl Bar {
         Self::build_widget(bar_config, &config::Block::Text(config)).unwrap()
     }
 
-    pub fn set_error(&mut self, drawing_context: &drawing::Context, error: Option<String>) {
+    pub fn set_error(&mut self, drawing_context: &mut drawing::Context, error: Option<String>) {
         if let Some(ref error) = error {
             let mut vars = HashMap::new();
             vars.insert("error".to_string(), error.replace('\n', " "));
@@ -1566,7 +1498,7 @@ impl Bar {
 
     pub fn update(
         &mut self,
-        drawing_context: &drawing::Context,
+        drawing_context: &mut drawing::Context,
         vars: &dyn parse::PlaceholderContext,
         pointer_position: Option<(i16, i16)>,
     ) -> anyhow::Result<BarUpdates> {
