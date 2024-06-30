@@ -327,8 +327,6 @@ impl Window {
             font_cache.clone(),
             back_buffer,
             back_buffer_surface,
-            window_width.into(),
-            window_height.into(),
             drawing::Mode::Full,
         )?;
 
@@ -354,8 +352,6 @@ impl Window {
             font_cache,
             shape_buffer,
             shape_buffer_surface,
-            window_width.into(),
-            window_height.into(),
             drawing::Mode::Shape,
         )?;
 
@@ -505,8 +501,7 @@ impl Window {
         };
 
         if visible && redraw != bar::RedrawScope::None {
-            self.bar
-                .layout_groups(self.back_buffer_context.width, &show_only);
+            self.bar.layout_groups(self.width as f64, &show_only);
 
             self.render_bar(&redraw)?;
         }

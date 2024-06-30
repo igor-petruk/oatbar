@@ -36,8 +36,6 @@ pub struct Context {
     pub buffer_surface: cairo::XCBSurface,
     pub context: cairo::Context,
     pub pango_context: Option<pango::Context>,
-    pub width: f64,
-    pub height: f64,
     pub mode: Mode,
     pub font_cache: Arc<Mutex<FontCache>>,
     pub pointer_position: Option<(i16, i16)>,
@@ -69,8 +67,6 @@ impl Context {
         font_cache: Arc<Mutex<FontCache>>,
         buffer: x::Pixmap,
         buffer_surface: cairo::XCBSurface,
-        width: f64,
-        height: f64,
         mode: Mode,
     ) -> anyhow::Result<Self> {
         let context = cairo::Context::new(buffer_surface.clone())?;
@@ -87,8 +83,6 @@ impl Context {
             buffer_surface,
             context,
             pango_context,
-            width,
-            height,
             mode,
             pointer_position: None,
             hover: false,

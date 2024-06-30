@@ -74,5 +74,6 @@ libc = "0.2.150"
 systemstat = "0.2.3"
 nix = { version = "0.29", features = ["net"] }
 image = { version = "0.25.1", default-features = false, features = ["bmp", "ico", "jpeg", "png", "webp"] }
+resvg = "0.42.0"
 
 
