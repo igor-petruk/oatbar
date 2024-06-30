@@ -538,6 +538,22 @@ impl NumberBlock<Option<Placeholder>> {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "image_position")]
+pub enum ImagePosition {
+    #[default]
+    Fill,
+    Center,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ImageOptions {
+    #[serde(default)]
+    pub image_position: ImagePosition,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
@@ -545,6 +561,8 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub inherit: Option<String>,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
+    #[serde(default)]
+    pub image_options: ImageOptions,
     #[serde(flatten)]
     pub input: Input<Dynamic>,
     #[serde(flatten)]
@@ -560,6 +578,7 @@ impl ImageBlock<Option<Placeholder>> {
             name: self.name.clone(),
             inherit: self.inherit.clone(),
             display: self.display.with_default(&default_block.display),
+            image_options: self.image_options,
             input: self.input.with_defaults(),
             event_handlers: self.event_handlers.with_default(),
         }

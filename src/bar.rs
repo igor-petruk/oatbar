@@ -982,8 +982,25 @@ impl DebugBlock for ImageBlock {}
 
 impl ImageBlock {
     fn load_image(file_name: &str) -> anyhow::Result<cairo::ImageSurface> {
-        let mut file = std::fs::File::open(file_name).context("Unable to open file")?;
-        let image = cairo::ImageSurface::create_from_png(&mut file).context("cannot open PNG")?;
+        let mut img_buf = image::io::Reader::open(file_name)?
+            .decode()
+            .context("Unable to decode image")?
+            .into_rgba8();
+        // rgba => bgra (reverse argb)
+        for rgba in img_buf.chunks_mut(4) {
+            rgba.swap(0, 2);
+        }
+        let (w, h) = (img_buf.width(), img_buf.height());
+        let format = cairo::Format::ARgb32;
+        let stride = format.stride_for_width(w)?;
+        let image = cairo::ImageSurface::create_for_data(
+            // bytes_buf,
+            img_buf.into_raw(),
+            format,
+            w.try_into()?,
+            h.try_into()?,
+            stride,
+        )?;
         Ok(image)
     }
 
