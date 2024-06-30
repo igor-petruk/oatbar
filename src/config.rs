@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::parse::{parse_expr, Placeholder, PlaceholderContext, PlaceholderExt};
+use crate::parse::{Placeholder, PlaceholderContext};
 use crate::source;
 
 use std::borrow::Cow;
@@ -20,11 +20,10 @@ use std::fmt::Debug;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::path::Path;
-use std::sync::Arc;
 use std::{collections::HashMap, io::Read};
 
 use anyhow::Context;
-use serde::{de, de::DeserializeOwned, de::Deserializer, Deserialize};
+use serde::{de, de::Deserializer, Deserialize};
 use tracing::{debug, warn};
 
 #[derive(Debug, Clone, Deserialize, Copy, Hash, Eq, PartialEq)]
@@ -484,7 +483,6 @@ pub struct NumberBlock<Dynamic: Clone + Default + Debug> {
     pub max_value: Dynamic,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
-    #[serde(default = "default_number_type")]
     #[serde(flatten)]
     pub input: Input<Dynamic>,
     pub number_type: NumberType,
@@ -873,20 +871,12 @@ impl Config<Option<Placeholder>> {
     }
 }
 
-fn default_number_type() -> NumberType {
-    NumberType::Number
-}
-
 fn default_bar_position() -> BarPosition {
     BarPosition::Bottom
 }
 
 fn default_height() -> u16 {
     32
-}
-
-fn default_separator_radius() -> f64 {
-    0.0
 }
 
 fn default_margin() -> Margin {
