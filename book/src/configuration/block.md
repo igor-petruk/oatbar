@@ -268,12 +268,19 @@ the index of the variant that was clicked on.
 
 ## Image block
 
+```toml
+[[block]]
+type="image"
+```
+
 In image blocks, the `value` property is interpreted as and image file name to be
-rendered.
+rendered. Supported formats: BMP, ICO, JPEG, PNG, SVG, WEBP.
 
-No image manipluations are performed and the support is pretty basic. Consider
-however that the `value` can come from a custom script that could select or render
-an arbitrary image to a temporary directory, offering unlimited possibilities.
+```
+# If set, can shrink the image smaller than automatically determined size.
+max_image_height=20
+```
 
-*Request to the community*: How do you think this feature can be improved?
-[Let me know](https://github.com/igor-petruk/oatbar/issues/new).
+The block offers rich possibilities, provided you can generate your own
+images or download them from the Internet on flight in the command that generates
+a filename.
