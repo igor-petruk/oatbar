@@ -1214,12 +1214,13 @@ impl BlockGroup {
         drawing_context: &drawing::Context,
         vars: &dyn parse::PlaceholderContext,
     ) -> anyhow::Result<BlockUpdates> {
-        let old_layout = self.layout.clone();
         let mut popup: HashMap<config::PopupMode, HashSet<String>> = HashMap::new();
+        let mut visibility_changed = false;
 
         let mut updated_blocks = HashSet::new();
         for block in &mut self.blocks {
             let old_popup_value = block.popup_value().to_string();
+            let old_visibility_value = block.is_visible();
             let block_updated = block.update(drawing_context, vars)?;
             if let Some(popup_mode) = block.popup() {
                 let use_popup_value = !block.popup_value().is_empty();
@@ -1239,9 +1240,12 @@ impl BlockGroup {
             if block_updated {
                 updated_blocks.insert(block.name().to_string());
             }
+            if old_visibility_value != block.is_visible() {
+                visibility_changed = true;
+            }
         }
 
-        let redraw = if old_layout != self.layout {
+        let redraw = if visibility_changed {
             RedrawScope::All
         } else if updated_blocks.is_empty() {
             RedrawScope::None
@@ -1344,6 +1348,7 @@ impl RedrawScope {
     }
 }
 
+#[derive(Debug)]
 pub struct BlockUpdates {
     pub popup: HashMap<config::PopupMode, HashSet<String>>,
     pub redraw: RedrawScope,
@@ -1356,6 +1361,7 @@ impl BlockUpdates {
     }
 }
 
+#[derive(Debug)]
 pub struct BarUpdates {
     pub block_updates: BlockUpdates,
     pub visible_from_vars: Option<bool>,
