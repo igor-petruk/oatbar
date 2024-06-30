@@ -14,7 +14,7 @@
 
 [package]
 name = "oatbar"
-version = "0.0.30"
+version = "0.0.31"
 edition = "2021"
 description = "Powerful and customizable DE and WM status bar"
 keywords = ["x11", "wm", "bar"]
