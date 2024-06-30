@@ -6,6 +6,8 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/igor-petruk/oatbar)
 ![Crates.io](https://img.shields.io/crates/d/oatbar?label=Cargo.io%20downloads)
 
+[![Packaging status](https://repology.org/badge/vertical-allrepos/oatbar.svg)](https://repology.org/project/oatbar/versions)
+
 Oatbar is a standalone desktop bar that can be used with various WMs and DEs. This bar aims to become one of the most full-featured bars available.
 
 ## Installation and User Guide
