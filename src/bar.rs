@@ -1062,8 +1062,14 @@ impl ImageBlock {
     fn load_image(
         &self,
         file_name: &str,
-        fit_to_height: f64,
+        mut fit_to_height: f64,
     ) -> anyhow::Result<cairo::ImageSurface> {
+        if let Some(max_image_height) = self.config.image_options.max_image_height {
+            tracing::info!("MIH: {}", max_image_height);
+            if (max_image_height as f64) < fit_to_height {
+                fit_to_height = max_image_height as f64;
+            }
+        }
         match PathBuf::from_str(file_name)?.extension() {
             Some(s) if s == "svg" => self.load_svg(file_name, fit_to_height),
             _ => self.load_raster(file_name, fit_to_height),

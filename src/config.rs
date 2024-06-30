@@ -540,18 +540,8 @@ impl NumberBlock<Option<Placeholder>> {
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
-#[serde(tag = "image_position")]
-pub enum ImagePosition {
-    #[default]
-    Fill,
-    Center,
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
-#[serde(rename_all = "snake_case")]
 pub struct ImageOptions {
-    #[serde(default)]
-    pub image_position: ImagePosition,
+    pub max_image_height: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -561,7 +551,7 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub inherit: Option<String>,
     #[serde(flatten)]
     pub display: DisplayOptions<Dynamic>,
-    #[serde(default)]
+    #[serde(flatten)]
     pub image_options: ImageOptions,
     #[serde(flatten)]
     pub input: Input<Dynamic>,
