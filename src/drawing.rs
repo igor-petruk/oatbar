@@ -52,6 +52,10 @@ impl ImageLoader {
         // rgba => bgra (reverse argb)
         for rgba in buf.chunks_mut(4) {
             rgba.swap(0, 2);
+            // Pre-multiplying.
+            for i in 0..3 {
+                rgba[i] = (rgba[i] as u16 * rgba[3] as u16 / 256) as u8;
+            }
         }
         image.data()?.copy_from_slice(buf);
         Ok(image)
@@ -67,12 +71,16 @@ impl ImageLoader {
             // Do not scale up.
             scale = 1.0;
         }
-        let img_buf = image::imageops::resize(
-            &img_buf,
-            (img_buf.width() as f32 * scale) as u32,
-            (img_buf.height() as f32 * scale) as u32,
-            image::imageops::FilterType::Triangle,
-        );
+        let img_buf = if (scale - 1.0).abs() < 0.01 {
+            img_buf
+        } else {
+            image::imageops::resize(
+                &img_buf,
+                (img_buf.width() as f32 * scale) as u32,
+                (img_buf.height() as f32 * scale) as u32,
+                image::imageops::FilterType::Triangle,
+            )
+        };
         let (w, h) = (img_buf.width(), img_buf.height());
         Self::image_from_rgba8(&mut img_buf.into_raw(), w.try_into()?, h.try_into()?)
     }
