@@ -19,9 +19,10 @@ any significant coding effort.
 
 | Feature | **`oatbar`** | Basic bars | Bars with built-in plugins | DIY toolbar kits |
 |---------|:-------:|:-----:|:----:|:------:|
-| [Built-in data](configuration/cookbook/data.md) | **✅** | **✅** | **✅** | - |
+| [Built-in system data](configuration/cookbook/data.md) | **✅** | **✅** | **✅** | - |
 | [Text widgets from custom data](configuration/block.md#text-block) | **✅** | **✅** | **✅** | **✅** |
-| [Advanced widgets from a custom script](configuration/block.md) | **✅** | - | - | **✅** |
+| [Advanced widgets](configuration/block.md) | **✅** | **✅** | - | **✅** |
+| [Advanced widgets with data from a custom script](configuration/block.md) | **✅** | - | - | **✅** |
 | [Display image files from a custom script](configuration/block.md#image-block) | **✅** | - | - | **✅** |
 | [Generate images dynamically in a custom script](configuration/cookbook/advanced.md#dynamic-image-block) | **✅** | - | - | **✅** |
 | [Control all appearance from a custom script](cookbook/appearance.md) | **✅** | - | - | **✅** |
@@ -59,9 +60,13 @@ value = '${clock:value}'
 ```
 
 Here `clock` command sends plain text, but `desktop` streams
-structured data in JSON. Both are connected to text and selector
-widgets. `desktop` ships with `oatbar`, but it is an external tool
-to the bar, as can be your script.
+structured data in JSON. Each is connected to text and enum selector
+widgets respectively. `oatbar-desktop` ships with `oatbar`, but it is an external tool
+to a bar, as can be replaced your own script. 
+
+Feel free to run `oatbar-desktop` and investigate it's output. `oatbar` consumes
+[multiple text formats](configuration/command.md#formats) and this data can be
+displayed with minimal configuration on widgets called [blocks](configuration/block.md).
 
 ## Next Steps
 

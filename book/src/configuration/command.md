@@ -99,9 +99,10 @@ and `window_title`. Multiple entries with the same `name`, but different
 network interfaces from a network plugin).
 
 The output from above will set
-the following variables.
+the following variables, run `oatbar` and see them in real-time
 
-```ini
+```shell
+$ oatctl var ls
 desktop:workspace.active=0
 desktop:workspace.value=1
 desktop:workspace.variants=1,2,3
