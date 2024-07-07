@@ -206,6 +206,8 @@ widgets.
 
 It involves writing/reading files from the
 disk on each update. Building animations is possible, but
-not efficient.
+not efficient, which can matter for you if you are on
+laptop battery. You can use `tmpfs` to save on disk writes,
+but not so much on CPU cycles.
 
 </div>

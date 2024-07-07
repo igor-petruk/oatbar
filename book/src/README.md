@@ -1,4 +1,4 @@
-# Oatbar
+# Oatbar - standalone desktop bar
 
 [![Latest Version](https://img.shields.io/crates/v/oatbar.svg)](https://crates.io/crates/oatbar)
 ![Latest Build](https://img.shields.io/github/actions/workflow/status/igor-petruk/oatbar/on-push.yml)
@@ -6,28 +6,29 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/igor-petruk/oatbar)
 ![Crates.io](https://img.shields.io/crates/d/oatbar?label=Cargo.io%20downloads)
 
-`Oatbar` a standalone desktop bar that can be used with various WMs and DEs focused
-on customizability.
-
 ![Panel Left](panel-sample-left.png)
 ![Panel Right](panel-sample-right.png)
-
 [![Screenshot](main.png)](main.png)
 
-If you have experience with bars like `i3bar`, you are familiar with the protocols 
-through which bar plugins stream data to be displayed on the bar. 
+The motivation for creation of `oatbar` was to extend on the idea of Unix-way for toolbars.
+Inspired by `i3bar` which consumes a JSON stream that controls it's appearance, we take this
+idea much further without becoming a DIY widget toolkit.
 
-The usual format is text with some formatting capabilities. More complex widgets like
-progress bars, selections or images are usually limited to built-in modules. 
-Other bars choose the opposite approach and function exsentialy as widget toolkits.
+JSON, CSV or plain text streams can be turned into text panels, progress bars or even images without
+any significant coding effort.
 
-`Oatbar` combines the best of both worlds
-
-* Embrace text formats popular in the ecosystem 
-* Represent custom data in various widgets without coding
-* Provide plugins to support common tasks
-
-Example:
+| Feature | **`oatbar`** | Basic bars | Bars with built-in plugins | DIY toolbar kits |
+|---------|:-------:|:-----:|:----:|:------:|
+| [Built-in data](configuration/cookbook/data.md) | **✅** | **✅** | **✅** | - |
+| [Text widgets from custom data](configuration/block.md#text-block) | **✅** | **✅** | **✅** | **✅** |
+| [Advanced widgets from a custom script](configuration/block.md) | **✅** | - | - | **✅** |
+| [Display image files from a custom script](configuration/block.md#image-block) | **✅** | - | - | **✅** |
+| [Generate images dynamically in a custom script](configuration/cookbook/advanced.md#dynamic-image-block) | **✅** | - | - | **✅** |
+| [Control all appearance from a custom script](cookbook/appearance.md) | **✅** | - | - | **✅** |
+| [Minimal coding](#example) | **✅** | **✅** | **✅** | - |
+| [Built-in plugins have no appearance advantage over custom scripts](configuration/cookbook/data.md#common-blocks) | **✅** | - | - | **✅** |
+| [Unix-way input via pipes means customization programming language is not forced upon you](configuration/command) | **✅** | **✅** | **✅** | - |
+## Example
 
 ```toml
 [[bar]]
