@@ -1096,7 +1096,7 @@ dependencies = [
 
 [[package]]
 name = "oatbar"
-version = "0.0.32"
+version = "0.0.33"
 dependencies = [
  "anyhow",
  "bytesize",
