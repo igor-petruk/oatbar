@@ -479,7 +479,7 @@ impl Window {
                 tracing::error!("Showing popup failed: {:?}", e);
             }
         }
-        let (visible, show_only, redraw) = {
+        let (visible, show_only, mut redraw) = {
             let mut visibility_control = self.visibility_control.write().unwrap();
             if let Some(visible_from_vars) = updates.visible_from_vars {
                 visibility_control.set_default_visibility(visible_from_vars)?;
@@ -507,7 +507,10 @@ impl Window {
         };
 
         if visible && redraw != bar::RedrawScope::None {
-            self.bar.layout_groups(self.width as f64, &show_only);
+            let layout_changed = self.bar.layout_groups(self.width as f64, &show_only);
+            if layout_changed {
+                redraw = bar::RedrawScope::All;
+            }
 
             self.render_bar(&redraw)?;
         }

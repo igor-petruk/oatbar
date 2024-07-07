@@ -1286,7 +1286,8 @@ impl BlockGroup {
         &mut self,
         entire_bar_visible: bool,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) {
+    ) -> bool {
+        let old_layout = self.layout.clone();
         self.layout = self.build_layout(entire_bar_visible, show_only);
         let mut dim = Dimensions {
             width: 0.0,
@@ -1298,6 +1299,7 @@ impl BlockGroup {
             dim.height = dim.height.max(b_dim.height);
         }
         self.dimensions = dim;
+        self.layout == old_layout
     }
 
     fn lookup_block(
@@ -1545,7 +1547,7 @@ impl Bar {
         &mut self,
         drawing_area_width: f64,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) {
+    ) -> bool {
         let entire_bar_visible = self
             .left_group
             .visible_per_popup_mode(show_only, config::PopupMode::Bar)
@@ -1556,15 +1558,17 @@ impl Bar {
                 .right_group
                 .visible_per_popup_mode(show_only, config::PopupMode::Bar);
 
-        self.left_group.layout_group(entire_bar_visible, show_only);
-        self.center_group
+        let left_changed = self.left_group.layout_group(entire_bar_visible, show_only);
+        let center_changed = self
+            .center_group
             .layout_group(entire_bar_visible, show_only);
-        self.right_group.layout_group(entire_bar_visible, show_only);
+        let right_changed = self.right_group.layout_group(entire_bar_visible, show_only);
 
         let width = drawing_area_width
             - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;
         self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
         self.right_group_pos = width - self.right_group.dimensions.width;
+        left_changed || center_changed || right_changed
     }
 
     pub fn handle_button_press(&mut self, x: i16, y: i16, button: Button) -> anyhow::Result<()> {
