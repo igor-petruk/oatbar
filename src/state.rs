@@ -23,7 +23,6 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Clone, Debug, Default)]
 pub struct State {
     pub vars: HashMap<String, String>,
-    pub bars: Vec<config::Bar<String>>,
     pub error: Option<String>,
     pub command_errors: BTreeMap<String, String>,
     pub var_snapshot_updates_tx: Vec<crossbeam_channel::Sender<VarSnapshotUpdate>>,

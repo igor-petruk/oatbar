@@ -1,12 +1,14 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
-    str::FromStr,
     sync::{Arc, Mutex},
 };
+#[cfg(feature = "image")]
+use std::{path::PathBuf, str::FromStr};
 
+#[cfg(feature = "raster")]
 use anyhow::Context as AnyhowContext;
 use pangocairo::pango;
+#[cfg(feature = "svg")]
 use resvg::{tiny_skia, usvg};
 use xcb::x;
 
@@ -28,20 +30,25 @@ impl FontCache {
     }
 }
 
+#[cfg(feature = "image")]
 pub type Image = cairo::ImageSurface;
 
 #[derive(Eq, Hash, Clone, PartialEq, Debug)]
+#[cfg(feature = "image")]
 pub struct ImageKey {
     file_name: String,
     fit_to_height: u32,
 }
 
 #[derive(Clone)]
+#[cfg(feature = "image")]
 pub struct ImageLoader {
     cache: HashMap<ImageKey, Image>,
 }
 
+#[cfg(feature = "image")]
 impl ImageLoader {
+    #[cfg(any(feature = "raster", feature = "svg"))]
     fn image_from_rgba8(
         buf: &mut [u8],
         width: i32,
@@ -61,6 +68,7 @@ impl ImageLoader {
         Ok(image)
     }
 
+    #[cfg(feature = "raster")]
     fn load_raster(file_name: &str, fit_to_height: f64) -> anyhow::Result<cairo::ImageSurface> {
         let img_buf = image::io::Reader::open(file_name)?
             .decode()
@@ -85,6 +93,7 @@ impl ImageLoader {
         Self::image_from_rgba8(&mut img_buf.into_raw(), w.try_into()?, h.try_into()?)
     }
 
+    #[cfg(feature = "svg")]
     fn load_svg(file_name: &str, fit_to_height: f64) -> anyhow::Result<cairo::ImageSurface> {
         let tree = {
             let mut opt = usvg::Options {
@@ -115,8 +124,16 @@ impl ImageLoader {
 
     fn do_load_image(&self, file_name: &str, fit_to_height: f64) -> anyhow::Result<Image> {
         match PathBuf::from_str(file_name)?.extension() {
+            #[cfg(feature = "svg")]
             Some(s) if s == "svg" => Self::load_svg(file_name, fit_to_height),
+            #[cfg(feature = "raster")]
             _ => Self::load_raster(file_name, fit_to_height),
+            #[cfg(not(feature = "raster"))]
+            ext => Err(anyhow::anyhow!(
+                "Image format support for {} is not enabled",
+                ext.map(|s| s.to_string_lossy())
+                    .unwrap_or("<no extension>".into())
+            )),
         }
     }
 
@@ -166,6 +183,7 @@ pub struct Context {
     pub pango_context: Option<pango::Context>,
     pub mode: Mode,
     pub font_cache: Arc<Mutex<FontCache>>,
+    #[cfg(feature = "image")]
     pub image_loader: ImageLoader,
     pub pointer_position: Option<(i16, i16)>,
     pub hover: bool,
@@ -194,7 +212,7 @@ impl Color {
 impl Context {
     pub fn new(
         font_cache: Arc<Mutex<FontCache>>,
-        image_loader: ImageLoader,
+        #[cfg(feature = "image")] image_loader: ImageLoader,
         buffer: x::Pixmap,
         buffer_surface: cairo::XCBSurface,
         mode: Mode,
@@ -209,6 +227,7 @@ impl Context {
         };
         Ok(Self {
             font_cache,
+            #[cfg(feature = "image")]
             image_loader,
             buffer,
             buffer_surface,

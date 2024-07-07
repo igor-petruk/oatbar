@@ -540,12 +540,14 @@ impl NumberBlock<Option<Placeholder>> {
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
+#[cfg(feature = "image")]
 pub struct ImageOptions {
     pub max_image_height: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[cfg(feature = "image")]
 pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub name: String,
     pub inherit: Option<String>,
@@ -560,6 +562,7 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub event_handlers: EventHandlers<Dynamic>,
 }
 
+#[cfg(feature = "image")]
 impl ImageBlock<Option<Placeholder>> {
     pub fn with_default(
         self,
@@ -592,6 +595,7 @@ pub enum Block<Dynamic: Clone + Default + Debug> {
     Text(TextBlock<Dynamic>),
     Enum(EnumBlock<Dynamic>),
     Number(NumberBlock<Dynamic>),
+    #[cfg(feature = "image")]
     Image(ImageBlock<Dynamic>),
 }
 
@@ -601,6 +605,7 @@ impl Block<Option<Placeholder>> {
             Block::Text(e) => &e.inherit,
             Block::Enum(e) => &e.inherit,
             Block::Number(e) => &e.inherit,
+            #[cfg(feature = "image")]
             Block::Image(e) => &e.inherit,
         }
     }
@@ -612,6 +617,7 @@ impl Block<Option<Placeholder>> {
             Block::Enum(e) => (e.name.clone(), Block::Enum(e.with_default(default_block))),
             Block::Text(e) => (e.name.clone(), Block::Text(e.with_default(default_block))),
             Block::Number(e) => (e.name.clone(), Block::Number(e.with_default(default_block))),
+            #[cfg(feature = "image")]
             Block::Image(e) => (e.name.clone(), Block::Image(e.with_default(default_block))),
         }
     }
@@ -817,8 +823,6 @@ impl Var<Option<Placeholder>> {
 pub struct Config<Dynamic: Clone + Default + Debug> {
     pub bar: Vec<Bar<Dynamic>>,
     #[serde(skip)]
-    pub default_block: HashMap<Option<String>, DefaultBlock<Dynamic>>,
-    #[serde(skip)]
     pub blocks: HashMap<String, Block<Dynamic>>,
     #[serde(skip)]
     pub vars: HashMap<String, Var<Dynamic>>,
@@ -866,7 +870,6 @@ impl Config<Option<Placeholder>> {
             .collect();
         Config {
             bar: self.bar.iter().map(|b| b.with_default()).collect(),
-            default_block: default_block_map,
             blocks,
             var_order: self.vars_vec.iter().map(|v| v.name.clone()).collect(),
             vars: self

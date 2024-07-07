@@ -3,6 +3,7 @@ use xcb::{randr, x};
 
 use crate::xutils;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Monitor {
     pub name: String,

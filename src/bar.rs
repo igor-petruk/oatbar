@@ -978,13 +978,16 @@ impl Block for EnumBlock {
 }
 
 #[derive(Debug)]
+#[cfg(feature = "image")]
 struct ImageBlock {
     config: config::ImageBlock<Placeholder>,
     image_buf: Option<cairo::ImageSurface>,
 }
 
+#[cfg(feature = "image")]
 impl DebugBlock for ImageBlock {}
 
+#[cfg(feature = "image")]
 impl ImageBlock {
     fn load_image(
         &self,
@@ -1020,6 +1023,7 @@ impl ImageBlock {
     }
 }
 
+#[cfg(feature = "image")]
 impl Block for ImageBlock {
     fn handle_event(&self, event: &BlockEvent) -> anyhow::Result<()> {
         handle_block_event(
@@ -1459,6 +1463,7 @@ impl Bar {
                 bar_config.height as f64,
                 number.clone(),
             ))),
+            #[cfg(feature = "image")]
             config::Block::Image(image) => {
                 Some(ImageBlock::new(bar_config.height as f64, image.clone()))
             }

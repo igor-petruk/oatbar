@@ -320,12 +320,14 @@ impl Window {
         )?;
 
         let font_cache = Arc::new(Mutex::new(drawing::FontCache::new()));
+        #[cfg(feature = "image")]
         let image_loader = drawing::ImageLoader::new();
 
         let back_buffer_surface =
             make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
         let back_buffer_context = drawing::Context::new(
             font_cache.clone(),
+            #[cfg(feature = "image")]
             image_loader.clone(),
             back_buffer,
             back_buffer_surface,
@@ -352,6 +354,7 @@ impl Window {
         )?;
         let shape_buffer_context = drawing::Context::new(
             font_cache,
+            #[cfg(feature = "image")]
             image_loader,
             shape_buffer,
             shape_buffer_surface,
@@ -642,10 +645,18 @@ fn make_pixmap_surface(
     width: u16,
     height: u16,
 ) -> anyhow::Result<cairo::XCBSurface> {
-    let cairo_xcb_connection =
-        unsafe { cairo::XCBConnection::from_raw_none(std::mem::transmute(conn.get_raw_conn())) };
-    let cairo_xcb_visual =
-        unsafe { cairo::XCBVisualType::from_raw_none(std::mem::transmute(visual as *mut _)) };
+    let cairo_xcb_connection = unsafe {
+        cairo::XCBConnection::from_raw_none(std::mem::transmute::<
+            *mut xcb::ffi::xcb_connection_t,
+            *mut cairo::ffi::xcb_connection_t,
+        >(conn.get_raw_conn()))
+    };
+    let cairo_xcb_visual = unsafe {
+        cairo::XCBVisualType::from_raw_none(std::mem::transmute::<
+            *mut xcb::x::Visualtype,
+            *mut cairo::ffi::xcb_visualtype_t,
+        >(visual as *mut _))
+    };
 
     let pixmap_surface = cairo::XCBSurface::create(
         &cairo_xcb_connection,
@@ -667,8 +678,12 @@ fn make_pixmap_surface_for_bitmap(
     width: u16,
     height: u16,
 ) -> anyhow::Result<cairo::XCBSurface> {
-    let cairo_xcb_connection =
-        unsafe { cairo::XCBConnection::from_raw_none(std::mem::transmute(conn.get_raw_conn())) };
+    let cairo_xcb_connection = unsafe {
+        cairo::XCBConnection::from_raw_none(std::mem::transmute::<
+            *mut xcb::ffi::xcb_connection_t,
+            *mut cairo::ffi::xcb_connection_t,
+        >(conn.get_raw_conn()))
+    };
     let cairo_xcb_screen = unsafe {
         cairo::XCBScreen::from_raw_none(
             screen as *const _ as *mut x::Screen as *mut cairo::ffi::xcb_screen_t,
