@@ -14,7 +14,7 @@ The motivation for creation of `oatbar` was to extend on the idea of Unix-way fo
 Inspired by `i3bar` which consumes a JSON stream that controls it's appearance, we take this
 idea much further without becoming a DIY widget toolkit.
 
-JSON, CSV or plain text streams can be turned into text panels, progress bars or even images without
+JSON or plain text streams can be turned into text panels, progress bars or even images without
 any significant coding effort.
 
 | Feature | **`oatbar`** | Basic bars | Bars with built-in plugins | DIY toolbar kits |
