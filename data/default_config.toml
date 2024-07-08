@@ -63,6 +63,7 @@ type = 'text'
 value = ':: ${desktop:window_title.value} ::'
 show_if_matches = [['${desktop:window_title.value}','.+']]
 pango_markup = false
+on_mouse_left="rofi -show window"
 
 [[block]]
 name='sep'
