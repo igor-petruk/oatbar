@@ -1,12 +1,15 @@
 [[bar]]
 height=32
-blocks_left=[ "workspace", "active_window"]
+blocks_left=[ "launcher", "workspace", "active_window"]
 blocks_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
 background="#191919dd"
 
 [[var]]
 name="theme_color"
-value="#facd5a"
+value="#c7f2bb"
+#value="#facd5a"
+#value="#f9dbff"
+#value="#9cf7ff"
 
 [[default_block]]
 background="#191919dd"
@@ -32,6 +35,12 @@ command="oatbar-desktop"
 [[command]]
 name="keyboard"
 command="oatbar-keyboard"
+
+[[block]]
+name="launcher"
+type="text"
+value="<span foreground='${theme_color}'>Run</span>"
+on_mouse_left="rofi -show drun"
 
 [[block]]
 name = 'workspace'
