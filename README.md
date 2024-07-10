@@ -14,6 +14,12 @@ Oatbar is a standalone desktop bar that can be used with various WMs and DEs. Th
 
 Please proceed to the [oatbar.app](https://oatbar.app)
 
+№№ Ideas
+
+I truly aspire to build something unique, what other status bars lack. Do you have a cool feature you'd like to see in oatbar?
+
+Join the disussion https://github.com/igor-petruk/oatbar/discussions
+
 ## Disclaimer
 
 This is not an officially supported Google product.
