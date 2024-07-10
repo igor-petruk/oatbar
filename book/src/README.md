@@ -72,7 +72,7 @@ displayed with minimal configuration on widgets called [blocks](configuration/bl
 
 I truly aspire to build something unique with `oatbar`, something what other status bars lack. Do you have a cool or unconventional feature you'd like to see in `oatbar`?
 
-[Join the disussion and brainstom!](https://github.com/igor-petruk/oatbar/discussions)
+[Join the disussion and brainstorm!](https://github.com/igor-petruk/oatbar/discussions)
 
 ## Next Steps
 
