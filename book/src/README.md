@@ -68,6 +68,12 @@ Feel free to run `oatbar-desktop` and investigate it's output. `oatbar` consumes
 [multiple text formats](configuration/command.md#formats) and this data can be
 displayed with minimal configuration on widgets called [blocks](configuration/block.md).
 
+## Ideas
+
+I truly aspire to build something unique, what other status bars lack. Do you have a cool feature you'd like to see in oatbar?
+
+Join the disussion https://github.com/igor-petruk/oatbar/discussions
+
 ## Next Steps
 
 * [Installation](./installation.md)
