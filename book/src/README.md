@@ -70,9 +70,9 @@ displayed with minimal configuration on widgets called [blocks](configuration/bl
 
 ## Ideas
 
-I truly aspire to build something unique, what other status bars lack. Do you have a cool feature you'd like to see in oatbar?
+I truly aspire to build something unique with `oatbar`, something what other status bars lack. Do you have a cool or unconventional feature you'd like to see in `oatbar`?
 
-[Join the disussion](https://github.com/igor-petruk/oatbar/discussions)
+[Join the disussion and brainstom!](https://github.com/igor-petruk/oatbar/discussions)
 
 ## Next Steps
 
