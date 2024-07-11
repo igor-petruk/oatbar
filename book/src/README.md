@@ -29,7 +29,7 @@ any significant coding effort.
 | [Minimal coding](#example) | **✅** | **✅** | **✅** | - |
 | [Built-in plugins have no appearance advantage over custom scripts](configuration/cookbook/data.md#common-blocks) | **✅** | - | - | **✅** |
 | [Unix-way input via pipes means customization programming language is not forced upon you](configuration/command) | **✅** | **✅** | **✅** | - |
-| [Can consume data from **other** ecosystems like community scripts for `polybar`, `i3blocks`, `i3status`](configuration/command) | **✅**[^other_eco] | - | - | **✅** |
+| [Can consume data from *other* ecosystems like community scripts for `polybar`, `i3blocks`, `i3status`](configuration/cookbook/data.md#third-party-sources) | **✅**[^other_eco] | - | - | **✅** |
 
 [^other_eco]: In can be partial, like lack of support for `polybar` formatting, but a lot of scripts are useful.
 
