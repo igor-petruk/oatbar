@@ -70,7 +70,7 @@ impl ImageLoader {
 
     #[cfg(feature = "raster")]
     fn load_raster(file_name: &str, fit_to_height: f64) -> anyhow::Result<cairo::ImageSurface> {
-        let img_buf = image::io::Reader::open(file_name)?
+        let img_buf = image::ImageReader::open(file_name)?
             .decode()
             .context("Unable to decode image")?
             .into_rgba8();
