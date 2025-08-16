@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use anyhow::Context;
+use cairo::glib::subclass::shared::RefCounted;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use xcb::{x, xinput};
@@ -55,6 +56,17 @@ impl Engine {
             setup.roots().next().unwrap()
         }
         .to_owned();
+
+        use std::ffi::c_void;
+        use std::ptr::NonNull;
+        let _xcb_display_handler = unsafe {
+            raw_window_handle::XcbDisplayHandle::new(
+                Some(NonNull::new_unchecked(conn.as_ptr() as *mut c_void)),
+                0,
+            )
+        };
+
+        
 
         tracing::info!(
             "XInput init: {:?}",
