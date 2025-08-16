@@ -343,7 +343,7 @@ impl NumberType {
         }
         let number = match self {
             Self::Number => Ok(text.trim().parse()?),
-            Self::Percent => Ok(text.trim_end_matches(&[' ', '\t', '%']).trim().parse()?),
+            Self::Percent => Ok(text.trim_end_matches([' ', '\t', '%']).trim().parse()?),
             Self::Bytes => Ok(text
                 .trim()
                 .parse::<bytesize::ByteSize>()
