@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap};
 use std::process::Stdio;
-use std::{io::Read, path::PathBuf};
+use std::{fmt::Write, io::Read, path::PathBuf};
 use tracing::debug;
 
 const DATA_INPUT_FORMAT: &str = r#"
@@ -47,6 +47,49 @@ pub enum VariableKind {
     },
     Boolean,
     Number,
+}
+
+impl VariableKind {
+    pub fn to_schema(&self) -> serde_json::Value {
+        match self {
+            VariableKind::String {
+                allowed_answers,
+                max_length,
+            } => {
+                if let Some(answers) = allowed_answers {
+                    json!({ "type": "string", "enum": answers })
+                } else if let Some(max_len) = max_length {
+                    json!({ "type": "string", "maxLength": max_len })
+                } else {
+                    json!({ "type": "string" })
+                }
+            }
+            VariableKind::Boolean => json!({ "type": "boolean" }),
+            VariableKind::Number => json!({ "type": "number" }),
+        }
+    }
+
+    pub fn describe_allowed_answers(&self) -> String {
+        match self {
+            VariableKind::String {
+                allowed_answers,
+                max_length,
+            } => {
+                let mut description = String::new();
+                if let Some(answers) = allowed_answers {
+                    description.push_str(&format!("{:?} without quotes", answers));
+                } else {
+                    description.push_str("any string");
+                    if let Some(max_len) = max_length {
+                        description.push_str(&format!(" (max length: {})", max_len));
+                    }
+                }
+                description
+            }
+            VariableKind::Boolean => "true or false".to_string(),
+            VariableKind::Number => "any number".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,23 +186,7 @@ fn generate_schema(variables: &[Variable]) -> anyhow::Result<llm::chat::Structur
     let mut required = vec![];
 
     for variable in variables {
-        let value_schema = match &variable.kind {
-            VariableKind::String {
-                allowed_answers,
-                max_length,
-            } => {
-                if let Some(answers) = allowed_answers {
-                    json!({ "type": "string", "enum": answers })
-                } else if let Some(max_len) = max_length {
-                    json!({ "type": "string", "maxLength": max_len })
-                } else {
-                    json!({ "type": "string" })
-                }
-            }
-            VariableKind::Boolean => json!({ "type": "boolean" }),
-            VariableKind::Number => json!({ "type": "number" }),
-        };
-        properties.insert(variable.name.clone(), value_schema);
+        properties.insert(variable.name.clone(), variable.kind.to_schema());
         required.push(variable.name.clone());
     }
 
@@ -175,65 +202,80 @@ fn generate_schema(variables: &[Variable]) -> anyhow::Result<llm::chat::Structur
     Ok(serde_json::from_value(schema)?)
 }
 
-fn generate_prompt(config: &Config, comman_results: &HashMap<String, RunResult>) -> String {
+fn generate_prompt(
+    config: &Config,
+    comman_results: &HashMap<String, RunResult>,
+) -> anyhow::Result<String> {
     let mut prompt = String::new();
-    prompt.push_str("# Role\n");
+    writeln!(prompt, "# Role")?;
     if let Some(role) = &config.model.role {
-        prompt.push_str(&format!("{}\n", role));
+        writeln!(prompt, "{}", role)?;
     } else {
-        prompt.push_str(
+        writeln!(
+            prompt,
             r#"You are an expert Linux System Administrator and DevOps Engineer.
 Your goal is to analyze raw command line output, identify anomalies,
 track historical changes, and provide actionable conclusions.
-"#,
-        );
+"#
+        )?;
     }
-    prompt.push_str("\n# Data Input Format\n");
-    prompt.push_str(DATA_INPUT_FORMAT);
-    prompt.push_str("\n# Command Outputs\n");
+    writeln!(prompt, "\n# Data Input Format")?;
+    write!(prompt, "{}", DATA_INPUT_FORMAT)?;
+    writeln!(prompt, "\n# Command Outputs")?;
     for (name, result) in comman_results {
         let dt: DateTime<Local> = Local.timestamp_opt(result.timestamp as i64, 0).unwrap();
-        prompt.push_str("```\n");
-        prompt.push_str(&format!(
-            "<cmd name=\"{}\" timestamp=\"{}\" exit_code=\"{}\">\n<output>\n{}</output>\n</cmd>\n\n",
+        writeln!(prompt, "```")?;
+        writeln!(
+            prompt,
+            "<cmd name=\"{}\" timestamp=\"{}\" exit_code=\"{}\">\n<output>\n{}</output>\n</cmd>\n",
             name,
             dt.format("%Y-%m-%d %H:%M:%S %Z"),
             result.exit_code,
             result.stdout
-        ));
-        prompt.push_str("```\n");
+        )?;
+        writeln!(prompt, "```")?;
     }
 
-    prompt.push_str("\n# Variables with questions to answer\n");
-    prompt.push_str("Answer each question below populating the variable with the answer.\n\n");
+    writeln!(prompt, "\n# Variables with questions to answer")?;
+    writeln!(
+        prompt,
+        "Answer each question below populating the variable with the answer.\n"
+    )?;
     for variable in &config.variables {
-        prompt.push_str(&format!("## {}\n", variable.name));
-        prompt.push_str(&format!("* **Question:** {}\n", variable.question));
-        prompt.push_str("* **Allowed answers:** ");
-        match &variable.kind {
-            VariableKind::String {
-                allowed_answers,
-                max_length,
-            } => {
-                if let Some(answers) = allowed_answers {
-                    prompt.push_str(&format!("{:?} without quotes", answers));
-                } else {
-                    prompt.push_str("any string");
-                    if let Some(max_len) = max_length {
-                        prompt.push_str(&format!(" (max length: {})", max_len));
-                    }
-                }
-                prompt.push_str("\n");
-            }
-            VariableKind::Boolean => {
-                prompt.push_str("true or false\n");
-            }
-            VariableKind::Number => {
-                prompt.push_str("any number\n");
-            }
-        }
+        writeln!(prompt, "## {}", variable.name)?;
+        writeln!(prompt, "* **Question:** {}", variable.question)?;
+        writeln!(
+            prompt,
+            "* **Allowed answers:** {}",
+            variable.kind.describe_allowed_answers()
+        )?;
     }
-    prompt
+    Ok(prompt)
+}
+
+fn print_i3bar_output(response_text: &str) -> anyhow::Result<()> {
+    let response_json: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(response_text).context("Failed to parse response")?;
+    debug!("Response JSON: {:#?}", response_json);
+
+    println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+    println!("[");
+
+    let mut blocks = vec![];
+    for (key, value) in response_json {
+        let full_text = format!("{}: {}", key, value.to_string());
+        let mut others = BTreeMap::new();
+        others.insert("value".to_string(), value);
+        blocks.push(i3bar::Block {
+            full_text,
+            name: Some(key),
+            instance: None,
+            other: others,
+        });
+    }
+    println!("{},", serde_json::to_string(&blocks)?);
+    println!("]");
+    Ok(())
 }
 
 #[tokio::main]
@@ -251,7 +293,7 @@ async fn main() -> anyhow::Result<()> {
 
     let command_result = run_commands(&config.commands).context("Failed to run commands")?;
 
-    let prompt = generate_prompt(&config, &command_result);
+    let prompt = generate_prompt(&config, &command_result)?;
     debug!("Prompt:\n{}", prompt);
 
     let schema = generate_schema(&config.variables).context("Failed to generate schema")?;
@@ -273,28 +315,7 @@ async fn main() -> anyhow::Result<()> {
     let response = llm.chat(&messages).await?;
     debug!("Response: {:#?}", response);
 
-    let response_json: serde_json::Map<String, serde_json::Value> =
-        serde_json::from_str(&response.text().expect("Failed to get response text"))
-            .context("Failed to parse response")?;
-    debug!("Response JSON: {:#?}", response_json);
-
-    println!("{}", serde_json::to_string(&i3bar::Header::default())?);
-    println!("[");
-
-    let mut blocks = vec![];
-    for (key, value) in response_json {
-        let full_text = format!("{}: {}", key, value.to_string());
-        let mut others = BTreeMap::new();
-        others.insert("value".to_string(), value);
-        blocks.push(i3bar::Block {
-            full_text,
-            name: Some(key),
-            instance: None,
-            other: others,
-        });
-    }
-    println!("{},", serde_json::to_string(&blocks)?);
-    println!("]");
+    print_i3bar_output(&response.text().context("Failed to get response text")?)?;
 
     Ok(())
 }
