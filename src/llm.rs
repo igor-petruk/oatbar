@@ -273,7 +273,7 @@ fn print_i3bar_output(response_text: &str) -> anyhow::Result<()> {
             other: others,
         });
     }
-    println!("{},", serde_json::to_string(&blocks)?);
+    println!("{}", serde_json::to_string(&blocks)?);
     println!("]");
     Ok(())
 }
@@ -299,11 +299,16 @@ async fn main() -> anyhow::Result<()> {
     let schema = generate_schema(&config.variables).context("Failed to generate schema")?;
     debug!("Schema:\n{:#?}", schema);
 
-    let api_key = std::env::var("GOOGLE_API_KEY")?;
+    let mut key_path = dirs::config_dir().context("Missing config dir")?;
+    key_path.push("oatbar");
+    key_path.push(format!("{}_api_key", config.model.provider));
+
+    let api_key = std::fs::read_to_string(&key_path)
+        .context(format!("Failed to read api key from {:?}", key_path))?;
     let llm = llm::builder::LLMBuilder::new()
         .backend(config.model.provider.parse().context("Invalid backend")?)
         .model(&config.model.name)
-        .api_key(api_key)
+        .api_key(api_key.trim())
         .schema(schema)
         .max_tokens(1000)
         .temperature(0.5)
