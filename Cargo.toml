@@ -38,6 +38,10 @@ name="oatbar-stats"
 path="src/stats.rs"
 
 [[bin]]
+name="oatbar-llm"
+path="src/llm.rs"
+
+[[bin]]
 name="oatctl"
 path="src/cli.rs"
 
@@ -79,10 +83,13 @@ macro_rules_attribute = "0.2.0"
 crossbeam-channel = "0.5.8"
 clap = {version="4.4.8", features=["derive"]}
 fork = "0.2"
+llm = { version= "1.3", features=["google", "default-tls"], default-features=false }
+tokio = { version = "1", features = ["full"] }
 libc = "0.2.150"
 systemstat = "0.2.3"
 nix = { version = "0.30", features = ["net"] }
 image = { version = "0.25.1", optional=true, default-features = false }
 resvg = {version = "0.45", optional=true}
+chrono = { version = "0.4.42", features = ["serde"] }
 
 
