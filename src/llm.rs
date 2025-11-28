@@ -263,7 +263,12 @@ fn print_i3bar_output(response_text: &str) -> anyhow::Result<()> {
 
     let mut blocks = vec![];
     for (key, value) in response_json {
-        let full_text = format!("{}: {}", key, value.to_string());
+        let value_str = if let Some(s) = value.as_str() {
+            s.to_string()
+        } else {
+            value.to_string()
+        };
+        let full_text = format!("{}: {}", key, value_str);
         let mut others = BTreeMap::new();
         others.insert("value".to_string(), value);
         blocks.push(i3bar::Block {
