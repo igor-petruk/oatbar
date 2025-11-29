@@ -29,6 +29,7 @@ pub struct Model {
     name: String,
     role: Option<String>,
     temperature: Option<f32>,
+    url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -315,20 +316,33 @@ async fn main() -> anyhow::Result<()> {
     let prompt = generate_prompt(&config, &command_result)?;
     debug!("Prompt:\n{}", prompt);
 
-    let mut key_path = dirs::config_dir().context("Missing config dir")?;
-    key_path.push("oatbar");
-    key_path.push(format!("{}_api_key", config.model.provider));
-
-    let api_key = std::fs::read_to_string(&key_path)
-        .context(format!("Failed to read api key from {:?}", key_path))?;
-    let llm = llm::builder::LLMBuilder::new()
+    let mut builder = llm::builder::LLMBuilder::new()
         .backend(config.model.provider.parse().context("Invalid backend")?)
         .model(&config.model.name)
-        .api_key(api_key.trim())
         .schema(schema)
         .max_tokens(1000)
-        .temperature(config.model.temperature.unwrap_or(0.5))
-        .build()?;
+        .temperature(config.model.temperature.unwrap_or(0.5));
+
+    if config.model.provider == "ollama" {
+        let url = config
+            .model
+            .url
+            .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+        builder = builder.base_url(&url).api_key("");
+    } else {
+        let mut key_path = dirs::config_dir().context("Missing config dir")?;
+        key_path.push("oatbar");
+        key_path.push(format!("{}_api_key", config.model.provider));
+
+        let api_key = std::fs::read_to_string(&key_path)
+            .context(format!("Failed to read api key from {:?}", key_path))?;
+        builder = builder.api_key(api_key.trim());
+        if let Some(url) = &config.model.url {
+            builder = builder.base_url(url);
+        }
+    }
+
+    let llm = builder.build()?;
 
     let messages = vec![llm::chat::ChatMessage::user().content(&prompt).build()];
 

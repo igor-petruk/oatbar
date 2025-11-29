@@ -65,7 +65,7 @@ llm-openai = ["llm", "llm/openai"]
 llm-anthropic = ["llm", "llm/anthropic"]
 llm-mistral = ["llm", "llm/mistral"]
 llm-xai = ["llm", "llm/xai"]
-# llm-ollama = ["llm", "llm/ollama"]
+llm-ollama = ["llm", "llm/ollama"]
 
 [dependencies]
 pprof = { version = "0.15", features = ["flamegraph"], optional = true }
