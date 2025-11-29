@@ -3,7 +3,6 @@ mod protocol;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Local, TimeZone};
 use clap::Parser;
-use llm;
 use protocol::i3bar;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -331,8 +330,7 @@ async fn main() -> anyhow::Result<()> {
         .temperature(config.model.temperature.unwrap_or(0.5))
         .build()?;
 
-    let mut messages = vec![];
-    messages.push(llm::chat::ChatMessage::user().content(&prompt).build());
+    let messages = vec![llm::chat::ChatMessage::user().content(&prompt).build()];
 
     let response = llm.chat(&messages).await?;
     debug!("Response: {:#?}", response);
