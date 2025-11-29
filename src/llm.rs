@@ -29,6 +29,7 @@ pub struct Model {
     provider: String,
     name: String,
     role: Option<String>,
+    temperature: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -196,7 +197,8 @@ fn generate_schema(variables: &[Variable]) -> anyhow::Result<llm::chat::Structur
         "type": "object",
            "properties": properties,
            "required": required
-        }
+        },
+        "strict": false
     });
 
     Ok(serde_json::from_value(schema)?)
@@ -235,6 +237,16 @@ track historical changes, and provide actionable conclusions.
         )?;
         writeln!(prompt, "```")?;
     }
+
+    writeln!(prompt, "\n# Output Format")?;
+    writeln!(
+        prompt,
+        "You must output ONLY a valid JSON object without any suffix or prefix."
+    )?;
+    writeln!(
+        prompt,
+        "Especially no wrapping in Markdown or any other format."
+    )?;
 
     writeln!(prompt, "\n# Variables with questions to answer")?;
     writeln!(
@@ -298,11 +310,11 @@ async fn main() -> anyhow::Result<()> {
 
     let command_result = run_commands(&config.commands).context("Failed to run commands")?;
 
-    let prompt = generate_prompt(&config, &command_result)?;
-    debug!("Prompt:\n{}", prompt);
-
     let schema = generate_schema(&config.variables).context("Failed to generate schema")?;
     debug!("Schema:\n{:#?}", schema);
+
+    let prompt = generate_prompt(&config, &command_result)?;
+    debug!("Prompt:\n{}", prompt);
 
     let mut key_path = dirs::config_dir().context("Missing config dir")?;
     key_path.push("oatbar");
@@ -316,7 +328,7 @@ async fn main() -> anyhow::Result<()> {
         .api_key(api_key.trim())
         .schema(schema)
         .max_tokens(1000)
-        .temperature(0.5)
+        .temperature(config.model.temperature.unwrap_or(0.5))
         .build()?;
 
     let mut messages = vec![];
