@@ -23,6 +23,7 @@ mod engine;
 #[allow(unused)]
 mod ipc;
 mod ipcserver;
+mod logging;
 mod notify;
 #[allow(unused_macros)]
 mod parse;
@@ -61,12 +62,7 @@ fn main() -> anyhow::Result<()> {
         .build()
         .unwrap();
 
-    let sub = tracing_subscriber::fmt().compact().with_thread_names(true);
-
-    #[cfg(debug_assertions)]
-    let sub = sub.with_max_level(tracing::Level::TRACE);
-
-    sub.init();
+    let _logging_guard = logging::init(&cli.instance_name)?;
 
     let config = config::load()?;
     let commands = config.commands.clone();

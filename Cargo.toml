@@ -83,6 +83,7 @@ serde_regex = "1.1.0"
 serde_with = { version = "3", default-features = false, features = ["macros", "std"] }
 toml = "0.9"
 tracing = "0.1"
+tracing-appender = "0.2"
 tracing-subscriber = "0.3"
 xcb = { version = "1.4", features = ["randr", "xkb", "xlib_xcb", "xinput"] }
 itertools = "0.14"
