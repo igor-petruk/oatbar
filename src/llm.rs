@@ -30,6 +30,11 @@ pub struct Model {
     role: Option<String>,
     temperature: Option<f32>,
     url: Option<String>,
+    retries: Option<usize>,
+    #[serde(default, with = "serde_ext_duration::opt")]
+    back_off: Option<std::time::Duration>,
+    #[serde(default, with = "serde_ext_duration::opt")]
+    max_back_off: Option<std::time::Duration>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -320,6 +325,21 @@ async fn main() -> anyhow::Result<()> {
         .backend(config.model.provider.parse().context("Invalid backend")?)
         .model(&config.model.name)
         .schema(schema)
+        .resilient(true)
+        .resilient(true)
+        .resilient_attempts(config.model.retries.unwrap_or(5))
+        .resilient_backoff(
+            config
+                .model
+                .back_off
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(1000),
+            config
+                .model
+                .max_back_off
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(5000),
+        )
         .max_tokens(1000)
         .temperature(config.model.temperature.unwrap_or(0.5));
 

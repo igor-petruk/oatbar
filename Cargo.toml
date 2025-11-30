@@ -99,5 +99,6 @@ nix = { version = "0.30", features = ["net"] }
 image = { version = "0.25.1", optional=true, default-features = false }
 resvg = {version = "0.45", optional=true}
 chrono = { version = "0.4.42", features = ["serde"] }
+serde_ext_duration = "0.2.0"
 
 

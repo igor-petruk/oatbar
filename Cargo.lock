@@ -1570,6 +1570,7 @@ dependencies = [
  "regex",
  "resvg",
  "serde",
+ "serde_ext_duration",
  "serde_json",
  "serde_regex",
  "serde_with",
@@ -2203,6 +2204,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_ext_duration"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a1ab2dc017bad452572ecd4fe2f101c6d5cc1f6367697c109762a8dd4d9397f"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
