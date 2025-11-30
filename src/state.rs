@@ -20,6 +20,12 @@ use anyhow::Context;
 
 use std::collections::{BTreeMap, HashMap};
 
+#[derive(Clone, Debug)]
+pub struct ErrorMessage {
+    pub source: String,
+    pub message: String,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct State {
     pub vars: HashMap<String, String>,
@@ -50,11 +56,17 @@ impl State {
         }
     }
 
-    pub fn build_error_msg(&self) -> Option<String> {
+    pub fn build_error_msg(&self) -> Option<ErrorMessage> {
         if let Some(error) = &self.error {
-            Some(error.clone())
+            Some(ErrorMessage {
+                source: "oatbar_internal".into(),
+                message: error.clone(),
+            })
         } else if let Some((cmd, error)) = self.command_errors.first_key_value() {
-            Some(format!("{}: {}", cmd, error))
+            Some(ErrorMessage {
+                source: cmd.clone(),
+                message: error.clone(),
+            })
         } else {
             None
         }

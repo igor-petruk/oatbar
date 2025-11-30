@@ -25,7 +25,7 @@ use pangocairo::pango;
 
 use crate::{
     config::{self, AnyUpdated},
-    drawing,
+    drawing, notify,
     parse::{self, Placeholder},
     process,
 };
@@ -1406,12 +1406,14 @@ pub struct Bar {
     right_group: BlockGroup,
     right_group_pos: f64,
     last_update_pointer_position: Option<(i16, i16)>,
+    notifier: notify::Notifier,
 }
 
 impl Bar {
     pub fn new(
         config: &config::Config<parse::Placeholder>,
         bar_config: config::Bar<Placeholder>,
+        notifier: notify::Notifier,
     ) -> anyhow::Result<Self> {
         let left_group = Self::make_block_group(&bar_config.blocks_left, config, &bar_config);
         let center_group = Self::make_block_group(&bar_config.blocks_center, config, &bar_config);
@@ -1426,6 +1428,7 @@ impl Bar {
             right_group_pos: 0.0,
             last_update_pointer_position: None,
             bar_config,
+            notifier,
         })
     }
 
@@ -1488,17 +1491,29 @@ impl Bar {
         Self::build_widget(bar_config, &config::Block::Text(config)).unwrap()
     }
 
-    pub fn set_error(&mut self, drawing_context: &mut drawing::Context, error: Option<String>) {
-        if let Some(ref error) = error {
+    pub fn set_error(
+        &mut self,
+        drawing_context: &mut drawing::Context,
+        error: Option<crate::state::ErrorMessage>,
+    ) {
+        if let Some(error) = error {
+            let error_name = format!("bar_error_{}", error.source);
+            if let Ok(true) = self
+                .notifier
+                .send(&error_name, "Oatbar Error", &error.message)
+            {
+                return;
+            }
+
             let mut vars = HashMap::new();
-            vars.insert("error".to_string(), error.replace('\n', " "));
+            vars.insert("error".to_string(), error.message.replace('\n', " "));
             if let Err(e) =
                 self.error_block
                     .update(drawing_context, &vars, self.bar_config.height as f64)
             {
                 tracing::error!("Failed displaying error block: {:?}", e);
             }
-            self.error = Some(error.clone());
+            self.error = Some(error.message.clone());
         }
     }
 

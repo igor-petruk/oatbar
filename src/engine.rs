@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use xcb::{x, xinput};
 
-use crate::{bar, config, parse, state, thread, window, wmready, xutils};
+use crate::{bar, config, notify, parse, state, thread, window, wmready, xutils};
 
 pub struct Engine {
     windows: HashMap<x::Window, window::Window>,
@@ -33,6 +33,7 @@ impl Engine {
     pub fn new(
         config: config::Config<parse::Placeholder>,
         initial_state: state::State,
+        notifier: notify::Notifier,
     ) -> anyhow::Result<Self> {
         let state = Arc::new(RwLock::new(initial_state));
         let (update_tx, update_rx) = crossbeam_channel::unbounded();
@@ -80,6 +81,7 @@ impl Engine {
                 state.clone(),
                 update_tx.clone(),
                 &wm_info,
+                notifier.clone(),
             )?;
             windows.insert(window.id, window);
         }

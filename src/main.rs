@@ -23,6 +23,7 @@ mod engine;
 #[allow(unused)]
 mod ipc;
 mod ipcserver;
+mod notify;
 #[allow(unused_macros)]
 mod parse;
 mod process;
@@ -74,7 +75,7 @@ fn main() -> anyhow::Result<()> {
 
     let state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
 
-    let mut engine = engine::Engine::new(config, state)?;
+    let mut engine = engine::Engine::new(config, state, notify::Notifier::new())?;
 
     let mut poker = source::Poker::new();
     for (index, config) in commands.into_iter().enumerate() {

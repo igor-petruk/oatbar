@@ -22,7 +22,7 @@ use xcb::{x, xinput, Xid};
 
 use crate::{
     bar::{self, BarUpdates, BlockUpdates},
-    config, drawing, parse, state, timer, wmready, xutils,
+    config, drawing, notify, parse, state, timer, wmready, xutils,
 };
 use tracing::*;
 
@@ -150,6 +150,7 @@ pub struct Window {
 }
 
 impl Window {
+    #[allow(clippy::too_many_arguments)]
     pub fn create_and_show(
         name: String,
         // bar_index: usize,
@@ -159,6 +160,7 @@ impl Window {
         state: Arc<RwLock<state::State>>,
         state_update_tx: crossbeam_channel::Sender<state::Update>,
         wm_info: &wmready::WMInfo,
+        notifier: notify::Notifier,
     ) -> anyhow::Result<Self> {
         info!("Loading bar {:?}", name);
         let screen = {
@@ -404,7 +406,7 @@ impl Window {
 
         let visible = !bar_config.popup;
 
-        let bar = bar::Bar::new(config, bar_config.clone())?;
+        let bar = bar::Bar::new(config, bar_config.clone(), notifier.clone())?;
 
         Ok(Self {
             conn: conn.clone(),
@@ -457,7 +459,10 @@ impl Window {
             {
                 Ok(updates) => updates,
                 Err(e) => {
-                    error = Some(format!("Error: {:?}", e));
+                    error = Some(state::ErrorMessage {
+                        source: "bar_update".into(),
+                        message: format!("Error: {:?}", e),
+                    });
                     BarUpdates {
                         block_updates: BlockUpdates {
                             redraw: bar::RedrawScope::All,
@@ -468,7 +473,8 @@ impl Window {
                 }
             };
 
-        self.bar.set_error(&mut self.back_buffer_context, error);
+        self.bar
+            .set_error(&mut self.back_buffer_context, error.clone());
 
         if from_os {
             updates.block_updates.redraw = bar::RedrawScope::All;
