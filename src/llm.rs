@@ -23,8 +23,23 @@ I will provide the output of one or more Unix commands below enclosed in XML tag
 - The `<stdout>` tag contains the unescaped, raw text returned by the shell.
 "#;
 
+#[derive(Parser)]
+#[command(
+    author, version,
+    about = "LLM util for oatbar",
+    long_about = None)]
+#[command(propagate_version = true)]
+#[derive(Debug)]
+struct Cli {
+    #[clap(short, long)]
+    config: Option<PathBuf>,
+    /// If true, do not output JSON, instead explain the LLM's reasoning in plain text.
+    #[clap(short, long, default_value = "false")]
+    explain: bool,
+}
+
 #[derive(Debug, Deserialize)]
-pub struct Model {
+pub struct LLM {
     provider: String,
     name: String,
     role: Option<String>,
@@ -108,7 +123,8 @@ pub struct Variable {
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    model: Model,
+    #[serde(rename = "model")]
+    llm: LLM,
     #[serde(rename = "command", default)]
     commands: Vec<Command>,
     #[serde(rename = "variable", default)]
@@ -175,18 +191,6 @@ pub fn load(config_path: &Option<PathBuf>) -> anyhow::Result<Config> {
     Ok(config)
 }
 
-#[derive(Parser)]
-#[command(
-    author, version,
-    about = "LLM util for oatbar",
-    long_about = None)]
-#[command(propagate_version = true)]
-#[derive(Debug)]
-struct Cli {
-    #[clap(short, long)]
-    config: Option<PathBuf>,
-}
-
 fn generate_schema(variables: &[Variable]) -> anyhow::Result<llm::chat::StructuredOutputFormat> {
     let mut properties = serde_json::Map::new();
     let mut required = vec![];
@@ -210,20 +214,20 @@ fn generate_schema(variables: &[Variable]) -> anyhow::Result<llm::chat::Structur
 }
 
 fn generate_prompt(
+    cli: &Cli,
     config: &Config,
     comman_results: &HashMap<String, RunResult>,
 ) -> anyhow::Result<String> {
     let mut prompt = String::new();
     writeln!(prompt, "# Role")?;
-    if let Some(role) = &config.model.role {
+    if let Some(role) = &config.llm.role {
         writeln!(prompt, "{}", role)?;
     } else {
         writeln!(
             prompt,
             r#"You are an expert Linux System Administrator and DevOps Engineer.
 Your goal is to analyze raw command line output, identify anomalies,
-track historical changes, and provide actionable conclusions.
-"#
+track historical changes, and provide actionable conclusions."#
         )?;
     }
     writeln!(prompt, "\n# Data Input Format")?;
@@ -244,14 +248,25 @@ track historical changes, and provide actionable conclusions.
     }
 
     writeln!(prompt, "\n# Output Format")?;
-    writeln!(
-        prompt,
-        "You must output ONLY a valid JSON object without any suffix or prefix."
-    )?;
-    writeln!(
-        prompt,
-        "Especially no wrapping in Markdown or any other format."
-    )?;
+    if cli.explain {
+        writeln!(
+            prompt,
+            "This is debug mode. You must explain your reasoning in plain text."
+        )?;
+        writeln!(
+            prompt,
+            "After the explanation include a section with the variable values that you have chosen."
+        )?;
+    } else {
+        writeln!(
+            prompt,
+            "You must output ONLY a valid JSON object without any suffix or prefix."
+        )?;
+        writeln!(
+            prompt,
+            "Especially no wrapping in Markdown or any other format."
+        )?;
+    }
 
     writeln!(prompt, "\n# Variables with questions to answer")?;
     writeln!(
@@ -318,46 +333,58 @@ async fn main() -> anyhow::Result<()> {
     let schema = generate_schema(&config.variables).context("Failed to generate schema")?;
     debug!("Schema:\n{:#?}", schema);
 
-    let prompt = generate_prompt(&config, &command_result)?;
+    let prompt = generate_prompt(&cli, &config, &command_result)?;
     debug!("Prompt:\n{}", prompt);
 
     let mut builder = llm::builder::LLMBuilder::new()
-        .backend(config.model.provider.parse().context("Invalid backend")?)
-        .model(&config.model.name)
-        .schema(schema)
+        .backend(config.llm.provider.parse().context("Invalid backend")?)
+        .model(&config.llm.name);
+
+    if !cli.explain {
+        builder = builder.schema(schema);
+    }
+
+    let mut builder = builder
         .resilient(true)
-        .resilient(true)
-        .resilient_attempts(config.model.retries.unwrap_or(5))
+        .resilient_attempts(config.llm.retries.unwrap_or(5))
         .resilient_backoff(
             config
-                .model
+                .llm
                 .back_off
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(1000),
             config
-                .model
+                .llm
                 .max_back_off
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(5000),
         )
-        .max_tokens(1000)
-        .temperature(config.model.temperature.unwrap_or(0.5));
+        .max_tokens(3000)
+        .temperature(config.llm.temperature.unwrap_or(0.9))
+        .validator_attempts(config.llm.retries.unwrap_or(5))
+        .validator(|text| {
+            if text.is_empty() {
+                Err("Response is empty".to_string())
+            } else {
+                Ok(())
+            }
+        });
 
-    if config.model.provider == "ollama" {
+    if config.llm.provider == "ollama" {
         let url = config
-            .model
+            .llm
             .url
             .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
         builder = builder.base_url(&url).api_key("");
     } else {
         let mut key_path = dirs::config_dir().context("Missing config dir")?;
         key_path.push("oatbar-llm");
-        key_path.push(format!("{}_api_key", config.model.provider));
+        key_path.push(format!("{}_api_key", config.llm.provider));
 
         let api_key = std::fs::read_to_string(&key_path)
             .context(format!("Failed to read api key from {:?}", key_path))?;
         builder = builder.api_key(api_key.trim());
-        if let Some(url) = &config.model.url {
+        if let Some(url) = &config.llm.url {
             builder = builder.base_url(url);
         }
     }
@@ -369,7 +396,17 @@ async fn main() -> anyhow::Result<()> {
     let response = llm.chat(&messages).await?;
     debug!("Response: {:#?}", response);
 
-    print_i3bar_output(&response.text().context("Failed to get response text")?)?;
+    if cli.explain {
+        println!("--------------------- Prompt ------------------------");
+        println!("{}", prompt);
+        println!("--------------------- Response ----------------------");
+        println!(
+            "{}",
+            response.text().context("Failed to get response text")?
+        );
+    } else {
+        print_i3bar_output(&response.text().context("Failed to get response text")?)?;
+    }
 
     Ok(())
 }
