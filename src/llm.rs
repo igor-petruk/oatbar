@@ -12,8 +12,6 @@ use std::{fmt::Write, io::Read, path::PathBuf};
 use tracing::debug;
 
 const DATA_INPUT_FORMAT: &str = r#"
-# System Role
-
 # Data Input Format
 I will provide the output of one or more Unix commands below enclosed in XML tags.
 - The `<cmd>` tag contains the exact command executed.
@@ -22,6 +20,12 @@ I will provide the output of one or more Unix commands below enclosed in XML tag
   - The `name` attribute of the `<cmd>` tag contains the name of the command to be referred later.
 - The `<stdout>` tag contains the unescaped, raw text returned by the shell.
 "#;
+
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are an intelligent assistant for a status bar.
+Your primary role is system monitoring, analyzing command outputs to identify anomalies and key metrics.
+However, you are also capable of processing general queries, summarizing news, or generating creative content when asked.
+Always provide concise, relevant information suitable for a status bar display. 
+If asked for longer explanation, then you can provide it."#;
 
 #[derive(Debug, Clone, Copy, ValueEnum, Default, PartialEq)]
 enum OutputMode {
@@ -248,13 +252,15 @@ fn generate_prompt(
     if let Some(role) = &config.llm.role {
         writeln!(prompt, "{}", role)?;
     } else {
-        writeln!(
-            prompt,
-            r#"You are an expert Linux System Administrator and DevOps Engineer.
-Your goal is to analyze raw command line output, identify anomalies,
-track historical changes, and provide actionable conclusions."#
-        )?;
+        writeln!(prompt, "{}", DEFAULT_SYSTEM_PROMPT)?;
     }
+    writeln!(prompt, "\n# Context")?;
+    writeln!(
+        prompt,
+        "Current System Time: {}",
+        Local::now().format("%Y-%m-%d %H:%M:%S %Z")
+    )?;
+
     writeln!(prompt, "\n# Data Input Format")?;
     write!(prompt, "{}", DATA_INPUT_FORMAT)?;
     writeln!(prompt, "\n# Command Outputs")?;
@@ -443,7 +449,7 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or(5000),
         )
         .max_tokens(config.llm.max_tokens.unwrap_or(3000) as u32)
-        .temperature(config.llm.temperature.unwrap_or(0.9))
+        .temperature(config.llm.temperature.unwrap_or(0.6))
         .validator_attempts(config.llm.retries.unwrap_or(5))
         .validator(|text| {
             if text.is_empty() {
