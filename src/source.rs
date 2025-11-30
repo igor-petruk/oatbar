@@ -193,6 +193,7 @@ impl Command {
         let mut child = std::process::Command::new("sh")
             .arg("-c")
             .arg(&self.config.command)
+            .stderr(std::process::Stdio::inherit())
             .stdout(std::process::Stdio::piped())
             .spawn()
             .context("Failed spawning")?;
