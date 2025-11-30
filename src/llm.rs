@@ -2,7 +2,7 @@ mod protocol;
 
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Local, TimeZone};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use protocol::i3bar;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -23,6 +23,14 @@ I will provide the output of one or more Unix commands below enclosed in XML tag
 - The `<stdout>` tag contains the unescaped, raw text returned by the shell.
 "#;
 
+#[derive(Debug, Clone, Copy, ValueEnum, Default, PartialEq)]
+enum OutputMode {
+    #[default]
+    Json,
+    Debug,
+    Custom,
+}
+
 #[derive(Parser)]
 #[command(
     author, version,
@@ -33,9 +41,16 @@ I will provide the output of one or more Unix commands below enclosed in XML tag
 struct Cli {
     #[clap(short, long)]
     config: Option<PathBuf>,
-    /// If true, do not output JSON, instead explain the LLM's reasoning in plain text.
-    #[clap(short, long, default_value = "false")]
-    explain: bool,
+    #[clap(short, long, default_value = "json")]
+    mode: OutputMode,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum SchemaMode {
+    Off,
+    #[default]
+    Auto,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,12 +59,17 @@ pub struct LLM {
     name: String,
     role: Option<String>,
     temperature: Option<f32>,
+    max_tokens: Option<usize>,
     url: Option<String>,
     retries: Option<usize>,
     #[serde(default, with = "serde_ext_duration::opt")]
     back_off: Option<std::time::Duration>,
     #[serde(default, with = "serde_ext_duration::opt")]
     max_back_off: Option<std::time::Duration>,
+    output_format_prompt: Option<String>,
+    #[serde(default)]
+    schema_mode: SchemaMode,
+    schema: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,7 +143,7 @@ pub struct Variable {
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    #[serde(rename = "model")]
+    #[serde()]
     llm: LLM,
     #[serde(rename = "command", default)]
     commands: Vec<Command>,
@@ -248,24 +268,34 @@ track historical changes, and provide actionable conclusions."#
     }
 
     writeln!(prompt, "\n# Output Format")?;
-    if cli.explain {
-        writeln!(
-            prompt,
-            "This is debug mode. You must explain your reasoning in plain text."
-        )?;
-        writeln!(
-            prompt,
-            "After the explanation include a section with the variable values that you have chosen."
-        )?;
-    } else {
-        writeln!(
-            prompt,
-            "You must output ONLY a valid JSON object without any suffix or prefix."
-        )?;
-        writeln!(
-            prompt,
-            "Especially no wrapping in Markdown or any other format."
-        )?;
+    match cli.mode {
+        OutputMode::Debug => {
+            writeln!(
+                prompt,
+                "This is debug mode. You must explain your reasoning in plain text."
+            )?;
+            writeln!(
+                prompt,
+                "After the explanation include a section with the variable values that you have chosen."
+            )?;
+        }
+        OutputMode::Json => {
+            writeln!(
+                prompt,
+                "You must output ONLY a valid JSON object without any suffix or prefix."
+            )?;
+            writeln!(
+                prompt,
+                "Especially no wrapping in Markdown or any other format."
+            )?;
+        }
+        OutputMode::Custom => {
+            if let Some(format_prompt) = &config.llm.output_format_prompt {
+                writeln!(prompt, "{}", format_prompt)?;
+            } else {
+                return Err(anyhow!("output_format_prompt is required for custom mode"));
+            }
+        }
     }
 
     writeln!(prompt, "\n# Variables with questions to answer")?;
@@ -331,7 +361,6 @@ async fn main() -> anyhow::Result<()> {
     let command_result = run_commands(&config.commands).context("Failed to run commands")?;
 
     let schema = generate_schema(&config.variables).context("Failed to generate schema")?;
-    debug!("Schema:\n{:#?}", schema);
 
     let prompt = generate_prompt(&cli, &config, &command_result)?;
     debug!("Prompt:\n{}", prompt);
@@ -340,9 +369,24 @@ async fn main() -> anyhow::Result<()> {
         .backend(config.llm.provider.parse().context("Invalid backend")?)
         .model(&config.llm.name);
 
-    if !cli.explain {
+    let schema_mode = if cli.mode == OutputMode::Debug {
+        SchemaMode::Off
+    } else if config.llm.schema_mode == SchemaMode::Off && cli.mode == OutputMode::Json {
+        SchemaMode::Auto
+    } else {
+        config.llm.schema_mode
+    };
+
+    debug!("Schema mode: {:#?}", schema_mode);
+    if schema_mode == SchemaMode::Auto {
+        let schema = if let Some(schema_str) = config.llm.schema.clone() {
+            serde_json::from_str(&schema_str).context("Failed to parse schema")?
+        } else {
+            schema
+        };
+        debug!("Schema:\n{:#?}", schema);
         builder = builder.schema(schema);
-    }
+    };
 
     let mut builder = builder
         .resilient(true)
@@ -359,7 +403,7 @@ async fn main() -> anyhow::Result<()> {
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(5000),
         )
-        .max_tokens(3000)
+        .max_tokens(config.llm.max_tokens.unwrap_or(3000) as u32)
         .temperature(config.llm.temperature.unwrap_or(0.9))
         .validator_attempts(config.llm.retries.unwrap_or(5))
         .validator(|text| {
@@ -396,10 +440,15 @@ async fn main() -> anyhow::Result<()> {
     let response = llm.chat(&messages).await?;
     debug!("Response: {:#?}", response);
 
-    if cli.explain {
+    if cli.mode == OutputMode::Debug {
         println!("--------------------- Prompt ------------------------");
         println!("{}", prompt);
         println!("--------------------- Response ----------------------");
+        println!(
+            "{}",
+            response.text().context("Failed to get response text")?
+        );
+    } else if cli.mode == OutputMode::Custom {
         println!(
             "{}",
             response.text().context("Failed to get response text")?
