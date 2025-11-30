@@ -74,6 +74,7 @@ pub struct LLM {
     #[serde(default)]
     schema_mode: SchemaMode,
     schema: Option<String>,
+    knowledge_base: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -260,6 +261,17 @@ fn generate_prompt(
         "Current System Time: {}",
         Local::now().format("%Y-%m-%d %H:%M:%S %Z")
     )?;
+
+    if let Some(kb_path) = &config.llm.knowledge_base {
+        if kb_path.exists() {
+            let kb_content =
+                std::fs::read_to_string(kb_path).context("Failed to read knowledge base")?;
+            writeln!(prompt, "\n# Knowledge Base")?;
+            writeln!(prompt, "{}", kb_content)?;
+        } else {
+            return Err(anyhow!("Knowledge base file not found: {:?}", kb_path));
+        }
+    }
 
     writeln!(prompt, "\n# Data Input Format")?;
     write!(prompt, "{}", DATA_INPUT_FORMAT)?;
