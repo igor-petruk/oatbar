@@ -137,6 +137,7 @@ impl VariableKind {
 pub struct Variable {
     name: String,
     question: String,
+    write_to: Option<PathBuf>,
     #[serde(flatten)]
     kind: VariableKind,
 }
@@ -315,6 +316,34 @@ track historical changes, and provide actionable conclusions."#
     Ok(prompt)
 }
 
+fn write_variables_to_files(response_text: &str, variables: &[Variable]) -> anyhow::Result<()> {
+    let response_json: serde_json::Map<String, serde_json::Value> =
+        match serde_json::from_str(response_text) {
+            Ok(json) => json,
+            Err(_) => {
+                debug!("Failed to parse response as JSON, skipping file writing");
+                return Ok(());
+            }
+        };
+
+    for variable in variables {
+        if let Some(path) = &variable.write_to {
+            if let Some(value) = response_json.get(&variable.name) {
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent).context("Failed to create parent dir")?;
+                }
+                let value_str = if let Some(s) = value.as_str() {
+                    s.to_string()
+                } else {
+                    value.to_string()
+                };
+                std::fs::write(path, value_str).context("Failed to write to file")?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn print_i3bar_output(response_text: &str) -> anyhow::Result<()> {
     let response_json: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(response_text).context("Failed to parse response")?;
@@ -440,21 +469,18 @@ async fn main() -> anyhow::Result<()> {
     let response = llm.chat(&messages).await?;
     debug!("Response: {:#?}", response);
 
+    let response_text = response.text().context("Failed to get response text")?;
+    write_variables_to_files(&response_text, &config.variables)?;
+
     if cli.mode == OutputMode::Debug {
         println!("--------------------- Prompt ------------------------");
         println!("{}", prompt);
         println!("--------------------- Response ----------------------");
-        println!(
-            "{}",
-            response.text().context("Failed to get response text")?
-        );
+        println!("{}", response_text);
     } else if cli.mode == OutputMode::Custom {
-        println!(
-            "{}",
-            response.text().context("Failed to get response text")?
-        );
+        println!("{}", response_text);
     } else {
-        print_i3bar_output(&response.text().context("Failed to get response text")?)?;
+        print_i3bar_output(&response_text)?;
     }
 
     Ok(())
