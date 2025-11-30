@@ -217,7 +217,11 @@ fn generate_schema(variables: &[Variable]) -> anyhow::Result<llm::chat::Structur
     let mut required = vec![];
 
     for variable in variables {
-        properties.insert(variable.name.clone(), variable.kind.to_schema());
+        let mut schema = variable.kind.to_schema();
+        if let Some(obj) = schema.as_object_mut() {
+            obj.insert("description".to_string(), json!(variable.question));
+        }
+        properties.insert(variable.name.clone(), schema);
         required.push(variable.name.clone());
     }
 
@@ -299,24 +303,30 @@ track historical changes, and provide actionable conclusions."#
         }
     }
 
-    writeln!(prompt, "\n# Variables with questions to answer")?;
-    writeln!(
-        prompt,
-        "Answer each question below populating the variable with the answer.\n"
-    )?;
-    for variable in &config.variables {
-        writeln!(prompt, "## {}", variable.name)?;
-        writeln!(prompt, "* **Question:** {}", variable.question)?;
+    if !config.variables.is_empty() {
+        writeln!(prompt, "\n# Variables with questions to answer")?;
         writeln!(
             prompt,
-            "* **Allowed answers:** {}",
-            variable.kind.describe_allowed_answers()
+            "Answer each question below populating the variable with the answer.\n"
         )?;
+        for variable in &config.variables {
+            writeln!(prompt, "## {}", variable.name)?;
+            writeln!(prompt, "* **Question:** {}", variable.question)?;
+            writeln!(
+                prompt,
+                "* **Allowed answers:** {}",
+                variable.kind.describe_allowed_answers()
+            )?;
+        }
     }
     Ok(prompt)
 }
 
 fn write_variables_to_files(response_text: &str, variables: &[Variable]) -> anyhow::Result<()> {
+    if variables.is_empty() {
+        return Ok(());
+    }
+
     let response_json: serde_json::Map<String, serde_json::Value> =
         match serde_json::from_str(response_text) {
             Ok(json) => json,
