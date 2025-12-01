@@ -15,7 +15,7 @@ Inspired by `i3bar` which consumes a JSON stream that controls it's appearance, 
 idea much further without becoming a DIY widget toolkit.
 
 JSON or plain text streams can be turned into text panels, progress bars or even images without
-any significant coding effort.
+any significant coding effort. It also ships with first-class support for LLMs (Large Language Models) to process your data.
 
 | Feature | **`oatbar`** | Basic bars | Bars with built-in plugins | DIY toolbar kits |
 |---------|:-------:|:-----:|:----:|:------:|
@@ -30,6 +30,7 @@ any significant coding effort.
 | [Built-in plugins have no appearance advantage over custom scripts](configuration/cookbook/data.md#common-blocks) | **✅** | - | - | **✅** |
 | [Unix-way input via pipes means customization programming language is not forced upon you](configuration/command) | **✅** | **✅** | **✅** | - |
 | [Consume data from *other* ecosystems like community scripts for `polybar`, `i3blocks`, `i3status`, `conky`](configuration/cookbook/data.md#third-party-sources) | **✅**[^other_eco] | - | - | **✅** |
+| [**NEW:** LLM Integration (Gemini, ChatGPT, Ollama, etc.)](configuration/cookbook/llm.md) | **✅** | - | - | **✅** |
 
 [^other_eco]: In can be partial, like the lack of support for `polybar` formatting, but a lot of scripts are useful.
 
