@@ -205,6 +205,15 @@ type = 'text'
 value = '<b>/home</b> ${home_free:value}'
 ```
 
+### LLM
+
+`oatbar` ships with `oatbar-llm`, a powerful utility that uses LLMs to process data and return it in `i3bar` format.
+
+Due to the power and flexibility of this feature, it has its own dedicated section in the cookbook.
+
+See [LLM Cookbook](./llm.md) for examples and [LLM Configuration](../reference/llm.md) for full reference.
+
+
 ## Third-party sources
 
 Existing bar ecosystems already can provide large mount of useful information.
