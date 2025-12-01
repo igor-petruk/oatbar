@@ -82,53 +82,28 @@ interval = 1800
 name = "health_check"
 type = "string"
 question = "Analyze this system report and summarize the health status. Highlight any resource hogs. Up to 5 words"
-"""
-```
-
-#### System Status Summary
-Analyze system logs and metrics to provide a high-level summary of the system health.
-
-**1. Configure `~/.config/oatbar-llm/config.toml`**
-
-```toml
-[llm]
-provider="google"
-name="gemini-2.5-flash"
-
-[[command]]
-command="journalctl -p err -n 50 --no-pager"
-
-[[command]]
-command="df -h"
 
 [[variable]]
-name="status"
-type="string"
-question="Based on the logs and disk usage, what is the system status?"
-allowed_answers=["OK", "WARNING", "CRITICAL"]
-
-[[variable]]
-name="summary"
-type="string"
-question="Provide a very brief, one-sentence summary of the system state."
-write_to="/tmp/system_summary.md"
+name = "health_report"
+type = "string"
+question = "Generate a detailed bulleted report of the system health based on the data."
+write_to = "/tmp/health_report.md"
 ```
 
-**2. Configure `oatbar`**
+**3. Configure `oatbar`**
 
 ```toml
 [[command]]
-name="llm"
+name="conky_ai"
 command="oatbar-llm"
-interval=3600
+interval=1800
 
 [[block]]
-name="llm_status"
+name="health"
 type="text"
-value="${llm:status.value}"
-on_mouse_left="xdg-open /tmp/system_summary.md"
+value="${conky_ai:health_check.value}"
+on_mouse_left="xdg-open /tmp/health_report.md"
 ```
-
 
 #### Git Repository Status
 
@@ -187,7 +162,8 @@ command="journalctl -u sshd -n 20 --no-pager"
 [[variable]]
 name="security_alert"
 type="string"
-question="Analyze open ports and sshd logs. Is there any suspicious activity? Answer 'Safe' or 'Suspicious: <reason>'."
+question="Analyze open ports and sshd logs. Is there any suspicious activity?"
+allowed_answers=["Safe", "Suspicious"]
 ```
 
 **2. Configure `oatbar`**
@@ -237,41 +213,6 @@ interval=7200
 name="outfit"
 type="text"
 value="Wear: ${outfit_ai:outfit.value}"
-```
-
-#### Resource Hog Analyzer
-
-Identify resource-hogging processes and suggest actions.
-
-**1. Configure `~/.config/oatbar-llm/config.toml`**
-
-```toml
-[llm]
-provider="google"
-name="gemini-2.5-flash"
-
-[[command]]
-name="top_procs"
-command="ps aux --sort=-%cpu | head -n 6"
-
-[[variable]]
-name="proc_analysis"
-type="string"
-question="Identify the process using the most CPU. Is it normal? Output format: 'High CPU: <process> (<percent>%)'."
-```
-
-**2. Configure `oatbar`**
-
-```toml
-[[command]]
-name="proc_ai"
-command="oatbar-llm"
-interval=60
-
-[[block]]
-name="proc_health"
-type="text"
-value="${proc_ai:proc_analysis.value}"
 ```
 
 #### Standup Meeting Helper

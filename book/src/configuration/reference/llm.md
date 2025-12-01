@@ -21,7 +21,7 @@ Configures the LLM provider and global behavior.
 | `temperature` | float | `0.6` | Controls randomness (0.0 = deterministic, 1.0 = creative). |
 | `max_tokens` | int | `3000` | Maximum number of tokens in the response. |
 | `url` | string | `None` | Custom API URL (useful for local LLMs or proxies). |
-| `knowledge_base` | path | `None` | Path to a text file containing static context/preferences to include in the prompt. |
+| `knowledge_base` | path | `None` | Path to a text file containing static context/preferences to include in the prompt. **Must be an absolute path (no `~`).** |
 | `output_format_prompt` | string | `None` | Custom instruction for output format (required if using `Custom` output mode). |
 | `retries` | int | `5` | Number of retries for failed API calls. |
 | `back_off` | duration | `1s` | Initial backoff duration for retries. |
@@ -46,7 +46,7 @@ Defines the questions to ask the LLM and how to handle the answers.
 | `type` | string | `string` | The expected data type: `string`, `number`, `boolean`. |
 | `allowed_answers` | list | `None` | A list of valid string values (enum) to restrict the output. |
 | `max_length` | int | `None` | Maximum length of the string response. |
-| `write_to` | path | `None` | If set, the variable's value will be written to this file. |
+| `write_to` | path | `None` | If set, the variable's value will be written to this file. **Must be an absolute path (no `~`).** |
 
 ## Output Modes
 
