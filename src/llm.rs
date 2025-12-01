@@ -14,10 +14,10 @@ use tracing::debug;
 const DATA_INPUT_FORMAT: &str = r#"
 # Data Input Format
 I will provide the output of one or more Unix commands below enclosed in XML tags.
-- The `<cmd>` tag contains the exact command executed.
+- The `<command>` tag contains the exact command executed.
   - The `timestamp` attribute contains the exact time the command was executed.
   - The `exit_code` attribute contains the exit code of the command.
-  - The `name` attribute of the `<cmd>` tag contains the name of the command to be referred later.
+  - The `name` attribute of the `<command>` tag contains the name of the command to be referred later.
 - The `<stdout>` tag contains the unescaped, raw text returned by the shell.
 "#;
 
@@ -80,7 +80,7 @@ pub struct LLM {
 #[derive(Debug, Deserialize)]
 pub struct Command {
     name: Option<String>,
-    cmd: String,
+    command: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -169,7 +169,7 @@ pub fn run_commands(commands: &[Command]) -> anyhow::Result<HashMap<String, RunR
     for cmd in commands {
         let output = std::process::Command::new("sh")
             .arg("-c")
-            .arg(&cmd.cmd)
+            .arg(&cmd.command)
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .output()?;
@@ -184,7 +184,7 @@ pub fn run_commands(commands: &[Command]) -> anyhow::Result<HashMap<String, RunR
             .unwrap()
             .as_secs();
 
-        let name = cmd.name.clone().unwrap_or_else(|| cmd.cmd.clone());
+        let name = cmd.name.clone().unwrap_or_else(|| cmd.command.clone());
         results.insert(
             name,
             RunResult {
@@ -281,7 +281,7 @@ fn generate_prompt(
         writeln!(prompt, "```")?;
         writeln!(
             prompt,
-            "<cmd name=\"{}\" timestamp=\"{}\" exit_code=\"{}\">\n<output>\n{}</output>\n</cmd>\n",
+            "<command name=\"{}\" timestamp=\"{}\" exit_code=\"{}\">\n<output>\n{}</output>\n</command>\n",
             name,
             dt.format("%Y-%m-%d %H:%M:%S %Z"),
             result.exit_code,

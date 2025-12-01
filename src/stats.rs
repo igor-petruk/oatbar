@@ -1,8 +1,16 @@
 mod protocol;
 use anyhow::Context;
+use clap::Parser;
 use protocol::i3bar;
 use std::collections::{BTreeMap, HashMap};
 use systemstat::Platform;
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[arg(long)]
+    once: bool,
+}
 
 fn try_extend(blocks: &mut Vec<i3bar::Block>, extra_blocks: anyhow::Result<Vec<i3bar::Block>>) {
     match extra_blocks {
@@ -204,10 +212,13 @@ fn network<P: systemstat::Platform>(
 }
 
 fn main() -> anyhow::Result<()> {
-    println!("{}", serde_json::to_string(&i3bar::Header::default())?);
-    println!("[");
+    let cli = Cli::parse();
     let system = systemstat::System::new();
     let mut network_stats = HashMap::new();
+
+    println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+    println!("[");
+
     loop {
         let cpu_load = system.cpu_load_aggregate();
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -221,6 +232,12 @@ fn main() -> anyhow::Result<()> {
                 network(&system, &name, &interface, &mut network_stats).context("network"),
             );
         }
-        println!("{},", serde_json::to_string(&blocks)?);
+        let output = serde_json::to_string(&blocks)?;
+        if cli.once {
+            println!("{}\n]", output);
+            break;
+        }
+        println!("{},", output);
     }
+    Ok(())
 }

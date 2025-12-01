@@ -19,8 +19,73 @@ See [LLM Configuration](../reference/llm.md) for full reference.
 > [!NOTE]
 > These examples are for illustrative purposes. Due to the non-deterministic nature of LLMs, you may need to tune the prompts (questions) to get the exact output format or content you desire for your specific model and use case.
 
-#### System Insight
+#### System Health Check (Conky)
 
+Use `conky` to generate a detailed, one-shot system report and have the LLM analyze it for potential bottlenecks or issues.
+
+**1. Create `~/.config/oatbar-llm/conky.conf`**
+
+```lua
+conky.config = {
+    out_to_console = true,
+    out_to_x = false,
+    background = false,
+    update_interval = 1,
+    total_run_times = 1,
+    use_spacer = 'none',
+}
+
+conky.text = [[
+System Health Report
+--------------------
+Uptime: ${uptime}
+Load Avg: ${loadavg}
+Processes: ${running_processes} running of ${processes} total
+
+CPU: ${cpu}%
+RAM: ${memperc}% (${mem}/${memmax})
+Swap: ${swapperc}% (${swap}/${swapmax})
+
+Disk Usage:
+/      : ${fs_used /}/${fs_size /} (${fs_used_perc /}%)
+/home  : ${fs_used /home}/${fs_size /home} (${fs_used_perc /home}%)
+
+Network (eth0):
+Up: ${upspeed eth0} (Total: ${totalup eth0})
+Down: ${downspeed eth0} (Total: ${totaldown eth0})
+
+Top CPU:
+1. ${top name 1}: ${top cpu 1}%
+2. ${top name 2}: ${top cpu 2}%
+3. ${top name 3}: ${top cpu 3}%
+4. ${top name 4}: ${top cpu 4}%
+5. ${top name 5}: ${top cpu 5}%
+
+Top Mem:
+1. ${top_mem name 1}: ${top_mem mem 1}%
+2. ${top_mem name 2}: ${top_mem mem 2}%
+3. ${top_mem name 3}: ${top_mem mem 3}%
+4. ${top_mem name 4}: ${top_mem mem 4}%
+5. ${top_mem name 5}: ${top_mem mem 5}%
+]]
+```
+
+**2. Configure `~/.config/oatbar-llm/config.toml`**
+
+```toml
+[[command]]
+name = "conky_report"
+command = "conky -c ~/.config/oatbar-llm/conky.conf"
+interval = 1800
+
+[[variable]]
+name = "health_check"
+type = "string"
+question = "Analyze this system report and summarize the health status. Highlight any resource hogs. Up to 5 words"
+"""
+```
+
+#### System Resource Dashboard (SVG)
 Analyze system logs and metrics to provide a high-level summary of the system health.
 
 **1. Configure `~/.config/oatbar-llm/config.toml`**
@@ -31,10 +96,10 @@ provider="google"
 name="gemini-2.5-flash"
 
 [[command]]
-cmd="journalctl -p err -n 50 --no-pager"
+command="journalctl -p err -n 50 --no-pager"
 
 [[command]]
-cmd="df -h"
+command="df -h"
 
 [[variable]]
 name="status"
@@ -78,7 +143,7 @@ name="gemini-2.5-flash"
 
 [[command]]
 name="git_status"
-cmd="cd ~/Projects/my-project && git status -s && git diff --stat"
+command="cd ~/Projects/my-project && git status -s && git diff --stat"
 
 [[variable]]
 name="git_summary"
@@ -113,11 +178,11 @@ name="gemini-2.5-flash"
 
 [[command]]
 name="ports"
-cmd="ss -tuln"
+command="ss -tuln"
 
 [[command]]
 name="auth_logs"
-cmd="journalctl -u sshd -n 20 --no-pager"
+command="journalctl -u sshd -n 20 --no-pager"
 
 [[variable]]
 name="security_alert"
@@ -152,7 +217,7 @@ name="gemini-2.5-flash"
 
 [[command]]
 name="weather"
-cmd="curl -s 'https://api.open-meteo.com/v1/forecast?latitude=40.76&longitude=-73.99&current=temperature_2m,weather_code'"
+command="curl -s 'https://api.open-meteo.com/v1/forecast?latitude=40.76&longitude=-73.99&current=temperature_2m,weather_code'"
 
 [[variable]]
 name="outfit"
@@ -187,7 +252,7 @@ name="gemini-2.5-flash"
 
 [[command]]
 name="top_procs"
-cmd="ps aux --sort=-%cpu | head -n 6"
+command="ps aux --sort=-%cpu | head -n 6"
 
 [[variable]]
 name="proc_analysis"
@@ -222,7 +287,7 @@ name="gemini-2.5-flash"
 
 [[command]]
 name="my_commits"
-cmd="cd ~/Projects/my-project && git log --author='My Name' --since='24 hours ago' --oneline"
+command="cd ~/Projects/my-project && git log --author='My Name' --since='24 hours ago' --oneline"
 
 [[variable]]
 name="standup_notes"
@@ -274,7 +339,7 @@ knowledge_base="/home/user/.config/oatbar-llm/style_guide.md"
 
 [[command]]
 name="git_diff"
-cmd="cd ~/Projects/my-project && git diff --cached"
+command="cd ~/Projects/my-project && git diff --cached"
 
 [[variable]]
 name="style_review"
@@ -308,7 +373,7 @@ knowledge_base="/home/user/.config/oatbar-llm/schedule.md"
 
 [[command]]
 name="current_time"
-cmd="date +%H:%M"
+command="date +%H:%M"
 
 [[variable]]
 name="focus_tip"
@@ -340,7 +405,7 @@ knowledge_base="/home/user/.config/oatbar-llm/runbook.md"
 
 [[command]]
 name="sys_errors"
-cmd="journalctl -p err -n 10 --no-pager"
+command="journalctl -p err -n 10 --no-pager"
 
 [[variable]]
 name="incident_action"
@@ -377,7 +442,7 @@ I am NOT interested in:
 ```toml
 [[command]]
 name="hn_rss"
-cmd="curl -s https://news.ycombinator.com/rss"
+command="curl -s https://news.ycombinator.com/rss"
 
 [[variable]]
 name="top_stories"

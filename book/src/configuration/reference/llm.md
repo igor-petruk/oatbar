@@ -32,8 +32,8 @@ Defines shell commands to run. Their output is fed to the LLM as context.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `cmd` | string | **Required** | The shell command to execute. |
-| `name` | string | `cmd` string | A unique name to refer to this command's output in the prompt context. |
+| `command` | string | **Required** | The shell command to execute. |
+| `name` | string | `command` string | A unique name to refer to this command's output in the prompt context. |
 
 ## `[[variable]]` Section
 
