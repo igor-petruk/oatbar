@@ -19,7 +19,7 @@ See [LLM Configuration](../reference/llm.md) for full reference.
 > [!NOTE]
 > These examples are for illustrative purposes. Due to the non-deterministic nature of LLMs, you may need to tune the prompts (questions) to get the exact output format or content you desire for your specific model and use case.
 
-#### System Health Check (Conky)
+#### System Health Check
 
 Use `conky` to generate a detailed, one-shot system report and have the LLM analyze it for potential bottlenecks or issues.
 
@@ -85,7 +85,7 @@ question = "Analyze this system report and summarize the health status. Highligh
 """
 ```
 
-#### System Resource Dashboard (SVG)
+#### System Status Summary
 Analyze system logs and metrics to provide a high-level summary of the system health.
 
 **1. Configure `~/.config/oatbar-llm/config.toml`**
@@ -130,7 +130,7 @@ on_mouse_left="xdg-open /tmp/system_summary.md"
 ```
 
 
-#### Smart Git Status
+#### Git Repository Status
 
 Summarize uncommitted changes in your current project to keep you focused.
 
@@ -165,7 +165,7 @@ type="text"
 value="Git: ${git_ai:git_summary.value}"
 ```
 
-#### Security Sentinel
+#### Security Monitor
 
 Monitor open ports and recent authentication failures for a quick security overview.
 
@@ -204,7 +204,7 @@ type="text"
 value="Sec: ${security_ai:security_alert.value}"
 ```
 
-#### Outfit Advisor
+#### Weather & Outfit Advisor
 
 Get clothing suggestions based on the current weather.
 
@@ -239,7 +239,7 @@ type="text"
 value="Wear: ${outfit_ai:outfit.value}"
 ```
 
-#### Process Doctor
+#### Resource Hog Analyzer
 
 Identify resource-hogging processes and suggest actions.
 
@@ -274,7 +274,7 @@ type="text"
 value="${proc_ai:proc_analysis.value}"
 ```
 
-#### Daily Standup Prep
+#### Standup Meeting Helper
 
 Summarize your work from the last 24 hours to prepare for your daily standup meeting.
 
@@ -315,7 +315,7 @@ on_mouse_left="xdg-open /tmp/standup_notes.md"
 
 These examples demonstrate how to use the `knowledge_base` feature to provide static context to the LLM, allowing it to act as a specialized assistant.
 
-#### Coding Assistant (Style Guide Enforcer)
+#### Code Review Helper (Style Guide Enforcer)
 
 Check your code against your team's style guide.
 
@@ -347,7 +347,7 @@ type="string"
 question="Review the git diff against the style guide. Point out any violations concisely."
 ```
 
-#### Personal Schedule Assistant
+#### Focus & Schedule Assistant
 
 Get reminders based on your personal schedule and priorities.
 
@@ -381,7 +381,7 @@ type="string"
 question="Based on the current time and my schedule, what should I be focusing on right now? Keep it short."
 ```
 
-#### Incident Response Helper
+#### Error Log Analyzer
 
 Suggest next steps when system errors occur, based on a runbook.
 
@@ -413,7 +413,7 @@ type="string"
 question="Analyze the recent system errors. Based on the runbook, what is the recommended action?"
 ```
 
-#### Hacker News Summarizer
+#### Hacker News RSS Summary
 
 Fetch the latest news and get a concise summary on your bar.
 
