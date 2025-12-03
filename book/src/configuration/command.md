@@ -2,24 +2,42 @@
 
 Command is an external program that provides data to `oatbar`.
 
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `name` | string | **Required** | Unique identifier for the command. Used in variable namespaces (e.g., `${name:value}`). |
+| `command` | string | **Required** | Shell command to execute (run via `sh -c`). |
+| `interval` | int | `10` | Execution interval in seconds. |
+| `once` | bool | `false` | If `true`, run only once at startup. |
+| `format` | string | `auto` | Output format: `plain`, `i3bar` or `auto`. |
+| `line_names` | list | `[]` | Names for variables when command outputs multiple lines (e.g., `["first", "second"]` maps to `${name:first}`, `${name:second}`). |
+
+### Example
+
 ```toml
 # Runs periodically
 [[command]]
 name="disk_free"
 command="df -h / | tail -1 | awk '{print $5}'"
-interval=60  # Default is 10.
+interval=60
+format="plain"
 
 # Runs once
 [[command]]
 name="uname"
 command="uname -a"
-once=true  # Default is false.
+once=true
 
-# Streams continiously
+# Streams continuously (e.g., oatbar-desktop)
 [[command]]
 name="desktop"
 command="oatbar-desktop"
-# format="i3bar"
+format="i3bar"
+
+# Multi-line output
+[[command]]
+name="user_info"
+command="echo $USER; echo $HOST"
+line_names=["user", "host"]
 ```
 
 `oatbar` will run each command as `sh -c "command"` to support basic shell
