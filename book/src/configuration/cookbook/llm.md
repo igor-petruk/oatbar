@@ -16,8 +16,11 @@ See [LLM Configuration](../reference/llm.md) for full reference.
 ### Examples
 
 
-> [!NOTE]
-> These examples are for illustrative purposes. Due to the non-deterministic nature of LLMs, you may need to tune the prompts (questions) to get the exact output format or content you desire for your specific model and use case.
+<div class="warning">
+
+These examples are for illustrative purposes. Due to the non-deterministic nature of LLMs, you may need to tune the prompts (questions) to get the exact output format or content you desire for your specific model and use case.
+
+</div>
 
 #### System Health Check
 

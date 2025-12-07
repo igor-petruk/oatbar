@@ -11,98 +11,95 @@ The reference below explains properties of these blocks and the
 
 <!-- toc -->
 
-## Common properties
+
+
+All blocks share the following properties.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `name` | string | **Required** | Unique identifier for the block. |
+| `type` | string | `text` | Block type: `text`, `number`, `enum`, `image`. |
+| `value` | string | `""` | The content to display. Supports variables (e.g., `${cmd:var}`). |
+| `show_if_matches` | list | `[]` | List of `[expression, regex]` pairs. Block is visible only if **all** regexes match. |
+| `replace` | list | `[]` | List of `[regex, replacement]` pairs applied to `value`. |
+| `replace_first_match`| bool | `true` | If `false`, applies all replacements; if `true`, stops after first match. |
+| `output_format` | string | `None` | Final formatting string (e.g., `CPU: ${value}`). |
+| `pango_markup` | bool | `true` | Enable [Pango Markup](https://docs.gtk.org/Pango/pango_markup.html) parsing. |
+| `font` | string | `inherit` | Font definition (e.g., `Monospace 12`). |
+| `background` | color | `transparent`| Background color (Hex `#RRGGBB` or `#RRGGBBAA`). |
+| `foreground` | color | `inherit` | Text color. |
+| `line_width` | float | `0.0` | Width of border lines. |
+| `overline_color` | color | `None` | Color of the top border line. |
+| `underline_color` | color | `None` | Color of the bottom border line. |
+| `edgeline_color` | color | `None` | Color of the side border lines (left/right). |
+| `margin` | float | `0.0` | Space outside the block. |
+| `padding` | float | `0.0` | Space inside the block (around text). |
+| `separator_type` | string | `None` | Separator style: `left`, `right`, `gap`. |
+| `separator_radius` | float | `0.0` | Radius for rounded separators. |
+| `popup` | string | `None` | Popup behavior: `block`, `partial_bar`, `bar`. |
+| `popup_value` | string | `None` | Variable that triggers the popup on change. |
+| `on_mouse_left` | string | `None` | Command to run on left click. |
+| `on_mouse_middle` | string | `None` | Command to run on middle click. |
+| `on_mouse_right` | string | `None` | Command to run on right click. |
+| `on_scroll_up` | string | `None` | Command to run on scroll up. |
+| `on_scroll_down` | string | `None` | Command to run on scroll down. |
+
+### Example
 
 ```toml
 [[block]]
-# Name used as a reference 
-name="block-name"
-
-# Main input for the block.
-value="<b>Clock:</b> ${clock:value}"
-
-# A series of regex replacements that
-# are applied to `value`.
-# See https://docs.rs/regex/latest/regex/
-replace=[
-  ["^1$","www"],
-  ["^2$","term"]
-]
-# If true, stop applying replaces after one row matches.
-# If false, keep applying replaces to the end.
-replace_first_match=false
-
-# If set, formats the final value contents after all processing and transformations
-# like regex replacements or progress bar rendering.
-# Not supported by image blocks.
-output_format="cpu: ${value}"
-
-# If true (default), full Pango markup is supported.
-# https://docs.gtk.org/Pango/pango_markup.html
-# It may be desirable to turn it off if input has
-# HTML-like text to be displayed.
-pango_markup=true
-
-# List of pairs [expression, regex].
-# Show the block only if all expressions match respective regexes.
-show_if_matches=[["${clock:value}",'.+']]
-
-# If set, and the bar has popup=true, then this block
-# can pop up.
-#   - block - the block itself pops up
-#   - partial_bar - the partial bar pops up
-#   - bar - the entire bar pops up.
-# The surrounding separators will appear as appropriate.
-popup="partial_bar"
-# If unset, the popup is triggered by any property change.
-# If set, the popup is triggered by change of this property.
-popup_value="${clock:value}"
-
-# Font and size of the text in the block.
-font="Iosevka 14"
-
-# Base RGBA colors of the blocks.
-background="#101010bb"
-foreground="#ffff00"
-
-# Properties of lines around the block, if set.
-overline_color="#..."
-underline_color="#..."
-edgeline_color="#..."
-line_width=0.4
-
-# Margin and padding of the block within a bar.
-margin=3.0
-padding=5.0
-
-# A command to run on a particular mouse event.
-# It is run with `sh -c "..."` and the process will be detached from oatbar.
-# BLOCK_NAME and BLOCK_VALUE environment variables are set.
-# For `enum` blocks, BLOCK_INDEX is set too.
-on_mouse_left = 'chrome'
-on_mouse_middle = 'chrome'
-on_mouse_right = 'chrome'
-on_scroll_up = 'chrome'
-on_scroll_down = 'chrome'
+name="clock"
+type="text"
+value="<span weight='bold'>${clock:value}</span>"
+background="#1e1e2e"
+foreground="#cdd6f4"
+padding=8
+margin=4
+line_width=2.0
+underline_color="#fab387"
+on_mouse_left="calendar"
+show_if_matches=[["${clock:value}", ".+"]]
 ```
 
-To avoid repetition, consider using `default_block`, that
-supports all common properties.
-
+### Configuration Inheritance
+ 
+To avoid repetition, you can use `default_block` to define common properties. `oatbar` uses a cascading configuration system:
+ 
+1.  **Global Default**: A `[[default_block]]` without a `name` applies to **all** blocks.
+2.  **Named Default**: A `[[default_block]]` with a `name` inherits from the Global Default.
+3.  **Block**: A `[[block]]` inherits from a Named Default (if `inherit` is set) or directly from the Global Default.
+ 
+#### Global Default Example
+ 
+This sets a default background for every block in the bar.
+ 
 ```toml
 [[default_block]]
 background="#202020"
+padding=5
 ```
-
-Multiple named `default_block` sections can be used.
-
+ 
+#### Named Default Example
+ 
+You can define specific styles (e.g., "active" vs "inactive") and apply them to specific blocks.
+ 
 ```toml
 [[default_block]]
-name="ws1_widgets"
-
+name="active_style"
+background="#fab387"
+foreground="#1e1e2e"
+ 
 [[block]]
-inherit="ws1_widgets"
+name="my_block"
+inherit="active_style"
+value="I am active!"
 ```
+ 
+In this case, `my_block` will have:
+- `padding=5` (from Global Default)
+- `background="#fab387"` (from Named Default "active_style", overriding Global)
+- `foreground="#1e1e2e"` (from Named Default "active_style")
+- `value="I am active!"` (from Block)
 
 ## Text block
 
@@ -285,6 +282,40 @@ max_image_height=20
 updater_value="${image_generator:timestamp}"
 ```
 
-The block offers rich possibilities, provided you can generate your own
 images or download them from the Internet on flight in the command that generates
 a filename.
+
+## Popups and Visibility
+
+`oatbar` allows blocks to be hidden by default and "pop up" only when important information needs to be shown.
+
+### Popup Settings
+
+*   `popup`: Defines **what** pops up.
+    *   `bar`: The entire bar is shown (if `[[bar]] popup=true`).
+    *   `partial_bar`: Only the section of the bar containing this block is shown (useful for "toast" notifications).
+    *   `block`: Only this specific block is shown.
+*   `popup_value`: Defines **when** it pops up.
+    *   If set, the popup triggers only when this variable **changes**.
+    *   If **not** set, the popup triggers on **every update** to the block.
+
+### Why `popup_value`?
+
+Without `popup_value`, a block that updates every second (like a clock) would keep the popup open indefinitely. By binding `popup_value` to a specific event variable (e.g., `${volume:value}`), you ensure the popup only appears when that specific value changes, even if other parts of the block update.
+
+### Example: Media Player
+
+Consider a media player block that shows the song title and the current playback time.
+
+```toml
+[[block]]
+name="media"
+type="text"
+# Updates every second due to ${player:position}
+value="${player:title} - ${player:position}"
+popup="partial_bar"
+# Only popup when the song title changes, ignoring position updates
+popup_value="${player:title}"
+```
+
+Without `popup_value`, the bar would pop up every second as the playback time updates. With `popup_value`, it only appears when the song changes.

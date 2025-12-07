@@ -1,4 +1,4 @@
-# Varable
+# Variable
 
 <!-- toc -->
 
@@ -57,9 +57,12 @@ Supported filters:
 
 * `def` sets the default value if the input variable is empty
 * `max` limits the length of the input. If it is larger, it is shortened with ellipsis (`...`)
-* `align` aligns the text to occupy fixed width if it is shorter than a certain length
-  * First character is the filler
-  * Second character is an alignment: `<`, `^` (center) or `>`
-  * Min width
-  * Example:
-    * `hello` passed via `align:_>10` will be `_____hello`
+* `align` aligns the text to occupy a fixed width.
+  * Syntax: `align:[filler][alignment][width]`
+  * `alignment` must be one of: `<` (left), `^` (center), or `>` (right).
+  * `filler` is an optional character (defaults to space).
+  * `width` is the target width.
+  * Examples:
+    * `align:<10` -> Left align, space padding (e.g. `hello     `)
+    * `align:->10` -> Right align, `-` padding (e.g. `-----hello`)
+    * `align:_^10` -> Center align, `_` padding (e.g. `__hello___`)
