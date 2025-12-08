@@ -25,23 +25,33 @@ use crate::{state, thread};
 
 #[derive(Clone)]
 pub struct Poker {
-    tx: Vec<crossbeam_channel::Sender<()>>,
+    tx: std::collections::HashMap<String, crossbeam_channel::Sender<()>>,
 }
 
 impl Poker {
     pub fn new() -> Self {
-        Self { tx: vec![] }
+        Self {
+            tx: Default::default(),
+        }
     }
 
-    pub fn add(&mut self) -> crossbeam_channel::Receiver<()> {
+    pub fn add(&mut self, name: String) -> crossbeam_channel::Receiver<()> {
         let (tx, rx) = crossbeam_channel::unbounded();
-        self.tx.push(tx);
+        self.tx.insert(name, tx);
         rx
     }
 
-    pub fn poke(&self) {
-        for tx in self.tx.iter() {
-            let _ = tx.send(());
+    pub fn poke(&self, name: Option<String>) {
+        if let Some(name) = name {
+            if let Some(tx) = self.tx.get(&name) {
+                let _ = tx.send(());
+            } else {
+                tracing::warn!("Command {:?} not found during poking", name);
+            }
+        } else {
+            for tx in self.tx.values() {
+                let _ = tx.send(());
+            }
         }
     }
 }
@@ -182,6 +192,15 @@ fn default_format() -> Format {
 pub struct Command {
     pub index: usize,
     pub config: CommandConfig,
+}
+
+impl Command {
+    pub fn name(&self) -> String {
+        self.config
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("cm{}", self.index))
+    }
 }
 
 impl Command {

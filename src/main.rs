@@ -76,7 +76,8 @@ fn main() -> anyhow::Result<()> {
     let mut poker = source::Poker::new();
     for (index, config) in commands.into_iter().enumerate() {
         let command = source::Command { index, config };
-        command.spawn(engine.update_tx.clone(), poker.add())?;
+        let command_name = command.name();
+        command.spawn(engine.update_tx.clone(), poker.add(command_name))?;
     }
 
     ipcserver::Server::spawn(
