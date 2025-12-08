@@ -15,8 +15,8 @@ pub struct Server {
 }
 
 impl Server {
-    fn handle_poke(&self) -> anyhow::Result<ipc::Response> {
-        self.poker.poke();
+    fn handle_poke(&self, name: Option<String>) -> anyhow::Result<ipc::Response> {
+        self.poker.poke(name);
         Ok(Default::default())
     }
 
@@ -70,7 +70,7 @@ impl Server {
             let request: ipc::Request = serde_json::from_slice(&vec)?;
             tracing::info!("IPC request {:?}", request);
             let response = match request.command {
-                ipc::Command::Poke => self.handle_poke(),
+                ipc::Command::Poke { name } => self.handle_poke(name),
                 ipc::Command::SetVar { name, value } => self.handle_set_var(name, value),
                 ipc::Command::GetVar { name } => self.handle_get_var(&name),
                 ipc::Command::ListVars {} => self.handle_list_vars(),

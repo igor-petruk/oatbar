@@ -8,7 +8,7 @@ use std::path::PathBuf;
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum Command {
-    Poke,
+    Poke { name: Option<String> },
     SetVar { name: String, value: String },
     GetVar { name: String },
     ListVars {},

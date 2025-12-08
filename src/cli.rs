@@ -60,7 +60,11 @@ enum VarSubcommand {
 enum Commands {
     /// Interrupt waiting on all pending command `intervals`,
     /// forcing immediate restart.
-    Poke,
+    Poke {
+        /// Name of the command to poke. If not specified, pokes all commands.
+        #[arg(short, long)]
+        command: Option<String>,
+    },
     /// Work with oatbar variables.
     Var {
         #[clap(subcommand)]
@@ -111,7 +115,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let client = ipc::Client::new(&cli.instance_name)?;
     let response = match cli.command {
-        Commands::Poke => client.send_command(ipc::Command::Poke),
+        Commands::Poke { command } => client.send_command(ipc::Command::Poke { name: command }),
         Commands::Var { var } => match var {
             VarSubcommand::Set { name, value } => {
                 client.send_command(ipc::Command::SetVar { name, value })
