@@ -12,7 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Copyright 2023 Oatbar Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 mod protocol;
+#[cfg(feature = "x11")]
 #[allow(unused)]
 mod xutils;
 
@@ -21,12 +36,8 @@ use clap::{Parser, Subcommand};
 use protocol::i3bar;
 use std::collections::BTreeMap;
 use tracing::*;
-use xcb::{
-    x,
-    xkb::{self, StatePart},
-};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct KeyboardState {
     current: usize,
     variants: Vec<String>,
@@ -49,90 +60,6 @@ fn to_indicator_name(s: &str) -> String {
         }
     }
     result
-}
-
-fn get_current_state(conn: &xcb::Connection, group: xkb::Group) -> anyhow::Result<KeyboardState> {
-    let reply = xutils::query(
-        conn,
-        &xkb::GetNames {
-            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-            which: xkb::NameDetail::SYMBOLS,
-        },
-    )?;
-    let one_value = reply
-        .value_list()
-        .first()
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("More than one value"))?;
-    let atom_name = if let xkb::GetNamesReplyValueList::Symbols(atom) = one_value {
-        let reply = xutils::query(conn, &x::GetAtomName { atom })?;
-        Ok(reply.name().to_utf8().to_string())
-    } else {
-        Err(anyhow::anyhow!("Unexpected reply type"))
-    }?;
-
-    let variants: Vec<String> = atom_name
-        .split('+')
-        .filter(|s| !s.contains('('))
-        .map(|s| s.split(':').next().unwrap())
-        .filter(|s| s != &"pc")
-        .map(String::from)
-        .collect();
-
-    let layout_index = match group {
-        xkb::Group::N1 => 0,
-        xkb::Group::N2 => 1,
-        xkb::Group::N3 => 2,
-        xkb::Group::N4 => 3,
-    };
-
-    let indicator_atoms = get_indicator_atoms(conn)?;
-    let mut indicators = BTreeMap::new();
-    for atom in indicator_atoms {
-        let reply = xutils::query(conn, &x::GetAtomName { atom })?;
-        let name = to_indicator_name(&reply.name().to_utf8());
-        let reply = xutils::query(
-            conn,
-            &xkb::GetNamedIndicator {
-                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-                indicator: atom,
-                led_class: xkb::LedClass::KbdFeedbackClass,
-                led_id: 0,
-            },
-        )?;
-        indicators.insert(name, reply.on());
-    }
-
-    debug!(
-        "atom={},layout_index={},indicators={:?}",
-        atom_name, layout_index, indicators
-    );
-
-    Ok(KeyboardState {
-        current: layout_index,
-        variants,
-        indicators,
-    })
-}
-
-fn get_indicator_atoms(conn: &xcb::Connection) -> anyhow::Result<Vec<x::Atom>> {
-    let reply = xutils::query(
-        conn,
-        &xkb::GetNames {
-            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-            which: xkb::NameDetail::INDICATOR_NAMES,
-        },
-    )?;
-    let one_value = reply
-        .value_list()
-        .first()
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("More than one value"))?;
-    if let xkb::GetNamesReplyValueList::IndicatorNames(atoms) = one_value {
-        Ok(atoms)
-    } else {
-        Err(anyhow::anyhow!("Unexpected reply type"))
-    }
 }
 
 fn state_to_blocks(state: KeyboardState) -> Vec<i3bar::Block> {
@@ -203,98 +130,362 @@ enum Commands {
     },
 }
 
-fn handle_set_layout(conn: &xcb::Connection, layout: usize) -> anyhow::Result<()> {
-    let group = match layout {
-        0 => xkb::Group::N1,
-        1 => xkb::Group::N2,
-        2 => xkb::Group::N3,
-        _ => xkb::Group::N4,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DisplayServer {
+    Wayland,
+    X11,
+}
+
+fn detect_display_server() -> Option<DisplayServer> {
+    if std::env::var("WAYLAND_DISPLAY").is_ok() {
+        Some(DisplayServer::Wayland)
+    } else if std::env::var("DISPLAY").is_ok() {
+        Some(DisplayServer::X11)
+    } else {
+        None
+    }
+}
+
+// ============================================================================
+// X11 Implementation
+// ============================================================================
+
+#[cfg(feature = "x11")]
+mod x11_impl {
+    use super::*;
+    use xcb::{
+        x,
+        xkb::{self, StatePart},
     };
-    xutils::send(
-        conn,
-        &xkb::LatchLockState {
-            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-            group_lock: group,
-            lock_group: true,
-            latch_group: false,
-            group_latch: 0,
-            affect_mod_locks: x::ModMask::empty(),
-            affect_mod_latches: x::ModMask::empty(),
-            mod_locks: x::ModMask::empty(),
-        },
-    )?;
-    Ok(())
+
+    fn get_current_state(
+        conn: &xcb::Connection,
+        group: xkb::Group,
+    ) -> anyhow::Result<KeyboardState> {
+        let reply = xutils::query(
+            conn,
+            &xkb::GetNames {
+                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                which: xkb::NameDetail::SYMBOLS,
+            },
+        )?;
+        let one_value = reply
+            .value_list()
+            .first()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("More than one value"))?;
+        let atom_name = if let xkb::GetNamesReplyValueList::Symbols(atom) = one_value {
+            let reply = xutils::query(conn, &x::GetAtomName { atom })?;
+            Ok(reply.name().to_utf8().to_string())
+        } else {
+            Err(anyhow::anyhow!("Unexpected reply type"))
+        }?;
+
+        let variants: Vec<String> = atom_name
+            .split('+')
+            .filter(|s| !s.contains('('))
+            .map(|s| s.split(':').next().unwrap())
+            .filter(|s| s != &"pc")
+            .map(String::from)
+            .collect();
+
+        let layout_index = match group {
+            xkb::Group::N1 => 0,
+            xkb::Group::N2 => 1,
+            xkb::Group::N3 => 2,
+            xkb::Group::N4 => 3,
+        };
+
+        let indicator_atoms = get_indicator_atoms(conn)?;
+        let mut indicators = BTreeMap::new();
+        for atom in indicator_atoms {
+            let reply = xutils::query(conn, &x::GetAtomName { atom })?;
+            let name = to_indicator_name(&reply.name().to_utf8());
+            let reply = xutils::query(
+                conn,
+                &xkb::GetNamedIndicator {
+                    device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                    indicator: atom,
+                    led_class: xkb::LedClass::KbdFeedbackClass,
+                    led_id: 0,
+                },
+            )?;
+            indicators.insert(name, reply.on());
+        }
+
+        debug!(
+            "atom={},layout_index={},indicators={:?}",
+            atom_name, layout_index, indicators
+        );
+
+        Ok(KeyboardState {
+            current: layout_index,
+            variants,
+            indicators,
+        })
+    }
+
+    fn get_indicator_atoms(conn: &xcb::Connection) -> anyhow::Result<Vec<x::Atom>> {
+        let reply = xutils::query(
+            conn,
+            &xkb::GetNames {
+                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                which: xkb::NameDetail::INDICATOR_NAMES,
+            },
+        )?;
+        let one_value = reply
+            .value_list()
+            .first()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("More than one value"))?;
+        if let xkb::GetNamesReplyValueList::IndicatorNames(atoms) = one_value {
+            Ok(atoms)
+        } else {
+            Err(anyhow::anyhow!("Unexpected reply type"))
+        }
+    }
+
+    fn handle_set_layout(conn: &xcb::Connection, layout: usize) -> anyhow::Result<()> {
+        let group = match layout {
+            0 => xkb::Group::N1,
+            1 => xkb::Group::N2,
+            2 => xkb::Group::N3,
+            _ => xkb::Group::N4,
+        };
+        xutils::send(
+            conn,
+            &xkb::LatchLockState {
+                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                group_lock: group,
+                lock_group: true,
+                latch_group: false,
+                group_latch: 0,
+                affect_mod_locks: x::ModMask::empty(),
+                affect_mod_latches: x::ModMask::empty(),
+                mod_locks: x::ModMask::empty(),
+            },
+        )?;
+        Ok(())
+    }
+
+    pub fn run(command: Option<Commands>) -> anyhow::Result<()> {
+        let (conn, _) =
+            xcb::Connection::connect_with_xlib_display_and_extensions(&[xcb::Extension::Xkb], &[])?;
+
+        let xkb_ver = xutils::query(
+            &conn,
+            &xkb::UseExtension {
+                wanted_major: 1,
+                wanted_minor: 0,
+            },
+        )?;
+
+        if !xkb_ver.supported() {
+            return Err(anyhow!("xkb-1.0 is not supported"));
+        }
+
+        if let Some(command) = command {
+            match command {
+                Commands::Layout { layout_cmd } => match layout_cmd {
+                    LayoutSubcommand::Set { layout } => handle_set_layout(&conn, layout)?,
+                },
+            }
+            return Ok(());
+        }
+
+        let events = xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY;
+        xutils::send(
+            &conn,
+            &xkb::SelectEvents {
+                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                affect_which: events,
+                clear: xkb::EventType::empty(),
+                select_all: events,
+                affect_map: xkb::MapPart::empty(),
+                map: xkb::MapPart::empty(),
+                details: &[],
+            },
+        )?;
+
+        let reply = xutils::query(
+            &conn,
+            &xkb::GetState {
+                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+            },
+        )?;
+
+        println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+        println!("[");
+
+        let state = get_current_state(&conn, reply.group())?;
+        debug!("Initial: {:?}", state);
+        println!("{},", serde_json::to_string(&state_to_blocks(state))?);
+
+        loop {
+            let event = xutils::get_event(&conn)?;
+            match event {
+                Some(xcb::Event::Xkb(xkb::Event::StateNotify(n))) => {
+                    if n.changed().contains(StatePart::GROUP_STATE)
+                        || n.changed().contains(StatePart::MODIFIER_LOCK)
+                    {
+                        let state = get_current_state(&conn, n.group())?;
+                        debug!("State updated: {:?}", state);
+                        println!("{},", serde_json::to_string(&state_to_blocks(state))?);
+                    }
+                }
+                None => return Ok(()),
+                _ => {
+                    debug!("Unhandled XCB event: {:?}", event);
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Sway Implementation
+// ============================================================================
+
+#[cfg(feature = "wayland")]
+mod sway_impl {
+    use super::*;
+    use swayipc::{Connection as SwayConnection, EventType};
+
+    pub fn run(command: Option<Commands>) -> anyhow::Result<()> {
+        // Create a connection for commands/queries
+        let mut conn = SwayConnection::new()?;
+
+        if let Some(command) = command {
+            match command {
+                Commands::Layout { layout_cmd } => match layout_cmd {
+                    LayoutSubcommand::Set { layout } => {
+                        // Find keyboards and set layout
+                        let inputs = conn.get_inputs()?;
+                        for input in inputs {
+                            if input.input_type == "keyboard" {
+                                conn.run_command(format!(
+                                    "input {} xkb_switch_layout {}",
+                                    input.identifier, layout
+                                ))?;
+                            }
+                        }
+                    }
+                },
+            }
+            return Ok(());
+        }
+
+        println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+        println!("[");
+
+        // Helper to get current state from Sway inputs
+        let get_state = |conn: &mut SwayConnection| -> anyhow::Result<Option<KeyboardState>> {
+            let inputs = conn.get_inputs()?;
+            // Use the first keyboard that has layouts configured
+            for input in inputs {
+                if input.input_type == "keyboard" && !input.xkb_layout_names.is_empty() {
+                    let current = input.xkb_active_layout_index.unwrap_or(0) as usize;
+                    // Sway doesn't give us indicator state easily via IPC without polling or extra complexity
+                    // For now, we omit indicators or implementing them would require creating an input device monitor
+                    let indicators = BTreeMap::new();
+
+                    return Ok(Some(KeyboardState {
+                        current,
+                        variants: input.xkb_layout_names,
+                        indicators,
+                    }));
+                }
+            }
+            Ok(None)
+        };
+
+        if let Some(state) = get_state(&mut conn)? {
+            println!("{},", serde_json::to_string(&state_to_blocks(state))?);
+        }
+
+        let subs = [EventType::Input];
+        let event_conn = SwayConnection::new()?.subscribe(subs)?;
+
+        for event in event_conn {
+            match event {
+                Ok(swayipc::Event::Input(input_event)) => {
+                    if matches!(
+                        input_event.change,
+                        swayipc::InputChange::XkbKeymap | swayipc::InputChange::XkbLayout
+                    ) {
+                        if let Some(state) = get_state(&mut conn)? {
+                            println!("{},", serde_json::to_string(&state_to_blocks(state))?);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Sway IPC error: {}", e);
+                    break;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+#[cfg(feature = "wayland")]
+fn is_sway() -> bool {
+    std::env::var("SWAYSOCK").is_ok()
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let (conn, _) =
-        xcb::Connection::connect_with_xlib_display_and_extensions(&[xcb::Extension::Xkb], &[])?;
 
-    let xkb_ver = xutils::query(
-        &conn,
-        &xkb::UseExtension {
-            wanted_major: 1,
-            wanted_minor: 0,
-        },
-    )?;
-
-    if !xkb_ver.supported() {
-        return Err(anyhow!("xkb-1.0 is not supported"));
-    }
-
-    if let Some(command) = cli.command {
-        match command {
-            Commands::Layout { layout_cmd } => match layout_cmd {
-                LayoutSubcommand::Set { layout } => handle_set_layout(&conn, layout)?,
-            },
-        }
-        return Ok(());
-    }
-
-    let events = xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::STATE_NOTIFY;
-    xutils::send(
-        &conn,
-        &xkb::SelectEvents {
-            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-            affect_which: events,
-            clear: xkb::EventType::empty(),
-            select_all: events,
-            affect_map: xkb::MapPart::empty(),
-            map: xkb::MapPart::empty(),
-            details: &[],
-        },
-    )?;
-
-    let reply = xutils::query(
-        &conn,
-        &xkb::GetState {
-            device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
-        },
-    )?;
-
-    println!("{}", serde_json::to_string(&i3bar::Header::default())?);
-    println!("[");
-
-    let state = get_current_state(&conn, reply.group())?;
-    debug!("Initial: {:?}", state);
-    println!("{},", serde_json::to_string(&state_to_blocks(state))?);
-
-    loop {
-        let event = xutils::get_event(&conn)?;
-        match event {
-            Some(xcb::Event::Xkb(xkb::Event::StateNotify(n))) => {
-                if n.changed().contains(StatePart::GROUP_STATE)
-                    || n.changed().contains(StatePart::MODIFIER_LOCK)
-                {
-                    let state = get_current_state(&conn, n.group())?;
-                    debug!("State updated: {:?}", state);
-                    println!("{},", serde_json::to_string(&state_to_blocks(state))?);
+    match detect_display_server() {
+        Some(DisplayServer::Wayland) => {
+            #[cfg(feature = "wayland")]
+            {
+                if is_sway() {
+                    tracing::info!("Detected Sway, using swayipc");
+                    sway_impl::run(cli.command)
+                } else {
+                    anyhow::bail!(
+                        "Generic Wayland keyboard layout management not implemented. Use Sway."
+                    );
                 }
             }
-            None => return Ok(()),
-            _ => {
-                debug!("Unhandled XCB event: {:?}", event);
+            #[cfg(not(feature = "wayland"))]
+            {
+                anyhow::bail!("Detected Wayland but 'wayland' feature is disabled");
+            }
+        }
+        Some(DisplayServer::X11) | None => {
+            #[cfg(feature = "x11")]
+            {
+                tracing::info!("Using X11 backend");
+                x11_impl::run(cli.command)
+            }
+            #[cfg(not(feature = "x11"))]
+            {
+                // If X11 is not enabled, try Wayland as fallback if enabled
+                #[cfg(feature = "wayland")]
+                {
+                    tracing::info!("X11 disabled, trying Wayland backend");
+                    if is_sway() {
+                        sway_impl::run(cli.command)
+                    } else {
+                        anyhow::bail!(
+                            "Generic Wayland keyboard layout management not implemented. Use Sway."
+                        );
+                    }
+                }
+                #[cfg(not(feature = "wayland"))]
+                {
+                    anyhow::bail!(
+                        "No suitable backend enabled. Please enable 'x11' or 'wayland' feature."
+                    );
+                }
             }
         }
     }
