@@ -29,6 +29,8 @@ use sct::{
 use smithay_client_toolkit::{self as sct};
 
 pub struct WaylandWindow {
+    name: String,
+    state: Arc<RwLock<state::State>>,
     _surface: wayland_client::protocol::wl_surface::WlSurface, // Keep surface alive
     layer_surface: sct::shell::wlr_layer::LayerSurface,
     pool: Option<sct::shm::slot::SlotPool>,
@@ -37,20 +39,26 @@ pub struct WaylandWindow {
 }
 
 impl WaylandWindow {
-    pub fn new(
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_and_show(
+        name: String,
+        // bar_index: usize,
+        config: &config::Config<parse::Placeholder>,
+        bar_config: config::Bar<parse::Placeholder>,
+        state: Arc<RwLock<state::State>>,
+        state_update_tx: crossbeam_channel::Sender<state::Update>,
+        notifier: notify::Notifier,
         qh: &smithay_client::QueueHandle<WaylandEngine>,
         compositor_state: &sct::compositor::CompositorState,
         layer_shell: &sct::shell::wlr_layer::LayerShell,
     ) -> anyhow::Result<Self> {
         let surface = compositor_state.create_surface(qh);
 
-        let namespace = "oatbar-bar";
-
         let layer_surface = layer_shell.create_layer_surface(
             qh,
             surface.clone(),
             sct::shell::wlr_layer::Layer::Top,
-            Some(namespace),
+            Some(&name),
             None,
         );
 
@@ -67,6 +75,8 @@ impl WaylandWindow {
         layer_surface.commit();
 
         Ok(Self {
+            name,
+            state,
             _surface: surface,
             layer_surface,
             pool: None,
@@ -80,6 +90,7 @@ impl WaylandWindow {
         qh: &smithay_client::QueueHandle<WaylandEngine>,
         shm: &sct::shm::Shm,
     ) -> anyhow::Result<()> {
+        tracing::info!("Drawing window {}", self.name);
         let width = self.width;
         let height = self.height;
         let stride = width as i32 * 4;
@@ -150,6 +161,7 @@ impl WaylandWindow {
 // }
 
 pub struct WaylandEngine {
+    state: Arc<RwLock<state::State>>,
     conn: smithay_client::Connection,
     registry_state: sct::registry::RegistryState,
     output_state: sct::output::OutputState,
@@ -159,7 +171,8 @@ pub struct WaylandEngine {
     event_queue: Option<smithay_client::EventQueue<WaylandEngine>>,
     pub update_tx: crossbeam_channel::Sender<state::Update>,
     update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
-    wayland_window: WaylandWindow,
+    windows: Vec<WaylandWindow>,
+    qh: smithay_client::QueueHandle<WaylandEngine>,
 }
 
 impl WaylandEngine {
@@ -168,6 +181,7 @@ impl WaylandEngine {
         initial_state: state::State,
         notifier: notify::Notifier,
     ) -> anyhow::Result<Self> {
+        let state = Arc::new(RwLock::new(initial_state));
         let (update_tx, update_rx) = crossbeam_channel::unbounded();
 
         let conn =
@@ -188,13 +202,25 @@ impl WaylandEngine {
         let layer_shell = sct::shell::wlr_layer::LayerShell::bind(&globals, &qh)
             .context("Unable to create layer shell state")?;
 
-        // for (index, bar) in config.bar.iter().enumerate() {
-        // }
-
-        let wayland_window = WaylandWindow::new(&qh, &compositor_state, &layer_shell)
+        let mut windows = Vec::new();
+        for (index, bar) in config.bar.iter().enumerate() {
+            let wayland_window = WaylandWindow::create_and_show(
+                format!("oatbar-bar-{}", index),
+                &config,
+                bar.clone(),
+                state.clone(),
+                update_tx.clone(),
+                notifier.clone(),
+                &qh,
+                &compositor_state,
+                &layer_shell,
+            )
             .context("Unable to create wayland window")?;
+            windows.push(wayland_window);
+        }
 
         Ok(Self {
+            state,
             conn,
             update_tx,
             update_rx: Some(update_rx),
@@ -204,7 +230,8 @@ impl WaylandEngine {
             output_state,
             compositor_state,
             event_queue: Some(event_queue),
-            wayland_window,
+            windows,
+            qh,
         })
     }
 
@@ -217,8 +244,39 @@ impl WaylandEngine {
             self.conn.clone(),
             self.event_queue.take().unwrap(),
         )
-        .insert(loop_handle)
+        .insert(loop_handle.clone())
         .unwrap();
+
+        let (tx, channel) = calloop::channel::channel();
+
+        // Convert channel type by resending, not optimal, but simple.
+        if let Some(update_rx) = self.update_rx.take() {
+            thread::spawn("eng-state", move || loop {
+                while let Ok(state_update) = update_rx.recv() {
+                    tx.send(state_update).unwrap();
+                }
+            })
+            .context("unable to spawn eng-state")?;
+        }
+
+        let state = self.state.clone();
+
+        loop_handle
+            .insert_source(channel, move |state_update, _metadata, engine| {
+                if let calloop::channel::Event::Msg(state_update) = state_update {
+                    tracing::trace!("state_update: {:?}", state_update);
+                    {
+                        let mut state = engine.state.write().unwrap();
+                        state.handle_state_update(state_update);
+                    }
+                    for window in engine.windows.iter_mut() {
+                        if let Err(err) = window.draw(&engine.qh, &engine.shm) {
+                            tracing::error!("unable to draw window: {}", err);
+                        }
+                    }
+                }
+            })
+            .expect("Failed to insert source");
 
         loop {
             event_loop
@@ -347,22 +405,24 @@ impl sct::shell::wlr_layer::LayerShellHandler for WaylandEngine {
         &mut self,
         _conn: &smithay_client::Connection,
         qh: &smithay_client::QueueHandle<Self>,
-        _layer: &sct::shell::wlr_layer::LayerSurface,
+        layer: &sct::shell::wlr_layer::LayerSurface,
         configure: sct::shell::wlr_layer::LayerSurfaceConfigure,
         _serial: u32,
     ) {
-        // for bar in &mut self.bars {
-        //     if bar.layer_surface == *layer {
-        if configure.new_size.0 > 0 {
-            self.wayland_window.width = configure.new_size.0;
-        }
-        if configure.new_size.1 > 0 {
-            self.wayland_window.height = configure.new_size.1;
-        }
+        for window in &mut self.windows {
+            if window.layer_surface == *layer {
+                if configure.new_size.0 > 0 {
+                    window.width = configure.new_size.0;
+                }
+                if configure.new_size.1 > 0 {
+                    window.height = configure.new_size.1;
+                }
 
-        // Initial draw or redraw on resize
-        if let Err(e) = self.wayland_window.draw(qh, &self.shm) {
-            tracing::error!("Failed to draw: {}", e);
+                // Initial draw or redraw on resize
+                if let Err(e) = window.draw(qh, &self.shm) {
+                    tracing::error!("Failed to draw: {}", e);
+                }
+            }
         }
     }
 }
