@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
     bar::{self, BarUpdates, BlockUpdates},
-    config, drawing, notify, parse, state, thread,
+    config, drawing,
+    engine::Engine,
+    notify, parse, state, thread,
 };
 
 use sct::reexports::client as smithay_client;
@@ -288,8 +290,10 @@ impl WaylandEngine {
             qh,
         })
     }
+}
 
-    pub fn run(mut self) -> anyhow::Result<()> {
+impl Engine for WaylandEngine {
+    fn run(&mut self) -> anyhow::Result<()> {
         let mut event_loop: calloop::EventLoop<Self> =
             calloop::EventLoop::try_new().expect("Failed to create event loop");
         let loop_handle = event_loop.handle();
@@ -332,13 +336,13 @@ impl WaylandEngine {
 
         loop {
             event_loop
-                .dispatch(std::time::Duration::from_millis(16), &mut self)
+                .dispatch(std::time::Duration::from_millis(16), self)
                 .context("Failed to dispatch event loop")?;
-
-            // if self.exit {
-            //     break;
-            // }
         }
+    }
+
+    fn update_tx(&self) -> crossbeam_channel::Sender<state::Update> {
+        self.update_tx.clone()
     }
 }
 

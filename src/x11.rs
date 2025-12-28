@@ -9,7 +9,9 @@ use xcb::{x, xinput, Xid};
 
 use crate::{
     bar::{self, BarUpdates, BlockUpdates},
-    config, drawing, notify, parse, state, thread, timer, wmready, xutils,
+    config, drawing,
+    engine::Engine,
+    notify, parse, state, thread, timer, wmready, xutils,
 };
 use tracing::*;
 
@@ -882,8 +884,10 @@ impl XOrgEngine {
         }
         Ok(())
     }
+}
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
+impl Engine for XOrgEngine {
+    fn run(&mut self) -> anyhow::Result<()> {
         match self.update_rx.take() {
             Some(update_rx) => {
                 self.spawn_state_update_thread(update_rx)
@@ -906,5 +910,9 @@ impl XOrgEngine {
                 }
             }
         }
+    }
+
+    fn update_tx(&self) -> crossbeam_channel::Sender<state::Update> {
+        self.update_tx.clone()
     }
 }

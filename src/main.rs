@@ -19,6 +19,7 @@ mod bar;
 // #[allow(unused)]
 mod config;
 mod drawing;
+mod engine;
 #[allow(unused)]
 mod ipc;
 mod ipcserver;
@@ -71,20 +72,19 @@ fn main() -> anyhow::Result<()> {
 
     let state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
 
-    // let mut engine = engine::Engine::new(config, state, notify::Notifier::new())?;
-    let engine = wayland::WaylandEngine::new(config, state, notify::Notifier::new())?;
+    let mut engine = engine::load(config, state, notify::Notifier::new())?;
 
     let mut poker = source::Poker::new();
     for (index, config) in commands.into_iter().enumerate() {
         let command = source::Command { index, config };
         let command_name = command.name();
-        command.spawn(engine.update_tx.clone(), poker.add(command_name))?;
+        command.spawn(engine.update_tx().clone(), poker.add(command_name))?;
     }
 
     ipcserver::Server::spawn(
         &cli.instance_name,
         poker,
-        engine.update_tx.clone(),
+        engine.update_tx().clone(),
         ipc_server_rx,
     )?;
 
