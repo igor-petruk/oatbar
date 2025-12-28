@@ -15,10 +15,13 @@
 
 use anyhow::Context;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use xcb::{x, xinput};
 
-use crate::{bar, config, notify, parse, state, thread, window, wmready, xutils};
+use crate::{
+    bar::{self, BarUpdates, BlockUpdates},
+    config, drawing, notify, parse, state, thread, window, wmready, xutils,
+};
 
 use sct::reexports::client as smithay_client;
 use sct::shell::WaylandSurface;
@@ -31,6 +34,10 @@ use smithay_client_toolkit::{self as sct};
 pub struct WaylandWindow {
     name: String,
     state: Arc<RwLock<state::State>>,
+    bar: bar::Bar,
+    font_cache: Arc<Mutex<drawing::FontCache>>,
+    #[cfg(feature = "image")]
+    image_loader: drawing::ImageLoader,
     _surface: wayland_client::protocol::wl_surface::WlSurface, // Keep surface alive
     layer_surface: sct::shell::wlr_layer::LayerSurface,
     pool: Option<sct::shm::slot::SlotPool>,
@@ -62,21 +69,43 @@ impl WaylandWindow {
             None,
         );
 
+        let margin = &bar_config.margin;
+        let height = bar_config.height;
+        let window_height = height + margin.top + margin.bottom;
+
+        let anchor = match bar_config.position {
+            config::BarPosition::Top => sct::shell::wlr_layer::Anchor::TOP,
+            config::BarPosition::Bottom => sct::shell::wlr_layer::Anchor::BOTTOM,
+            config::BarPosition::Center => {
+                return Err(anyhow::anyhow!(
+                    "position 'center' is not supported in Wayland"
+                ));
+            }
+        };
+
         layer_surface.set_anchor(
-            sct::shell::wlr_layer::Anchor::LEFT
-                | sct::shell::wlr_layer::Anchor::RIGHT
-                | sct::shell::wlr_layer::Anchor::BOTTOM,
+            sct::shell::wlr_layer::Anchor::LEFT | sct::shell::wlr_layer::Anchor::RIGHT | anchor,
         );
-        layer_surface.set_size(0, 32);
-        layer_surface.set_exclusive_zone(32);
+
+        layer_surface.set_size(0, window_height as u32);
+        layer_surface.set_exclusive_zone(window_height as i32);
         layer_surface.set_keyboard_interactivity(
             smithay_client_toolkit::shell::wlr_layer::KeyboardInteractivity::None,
         );
         layer_surface.commit();
+        let bar = bar::Bar::new(config, bar_config.clone(), notifier.clone())?;
+
+        let font_cache = Arc::new(Mutex::new(drawing::FontCache::new()));
+        #[cfg(feature = "image")]
+        let image_loader = drawing::ImageLoader::new();
 
         Ok(Self {
             name,
             state,
+            bar,
+            font_cache,
+            #[cfg(feature = "image")]
+            image_loader,
             _surface: surface,
             layer_surface,
             pool: None,
@@ -90,12 +119,16 @@ impl WaylandWindow {
         qh: &smithay_client::QueueHandle<WaylandEngine>,
         shm: &sct::shm::Shm,
     ) -> anyhow::Result<()> {
-        tracing::info!("Drawing window {}", self.name);
         let width = self.width;
         let height = self.height;
         let stride = width as i32 * 4;
         let size = (width * height * 4) as usize;
-
+        tracing::trace!(
+            "Drawing window {}, width: {}, height: {}",
+            self.name,
+            width,
+            height
+        );
         let pool = self.pool.get_or_insert_with(|| {
             sct::shm::slot::SlotPool::new(size * 2, shm).expect("Failed to create pool")
         });
@@ -123,9 +156,46 @@ impl WaylandWindow {
             .unwrap()
         };
         let cr = cairo::Context::new(&surface).unwrap();
-        cr.set_operator(cairo::Operator::Source);
-        cr.set_source_rgba(0.5, 0.5, 0.5, 0.5);
-        cr.paint().unwrap();
+        let mut context = drawing::Context::new(
+            cr,
+            self.font_cache.clone(),
+            #[cfg(feature = "image")]
+            self.image_loader.clone(),
+            drawing::Mode::Full,
+        )
+        .context("Failed to create drawing context")?;
+
+        let state = self.state.clone();
+        let state = state.read().unwrap();
+        let pointer_position = state.pointer_position.get(&self.name).copied();
+        let mut error = state.build_error_msg();
+
+        let updates = match self.bar.update(&mut context, &state.vars, pointer_position) {
+            Ok(updates) => updates,
+            Err(e) => {
+                error = Some(state::ErrorMessage {
+                    source: "bar_update".into(),
+                    message: format!("Error: {:?}", e),
+                });
+                BarUpdates {
+                    block_updates: BlockUpdates {
+                        redraw: bar::RedrawScope::All,
+                        popup: Default::default(),
+                    },
+                    visible_from_vars: None,
+                }
+            }
+        };
+        tracing::debug!("Updates: {:#?}", updates);
+
+        self.bar.set_error(&mut context, error.clone());
+
+        let layout_changed = self.bar.layout_groups(self.width as f64, &None);
+        tracing::debug!("Layout changed: {}", layout_changed);
+
+        self.bar
+            .render(&context, &bar::RedrawScope::All)
+            .context("Failed to render bar")?;
 
         buffer
             .attach_to(self.layer_surface.wl_surface())

@@ -10,7 +10,6 @@ use anyhow::Context as AnyhowContext;
 use pangocairo::pango;
 #[cfg(feature = "svg")]
 use resvg::{tiny_skia, usvg};
-use xcb::x;
 
 pub struct FontCache {
     cache: HashMap<String, pango::FontDescription>,
@@ -177,8 +176,6 @@ pub enum Mode {
 
 #[derive(Clone)]
 pub struct Context {
-    pub buffer: x::Pixmap,
-    pub buffer_surface: cairo::XCBSurface,
     pub context: cairo::Context,
     pub pango_context: Option<pango::Context>,
     pub mode: Mode,
@@ -211,13 +208,11 @@ impl Color {
 
 impl Context {
     pub fn new(
+        context: cairo::Context,
         font_cache: Arc<Mutex<FontCache>>,
         #[cfg(feature = "image")] image_loader: ImageLoader,
-        buffer: x::Pixmap,
-        buffer_surface: cairo::XCBSurface,
         mode: Mode,
     ) -> anyhow::Result<Self> {
-        let context = cairo::Context::new(buffer_surface.clone())?;
         context.set_antialias(cairo::Antialias::Fast);
         context.set_line_join(cairo::LineJoin::Round);
         context.set_line_cap(cairo::LineCap::Square);
@@ -229,8 +224,6 @@ impl Context {
             font_cache,
             #[cfg(feature = "image")]
             image_loader,
-            buffer,
-            buffer_surface,
             context,
             pango_context,
             mode,

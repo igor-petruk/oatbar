@@ -138,7 +138,11 @@ pub struct Window {
     pub width: u16,
     pub height: u16,
     back_buffer_context: drawing::Context,
+    back_buffer_surface: cairo::XCBSurface,
+    back_buffer_pixmap: x::Pixmap,
     shape_buffer_context: drawing::Context,
+    shape_buffer_surface: cairo::XCBSurface,
+    shape_buffer_pixmap: x::Pixmap,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
     // bar_index: usize,
@@ -309,12 +313,12 @@ impl Window {
                 debug!("Unable to set _NET_WM_STRUT: {:?}", e);
             }
         }
-        let back_buffer: x::Pixmap = conn.generate_id();
+        let back_buffer_pixmap: x::Pixmap = conn.generate_id();
         xutils::send(
             &conn,
             &x::CreatePixmap {
                 depth: 32,
-                pid: back_buffer,
+                pid: back_buffer_pixmap,
                 drawable: xcb::x::Drawable::Window(id),
                 width: window_width,
                 height: window_height,
@@ -325,23 +329,28 @@ impl Window {
         #[cfg(feature = "image")]
         let image_loader = drawing::ImageLoader::new();
 
-        let back_buffer_surface =
-            make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
+        let back_buffer_surface = make_pixmap_surface(
+            &conn,
+            &back_buffer_pixmap,
+            &mut vis32,
+            window_width,
+            window_height,
+        )?;
+        let context = cairo::Context::new(back_buffer_surface.clone())?;
         let back_buffer_context = drawing::Context::new(
+            context,
             font_cache.clone(),
             #[cfg(feature = "image")]
             image_loader.clone(),
-            back_buffer,
-            back_buffer_surface,
             drawing::Mode::Full,
         )?;
 
-        let shape_buffer: x::Pixmap = conn.generate_id();
+        let shape_buffer_pixmap: x::Pixmap = conn.generate_id();
         xutils::send(
             &conn,
             &x::CreatePixmap {
                 depth: 1,
-                pid: shape_buffer,
+                pid: shape_buffer_pixmap,
                 drawable: xcb::x::Drawable::Window(id),
                 width: window_width,
                 height: window_height,
@@ -349,17 +358,17 @@ impl Window {
         )?;
         let shape_buffer_surface = make_pixmap_surface_for_bitmap(
             &conn,
-            &shape_buffer,
+            &shape_buffer_pixmap,
             &screen,
             window_width,
             window_height,
         )?;
+        let context = cairo::Context::new(back_buffer_surface.clone())?;
         let shape_buffer_context = drawing::Context::new(
+            context,
             font_cache,
             #[cfg(feature = "image")]
             image_loader,
-            shape_buffer,
-            shape_buffer_surface,
             drawing::Mode::Shape,
         )?;
 
@@ -415,7 +424,11 @@ impl Window {
             width: window_width,
             height: window_height,
             back_buffer_context,
+            back_buffer_surface,
+            back_buffer_pixmap,
             shape_buffer_context,
+            shape_buffer_surface,
+            shape_buffer_pixmap,
             swap_gc,
             // bar_index,
             bar,
@@ -585,7 +598,7 @@ impl Window {
     }
 
     fn apply_shape(&self) -> anyhow::Result<()> {
-        self.shape_buffer_context.buffer_surface.flush();
+        self.shape_buffer_surface.flush();
         xutils::send(
             &self.conn,
             &xcb::shape::Mask {
@@ -594,14 +607,14 @@ impl Window {
                 destination_window: self.id,
                 x_offset: 0,
                 y_offset: 0,
-                source_bitmap: self.shape_buffer_context.buffer,
+                source_bitmap: self.shape_buffer_pixmap,
             },
         )?;
         Ok(())
     }
 
     fn swap_buffers(&self) -> anyhow::Result<()> {
-        self.back_buffer_context.buffer_surface.flush();
+        self.back_buffer_surface.flush();
         xutils::send(
             &self.conn,
             &xcb::x::ClearArea {
@@ -617,7 +630,7 @@ impl Window {
         xutils::send(
             &self.conn,
             &xcb::x::CopyArea {
-                src_drawable: xcb::x::Drawable::Pixmap(self.back_buffer_context.buffer),
+                src_drawable: xcb::x::Drawable::Pixmap(self.back_buffer_pixmap),
                 dst_drawable: xcb::x::Drawable::Window(self.id),
                 src_x: 0,
                 src_y: 0,
