@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables)]
 // Copyright 2023 Oatbar Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +20,360 @@ use xcb::{x, xinput};
 
 use crate::{bar, config, notify, parse, state, thread, window, wmready, xutils};
 
-pub struct Engine {
+use sct::reexports::client as smithay_client;
+use sct::shell::WaylandSurface;
+use sct::{
+    delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_shm,
+    registry_handlers,
+};
+use smithay_client_toolkit::{self as sct};
+
+pub struct WaylandWindow {
+    _surface: wayland_client::protocol::wl_surface::WlSurface, // Keep surface alive
+    layer_surface: sct::shell::wlr_layer::LayerSurface,
+    pool: Option<sct::shm::slot::SlotPool>,
+    width: u32,
+    height: u32,
+}
+
+impl WaylandWindow {
+    pub fn new(
+        qh: &smithay_client::QueueHandle<WaylandEngine>,
+        compositor_state: &sct::compositor::CompositorState,
+        layer_shell: &sct::shell::wlr_layer::LayerShell,
+    ) -> anyhow::Result<Self> {
+        let surface = compositor_state.create_surface(qh);
+
+        let namespace = "oatbar-bar";
+
+        let layer_surface = layer_shell.create_layer_surface(
+            qh,
+            surface.clone(),
+            sct::shell::wlr_layer::Layer::Top,
+            Some(namespace),
+            None,
+        );
+
+        layer_surface.set_anchor(
+            sct::shell::wlr_layer::Anchor::LEFT
+                | sct::shell::wlr_layer::Anchor::RIGHT
+                | sct::shell::wlr_layer::Anchor::BOTTOM,
+        );
+        layer_surface.set_size(0, 32);
+        layer_surface.set_exclusive_zone(32);
+        layer_surface.set_keyboard_interactivity(
+            smithay_client_toolkit::shell::wlr_layer::KeyboardInteractivity::None,
+        );
+        layer_surface.commit();
+
+        Ok(Self {
+            _surface: surface,
+            layer_surface,
+            pool: None,
+            width: 0,
+            height: 0,
+        })
+    }
+
+    pub fn draw(
+        &mut self,
+        qh: &smithay_client::QueueHandle<WaylandEngine>,
+        shm: &sct::shm::Shm,
+    ) -> anyhow::Result<()> {
+        let width = self.width;
+        let height = self.height;
+        let stride = width as i32 * 4;
+        let size = (width * height * 4) as usize;
+
+        let pool = self.pool.get_or_insert_with(|| {
+            sct::shm::slot::SlotPool::new(size * 2, shm).expect("Failed to create pool")
+        });
+
+        if pool.len() < size * 2 {
+            pool.resize(size * 2).expect("Failed to resize pool");
+        }
+
+        let (buffer, canvas) = pool
+            .create_buffer(
+                self.width as i32,
+                self.height as i32,
+                stride,
+                smithay_client::protocol::wl_shm::Format::Argb8888,
+            )
+            .context("Failed to create buffer")?;
+        let surface = unsafe {
+            cairo::ImageSurface::create_for_data_unsafe(
+                canvas.as_mut_ptr(),
+                cairo::Format::ARgb32,
+                width as i32,
+                height as i32,
+                stride,
+            )
+            .unwrap()
+        };
+        let cr = cairo::Context::new(&surface).unwrap();
+        cr.set_operator(cairo::Operator::Source);
+        cr.set_source_rgba(0.5, 0.5, 0.5, 0.5);
+        cr.paint().unwrap();
+
+        buffer
+            .attach_to(self.layer_surface.wl_surface())
+            .context("Failed to attach buffer")?;
+        self.layer_surface
+            .wl_surface()
+            .damage(0, 0, width as i32, height as i32);
+
+        self.layer_surface
+            .wl_surface()
+            .frame(qh, self.layer_surface.wl_surface().clone());
+
+        self.layer_surface.wl_surface().commit();
+        Ok(())
+    }
+}
+//         let surface = conn.create_surface().context("Unable to create surface")?;
+
+//         let layer_surface = sct::shell::wlr_layer::LayerSurface::cre(
+//             conn,
+//             qh,
+//             &surface,
+//             output,
+//             sct::shell::wlr_layer::LayerSurfaceRole::Overlay,
+//         )
+//         .context("Unable to create layer surface")?;
+
+//         Ok(Self {
+//             _surface: surface,
+//             layer_surface,
+//         })
+//     }
+// }
+
+pub struct WaylandEngine {
+    conn: smithay_client::Connection,
+    registry_state: sct::registry::RegistryState,
+    output_state: sct::output::OutputState,
+    compositor_state: sct::compositor::CompositorState,
+    shm: sct::shm::Shm,
+    layer_shell: sct::shell::wlr_layer::LayerShell,
+    event_queue: Option<smithay_client::EventQueue<WaylandEngine>>,
+    pub update_tx: crossbeam_channel::Sender<state::Update>,
+    update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
+    wayland_window: WaylandWindow,
+}
+
+impl WaylandEngine {
+    pub fn new(
+        config: config::Config<parse::Placeholder>,
+        initial_state: state::State,
+        notifier: notify::Notifier,
+    ) -> anyhow::Result<Self> {
+        let (update_tx, update_rx) = crossbeam_channel::unbounded();
+
+        let conn =
+            smithay_client::Connection::connect_to_env().context("Unable to connect to Wayland")?;
+
+        let (globals, event_queue) =
+            smithay_client::globals::registry_queue_init::<WaylandEngine>(&conn)
+                .context("Unable to connect to Wayland")
+                .unwrap();
+
+        let qh = event_queue.handle();
+
+        let registry_state = sct::registry::RegistryState::new(&globals);
+        let output_state = sct::output::OutputState::new(&globals, &qh);
+        let compositor_state = sct::compositor::CompositorState::bind(&globals, &qh)
+            .context("Unable to create compositor state")?;
+        let shm = sct::shm::Shm::bind(&globals, &qh).context("Unable to create shm state")?;
+        let layer_shell = sct::shell::wlr_layer::LayerShell::bind(&globals, &qh)
+            .context("Unable to create layer shell state")?;
+
+        // for (index, bar) in config.bar.iter().enumerate() {
+        // }
+
+        let wayland_window = WaylandWindow::new(&qh, &compositor_state, &layer_shell)
+            .context("Unable to create wayland window")?;
+
+        Ok(Self {
+            conn,
+            update_tx,
+            update_rx: Some(update_rx),
+            registry_state,
+            shm,
+            layer_shell,
+            output_state,
+            compositor_state,
+            event_queue: Some(event_queue),
+            wayland_window,
+        })
+    }
+
+    pub fn run(mut self) -> anyhow::Result<()> {
+        let mut event_loop: calloop::EventLoop<Self> =
+            calloop::EventLoop::try_new().expect("Failed to create event loop");
+        let loop_handle = event_loop.handle();
+
+        calloop_wayland_source::WaylandSource::new(
+            self.conn.clone(),
+            self.event_queue.take().unwrap(),
+        )
+        .insert(loop_handle)
+        .unwrap();
+
+        loop {
+            event_loop
+                .dispatch(std::time::Duration::from_millis(16), &mut self)
+                .context("Failed to dispatch event loop")?;
+
+            // if self.exit {
+            //     break;
+            // }
+        }
+    }
+}
+
+impl sct::shm::ShmHandler for WaylandEngine {
+    fn shm_state(&mut self) -> &mut sct::shm::Shm {
+        &mut self.shm
+    }
+}
+
+impl sct::registry::ProvidesRegistryState for WaylandEngine {
+    fn registry(&mut self) -> &mut sct::registry::RegistryState {
+        &mut self.registry_state
+    }
+    registry_handlers!(sct::output::OutputState);
+}
+
+impl sct::output::OutputHandler for WaylandEngine {
+    fn output_state(&mut self) -> &mut sct::output::OutputState {
+        &mut self.output_state
+    }
+
+    fn new_output(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _output: smithay_client::protocol::wl_output::WlOutput,
+    ) {
+    }
+
+    fn update_output(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _output: smithay_client::protocol::wl_output::WlOutput,
+    ) {
+    }
+
+    fn output_destroyed(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _output: smithay_client::protocol::wl_output::WlOutput,
+    ) {
+    }
+}
+
+impl sct::compositor::CompositorHandler for WaylandEngine {
+    fn scale_factor_changed(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _surface: &wayland_client::protocol::wl_surface::WlSurface,
+        _new_factor: i32,
+    ) {
+    }
+
+    fn frame(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _surface: &wayland_client::protocol::wl_surface::WlSurface,
+        _time: u32,
+    ) {
+        // for bar in &mut self.bars {
+        //     if bar.layer_surface.wl_surface() == surface {
+        //         bar.draw(qh, &self.shm);
+        //         break;
+        //     }
+        // }
+    }
+
+    fn surface_enter(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _surface: &wayland_client::protocol::wl_surface::WlSurface,
+        _output: &wayland_client::protocol::wl_output::WlOutput,
+    ) {
+    }
+
+    fn surface_leave(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _surface: &wayland_client::protocol::wl_surface::WlSurface,
+        _output: &wayland_client::protocol::wl_output::WlOutput,
+    ) {
+    }
+
+    fn transform_changed(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _surface: &wayland_client::protocol::wl_surface::WlSurface,
+        _new_transform: wayland_client::protocol::wl_output::Transform,
+    ) {
+    }
+}
+
+impl sct::shell::wlr_layer::LayerShellHandler for WaylandEngine {
+    fn closed(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _layer: &sct::shell::wlr_layer::LayerSurface,
+    ) {
+        // If one bar closes, we could exit or just remove it.
+        // For simplicity, let's exit if any bar is closed.
+        // self.exit = true;
+        // Ideally we would verify which bar it is.
+        // But finding it in the Vec to remove it is tricky due to ownership if we are iterating?
+        // Actually, we are not iterating here.
+    }
+
+    fn configure(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        qh: &smithay_client::QueueHandle<Self>,
+        _layer: &sct::shell::wlr_layer::LayerSurface,
+        configure: sct::shell::wlr_layer::LayerSurfaceConfigure,
+        _serial: u32,
+    ) {
+        // for bar in &mut self.bars {
+        //     if bar.layer_surface == *layer {
+        if configure.new_size.0 > 0 {
+            self.wayland_window.width = configure.new_size.0;
+        }
+        if configure.new_size.1 > 0 {
+            self.wayland_window.height = configure.new_size.1;
+        }
+
+        // Initial draw or redraw on resize
+        if let Err(e) = self.wayland_window.draw(qh, &self.shm) {
+            tracing::error!("Failed to draw: {}", e);
+        }
+    }
+}
+
+delegate_output!(WaylandEngine);
+delegate_registry!(WaylandEngine);
+delegate_compositor!(WaylandEngine);
+delegate_shm!(WaylandEngine);
+delegate_layer!(WaylandEngine);
+
+pub struct XOrgEngine {
     windows: HashMap<x::Window, window::Window>,
     window_ids: Vec<x::Window>,
     state: Arc<RwLock<state::State>>,
@@ -29,7 +383,7 @@ pub struct Engine {
     update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
 }
 
-impl Engine {
+impl XOrgEngine {
     pub fn new(
         config: config::Config<parse::Placeholder>,
         initial_state: state::State,

@@ -101,5 +101,9 @@ image = { version = "0.25.1", optional=true, default-features = false }
 resvg = {version = "0.45", optional=true}
 chrono = { version = "0.4.42", features = ["serde"] }
 serde_ext_duration = "0.2.0"
+smithay-client-toolkit = "0.20.0"
+wayland-client = "0.31.11"
+calloop = "0.14.3"
+calloop-wayland-source = "0.4.1"
 
 
