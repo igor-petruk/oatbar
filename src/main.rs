@@ -33,10 +33,15 @@ mod source;
 mod state;
 mod thread;
 mod timer;
+#[cfg(feature = "wayland")]
 mod wayland;
+#[cfg(feature = "x11")]
 mod wmready;
+#[cfg(feature = "x11")]
 mod x11;
+#[cfg(feature = "x11")]
 mod xrandr;
+#[cfg(feature = "x11")]
 mod xutils;
 
 use clap::Parser;

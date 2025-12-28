@@ -13,6 +13,7 @@
 // limitations under the License.
 
 mod protocol;
+#[cfg(feature = "x11")]
 #[allow(unused)]
 mod xutils;
 
@@ -90,6 +91,11 @@ fn print_update(state: &DesktopState) -> anyhow::Result<()> {
 // X11 Implementation
 // ============================================================================
 
+// ============================================================================
+// X11 Implementation
+// ============================================================================
+
+#[cfg(feature = "x11")]
 mod x11_impl {
     use super::*;
     use xcb::x::{self, Atom, Window};
@@ -280,6 +286,7 @@ mod x11_impl {
 // For full workspace support on Sway, use sway_impl instead.
 // ============================================================================
 
+#[cfg(feature = "wayland")]
 mod wayland_impl {
     use super::*;
     use std::collections::HashMap;
@@ -488,6 +495,7 @@ mod wayland_impl {
 // Sway Implementation (using swayipc for Sway-specific features)
 // ============================================================================
 
+#[cfg(feature = "wayland")]
 mod sway_impl {
     use super::*;
     use swayipc::{Connection as SwayConnection, Event, EventType, Node};
@@ -595,6 +603,7 @@ mod sway_impl {
 // Main entry point with display server detection
 // ============================================================================
 
+#[cfg(feature = "wayland")]
 fn is_sway() -> bool {
     std::env::var("SWAYSOCK").is_ok()
 }
@@ -605,17 +614,46 @@ fn main() -> anyhow::Result<()> {
 
     match detect_display_server() {
         Some(DisplayServer::Wayland) => {
-            if is_sway() {
-                tracing::info!("Detected Sway, using swayipc");
-                sway_impl::run(set_workspace)
-            } else {
-                tracing::info!("Detected Wayland, using wlr-foreign-toplevel-management");
-                wayland_impl::run(set_workspace)
+            #[cfg(feature = "wayland")]
+            {
+                if is_sway() {
+                    tracing::info!("Detected Sway, using swayipc");
+                    sway_impl::run(set_workspace)
+                } else {
+                    tracing::info!("Detected Wayland, using wlr-foreign-toplevel-management");
+                    wayland_impl::run(set_workspace)
+                }
+            }
+            #[cfg(not(feature = "wayland"))]
+            {
+                anyhow::bail!("Detected Wayland but 'wayland' feature is disabled");
             }
         }
         Some(DisplayServer::X11) | None => {
-            tracing::info!("Using X11 backend");
-            x11_impl::run(set_workspace)
+            #[cfg(feature = "x11")]
+            {
+                tracing::info!("Using X11 backend");
+                x11_impl::run(set_workspace)
+            }
+            #[cfg(not(feature = "x11"))]
+            {
+                // If X11 is not enabled, try Wayland as fallback if enabled
+                #[cfg(feature = "wayland")]
+                {
+                    tracing::info!("X11 disabled, trying Wayland backend");
+                    if is_sway() {
+                        sway_impl::run(set_workspace)
+                    } else {
+                        wayland_impl::run(set_workspace)
+                    }
+                }
+                #[cfg(not(feature = "wayland"))]
+                {
+                    anyhow::bail!(
+                        "No suitable backend enabled. Please enable 'x11' or 'wayland' feature."
+                    );
+                }
+            }
         }
     }
 }
