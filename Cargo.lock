@@ -1637,6 +1637,7 @@ dependencies = [
  "serde_regex",
  "serde_with",
  "smithay-client-toolkit",
+ "swayipc",
  "systemstat",
  "thiserror 1.0.69",
  "tokio",
@@ -1645,6 +1646,8 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "wayland-client",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
  "xcb",
 ]
 
@@ -2550,6 +2553,28 @@ checksum = "68c7541fff44b35860c1a7a47a7cadf3e4a304c457b58f9870d9706ece028afc"
 dependencies = [
  "kurbo",
  "siphasher",
+]
+
+[[package]]
+name = "swayipc"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b8c50cb2e98e88b52066a35ef791fffd8f6fa631c3a4983de18ba41f718c736"
+dependencies = [
+ "serde",
+ "serde_json",
+ "swayipc-types",
+]
+
+[[package]]
+name = "swayipc-types"
+version = "1.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a59277899d1da02e8d04f5118d780ba8d769c3c3c9f9fdbae4c2e77a56312a4f"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.15",
 ]
 
 [[package]]

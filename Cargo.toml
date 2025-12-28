@@ -107,5 +107,8 @@ smithay-client-toolkit = "0.20.0"
 wayland-client = "0.31.11"
 calloop = "0.14.3"
 calloop-wayland-source = "0.4.1"
+swayipc = "3"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+wayland-protocols = { version = "0.32", features = ["client"] }
 
 
