@@ -40,6 +40,15 @@ struct Dimensions {
     height: f64,
 }
 
+/// Represents a clickable rectangle area for input region calculation
+#[derive(Debug, Clone)]
+pub struct InputRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Button {
     Left,
@@ -1119,6 +1128,7 @@ struct BlockGroup {
     blocks: Vec<Box<dyn DebugBlock>>,
     dimensions: Dimensions,
     layout: Vec<(usize, Dimensions)>,
+    input_rects: Vec<InputRect>,
 }
 
 impl BlockGroup {
@@ -1144,9 +1154,11 @@ impl BlockGroup {
         &self,
         entire_bar_visible: bool,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) -> Vec<(usize, Dimensions)> {
+        bar_height: f64,
+    ) -> (Vec<(usize, Dimensions)>, Vec<InputRect>) {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(self.blocks.len());
+        let mut input_rects = Vec::with_capacity(self.blocks.len());
 
         let mut eat_separators = true;
         let mut last_edge = Some(Left);
@@ -1200,6 +1212,7 @@ impl BlockGroup {
         let mut output = Vec::with_capacity(input.len());
         let mut input_iter = input.into_iter().peekable();
         last_edge = None;
+        let mut pos: f64 = 0.0;
 
         while let Some((block_idx, dim)) = input_iter.next() {
             let b = self.blocks.get(block_idx).unwrap();
@@ -1229,10 +1242,21 @@ impl BlockGroup {
                 }
             }
 
+            // Only add rectangles for non-separator blocks
+            if b.separator_type().is_none() && dim.width > 0.0 {
+                input_rects.push(InputRect {
+                    x: pos as i32,
+                    y: 0,
+                    width: dim.width.ceil() as i32,
+                    height: bar_height as i32,
+                });
+            }
+            pos += dim.width;
+
             output.push((block_idx, dim));
         }
 
-        output
+        (output, input_rects)
     }
 
     fn update(
@@ -1286,9 +1310,12 @@ impl BlockGroup {
         &mut self,
         entire_bar_visible: bool,
         show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
+        bar_height: f64,
     ) -> bool {
         let old_layout = self.layout.clone();
-        self.layout = self.build_layout(entire_bar_visible, show_only);
+        let (layout, input_rects) = self.build_layout(entire_bar_visible, show_only, bar_height);
+        self.layout = layout;
+        self.input_rects = input_rects;
         let mut dim = Dimensions {
             width: 0.0,
             height: 0.0,
@@ -1350,6 +1377,20 @@ impl BlockGroup {
             pos += b_dim.width;
         }
         Ok(())
+    }
+
+    /// Returns input rectangles for all visible blocks in this group.
+    /// The offset is the group's x position on the bar.
+    fn get_input_rects(&self, group_offset: f64) -> Vec<InputRect> {
+        self.input_rects
+            .iter()
+            .map(|r| InputRect {
+                x: r.x + group_offset as i32,
+                y: r.y,
+                width: r.width,
+                height: r.height,
+            })
+            .collect()
     }
 }
 
@@ -1448,6 +1489,7 @@ impl Bar {
                 width: 0.0,
                 height: 0.0,
             },
+            input_rects: vec![],
         }
     }
 
@@ -1573,11 +1615,21 @@ impl Bar {
                 .right_group
                 .visible_per_popup_mode(show_only, config::PopupMode::Bar);
 
-        let left_changed = self.left_group.layout_group(entire_bar_visible, show_only);
-        let center_changed = self
-            .center_group
-            .layout_group(entire_bar_visible, show_only);
-        let right_changed = self.right_group.layout_group(entire_bar_visible, show_only);
+        let left_changed = self.left_group.layout_group(
+            entire_bar_visible,
+            show_only,
+            self.bar_config.height as f64,
+        );
+        let center_changed = self.center_group.layout_group(
+            entire_bar_visible,
+            show_only,
+            self.bar_config.height as f64,
+        );
+        let right_changed = self.right_group.layout_group(
+            entire_bar_visible,
+            show_only,
+            self.bar_config.height as f64,
+        );
 
         let width = drawing_area_width
             - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;
@@ -1607,6 +1659,52 @@ impl Bar {
         }
 
         Ok(())
+    }
+
+    /// Returns all input rectangles for clickable areas of the bar.
+    /// These rectangles account for margins and include all visible blocks.
+    pub fn get_input_rects(&self) -> Vec<InputRect> {
+        let bar = &self.bar_config;
+        let margin_left = bar.margin.left as f64;
+        let margin_top = bar.margin.top as i32;
+
+        let mut rects = Vec::new();
+
+        // Get rectangles from each group with their offsets
+        rects.extend(
+            self.left_group
+                .get_input_rects(0.0)
+                .into_iter()
+                .map(|mut r| {
+                    r.x += margin_left as i32;
+                    r.y += margin_top;
+                    r
+                }),
+        );
+
+        rects.extend(
+            self.center_group
+                .get_input_rects(self.center_group_pos)
+                .into_iter()
+                .map(|mut r| {
+                    r.x += margin_left as i32;
+                    r.y += margin_top;
+                    r
+                }),
+        );
+
+        rects.extend(
+            self.right_group
+                .get_input_rects(self.right_group_pos)
+                .into_iter()
+                .map(|mut r| {
+                    r.x += margin_left as i32;
+                    r.y += margin_top;
+                    r
+                }),
+        );
+
+        rects
     }
 
     pub fn render(

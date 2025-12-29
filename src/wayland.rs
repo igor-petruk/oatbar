@@ -69,19 +69,24 @@ impl WaylandWindow {
         let anchor = match bar_config.position {
             config::BarPosition::Top => sct::shell::wlr_layer::Anchor::TOP,
             config::BarPosition::Bottom => sct::shell::wlr_layer::Anchor::BOTTOM,
-            config::BarPosition::Center => {
-                return Err(anyhow::anyhow!(
-                    "position 'center' is not supported in Wayland"
-                ));
-            }
+            config::BarPosition::Center => sct::shell::wlr_layer::Anchor::empty(),
         };
 
-        layer_surface.set_anchor(
-            sct::shell::wlr_layer::Anchor::LEFT | sct::shell::wlr_layer::Anchor::RIGHT | anchor,
-        );
+        // For center position, only anchor horizontally (LEFT+RIGHT) to let compositor center vertically
+        // For top/bottom, anchor to all three sides (LEFT+RIGHT+TOP or LEFT+RIGHT+BOTTOM)
+        let horizontal_anchor =
+            sct::shell::wlr_layer::Anchor::LEFT | sct::shell::wlr_layer::Anchor::RIGHT;
+        layer_surface.set_anchor(horizontal_anchor | anchor);
 
         layer_surface.set_size(0, window_height as u32);
-        layer_surface.set_exclusive_zone(window_height as i32);
+
+        // For center position, use exclusive_zone = -1 to float above windows without affecting layout
+        // For top/bottom, use positive exclusive zone to push windows
+        let exclusive_zone = match bar_config.position {
+            config::BarPosition::Center => -1,
+            _ => window_height as i32,
+        };
+        layer_surface.set_exclusive_zone(exclusive_zone);
         layer_surface.set_keyboard_interactivity(
             smithay_client_toolkit::shell::wlr_layer::KeyboardInteractivity::None,
         );
@@ -113,6 +118,7 @@ impl WaylandWindow {
         &mut self,
         _qh: &smithay_client::QueueHandle<WaylandEngine>,
         shm: &sct::shm::Shm,
+        compositor_state: &sct::compositor::CompositorState,
     ) -> anyhow::Result<()> {
         let width = self.width;
         let height = self.height;
@@ -210,8 +216,16 @@ impl WaylandWindow {
             .wl_surface()
             .damage(0, 0, width as i32, height as i32);
 
-        // Don't request frame callbacks for event-driven updates.
-        // Frame callbacks would cause unnecessary wakeups and busy-looping.
+        // Set input region to only accept clicks on blocks
+        let input_rects = self.bar.get_input_rects();
+        if let Ok(region) = sct::compositor::Region::new(compositor_state) {
+            for rect in &input_rects {
+                region.add(rect.x, rect.y, rect.width, rect.height);
+            }
+            self.layer_surface
+                .wl_surface()
+                .set_input_region(Some(region.wl_region()));
+        }
 
         self.layer_surface.wl_surface().commit();
         Ok(())
@@ -505,7 +519,9 @@ impl Engine for WaylandEngine {
                         state.handle_state_update(state_update);
                     }
                     for window in engine.windows.iter_mut() {
-                        if let Err(err) = window.draw(&engine.qh, &engine.shm) {
+                        if let Err(err) =
+                            window.draw(&engine.qh, &engine.shm, &engine.compositor_state)
+                        {
                             tracing::error!("unable to draw window: {}", err);
                         }
                     }
@@ -697,7 +713,7 @@ impl sct::shell::wlr_layer::LayerShellHandler for WaylandEngine {
                 }
 
                 // Initial draw or redraw on resize
-                if let Err(e) = window.draw(qh, &self.shm) {
+                if let Err(e) = window.draw(qh, &self.shm, &self.compositor_state) {
                     tracing::error!("Failed to draw: {}", e);
                 }
             }
