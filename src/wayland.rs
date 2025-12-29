@@ -41,7 +41,6 @@ impl WaylandWindow {
     #[allow(clippy::too_many_arguments)]
     pub fn create_and_show(
         name: String,
-        // bar_index: usize,
         config: &config::Config<parse::Placeholder>,
         bar_config: config::Bar<parse::Placeholder>,
         state: Arc<RwLock<state::State>>,
@@ -266,23 +265,6 @@ impl WaylandWindow {
         self.bar.handle_button_press(x as i16, y as i16, button)
     }
 }
-//         let surface = conn.create_surface().context("Unable to create surface")?;
-
-//         let layer_surface = sct::shell::wlr_layer::LayerSurface::cre(
-//             conn,
-//             qh,
-//             &surface,
-//             output,
-//             sct::shell::wlr_layer::LayerSurfaceRole::Overlay,
-//         )
-//         .context("Unable to create layer surface")?;
-
-//         Ok(Self {
-//             _surface: surface,
-//             layer_surface,
-//         })
-//     }
-// }
 
 pub struct WaylandEngine {
     state: Arc<RwLock<state::State>>,
@@ -644,12 +626,6 @@ impl sct::compositor::CompositorHandler for WaylandEngine {
         _surface: &wayland_client::protocol::wl_surface::WlSurface,
         _time: u32,
     ) {
-        // for bar in &mut self.bars {
-        //     if bar.layer_surface.wl_surface() == surface {
-        //         bar.draw(qh, &self.shm);
-        //         break;
-        //     }
-        // }
     }
 
     fn surface_enter(
@@ -687,12 +663,6 @@ impl sct::shell::wlr_layer::LayerShellHandler for WaylandEngine {
         _qh: &smithay_client::QueueHandle<Self>,
         _layer: &sct::shell::wlr_layer::LayerSurface,
     ) {
-        // If one bar closes, we could exit or just remove it.
-        // For simplicity, let's exit if any bar is closed.
-        // self.exit = true;
-        // Ideally we would verify which bar it is.
-        // But finding it in the Vec to remove it is tricky due to ownership if we are iterating?
-        // Actually, we are not iterating here.
     }
 
     fn configure(
