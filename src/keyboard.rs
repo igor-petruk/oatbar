@@ -431,12 +431,116 @@ mod sway_impl {
 }
 
 // ============================================================================
+// Hyprland Implementation
+// ============================================================================
+
+#[cfg(feature = "wayland")]
+mod hyprland_impl {
+    use super::*;
+    use anyhow::Context;
+    use hyprland::{ctl::switch_xkb_layout, event_listener::EventListener};
+    use serde::Deserialize;
+    use std::process::Command;
+
+    #[derive(Debug, Deserialize)]
+    struct HyprlandKeyboard {
+        name: String,
+        main: bool,
+        layout: String,
+        active_layout_index: usize,
+    }
+
+    fn get_keyboard() -> anyhow::Result<HyprlandKeyboard> {
+        let output = Command::new("hyprctl")
+            .arg("devices")
+            .arg("-j")
+            .output()
+            .context("Failed to execute hyprctl")?;
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "hyprctl failed with status: {}",
+                output.status
+            ));
+        }
+
+        let devices: serde_json::Value = serde_json::from_slice(&output.stdout)
+            .context("Failed to parse hyprctl JSON output")?;
+
+        let keyboards: Vec<HyprlandKeyboard> =
+            serde_json::from_value(devices["keyboards"].clone())
+                .context("Failed to parse keyboards from hyprctl output")?;
+
+        keyboards
+            .into_iter()
+            .find(|kbd| kbd.main)
+            .ok_or_else(|| anyhow!("No main keyboard found"))
+    }
+
+    fn get_state() -> anyhow::Result<KeyboardState> {
+        let keyboard = get_keyboard()?;
+        let variants: Vec<String> = keyboard.layout.split(',').map(String::from).collect();
+        let current = keyboard.active_layout_index;
+        let indicators = BTreeMap::new(); // Hyprland does not expose this yet.
+        Ok(KeyboardState {
+            current,
+            variants,
+            indicators,
+        })
+    }
+
+    pub fn run(command: Option<Commands>) -> anyhow::Result<()> {
+        if let Some(command) = command {
+            match command {
+                Commands::Layout { layout_cmd } => match layout_cmd {
+                    LayoutSubcommand::Set { layout } => {
+                        let keyboard = get_keyboard()?;
+                        switch_xkb_layout::call(
+                            &keyboard.name,
+                            switch_xkb_layout::SwitchXKBLayoutCmdTypes::Id(layout as u8),
+                        )?;
+                    }
+                },
+            }
+            return Ok(());
+        }
+
+        println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+        println!("[");
+
+        let initial_state = get_state()?;
+        println!(
+            "{},",
+            serde_json::to_string(&state_to_blocks(initial_state))?
+        );
+
+        let mut event_listener = EventListener::new();
+        event_listener.add_layout_changed_handler(|_| {
+            if let Ok(state) = get_state() {
+                if let Ok(line) = serde_json::to_string(&state_to_blocks(state)) {
+                    println!("{},", line);
+                }
+            }
+        });
+
+        event_listener
+            .start_listener()
+            .context("Failed to start Hyprland event listener")
+    }
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
 #[cfg(feature = "wayland")]
 fn is_sway() -> bool {
     std::env::var("SWAYSOCK").is_ok()
+}
+
+#[cfg(feature = "wayland")]
+fn is_hyprland() -> bool {
+    std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok()
 }
 
 fn main() -> anyhow::Result<()> {
@@ -449,9 +553,12 @@ fn main() -> anyhow::Result<()> {
                 if is_sway() {
                     tracing::info!("Detected Sway, using swayipc");
                     sway_impl::run(cli.command)
+                } else if is_hyprland() {
+                    tracing::info!("Detected Hyprland, using hyprland-rs");
+                    hyprland_impl::run(cli.command)
                 } else {
                     anyhow::bail!(
-                        "Generic Wayland keyboard layout management not implemented. Use Sway."
+                        "Generic Wayland keyboard layout management not implemented. Use Sway or Hyprland."
                     );
                 }
             }
@@ -474,9 +581,11 @@ fn main() -> anyhow::Result<()> {
                     tracing::info!("X11 disabled, trying Wayland backend");
                     if is_sway() {
                         sway_impl::run(cli.command)
+                    } else if is_hyprland() {
+                        hyprland_impl::run(cli.command)
                     } else {
                         anyhow::bail!(
-                            "Generic Wayland keyboard layout management not implemented. Use Sway."
+                            "Generic Wayland keyboard layout management not implemented. Use Sway or Hyprland."
                         );
                     }
                 }
