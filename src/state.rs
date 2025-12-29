@@ -56,6 +56,10 @@ impl State {
         }
     }
 
+    pub fn initialize_vars(&mut self) {
+        self.handle_var_update(Default::default());
+    }
+
     pub fn build_error_msg(&self) -> Option<ErrorMessage> {
         if let Some(error) = &self.error {
             Some(ErrorMessage {

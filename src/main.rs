@@ -75,7 +75,8 @@ fn main() -> anyhow::Result<()> {
 
     let (ipc_server_tx, ipc_server_rx) = crossbeam_channel::unbounded();
 
-    let state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
+    let mut state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
+    state.initialize_vars();
 
     let mut engine = engine::load(config, state, notify::Notifier::new())?;
 
