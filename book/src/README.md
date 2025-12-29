@@ -1,10 +1,12 @@
-# Oatbar - standalone desktop bar
+# Oatbar - desktop bar for X11 and Wayland
 
 [![Latest Version](https://img.shields.io/crates/v/oatbar.svg)](https://crates.io/crates/oatbar)
 ![Latest Build](https://img.shields.io/github/actions/workflow/status/igor-petruk/oatbar/on-push.yml)
 ![Crates.io License](https://img.shields.io/crates/l/oatbar)
 ![GitHub top language](https://img.shields.io/github/languages/top/igor-petruk/oatbar)
 ![Crates.io](https://img.shields.io/crates/d/oatbar?label=Cargo.io%20downloads)
+
+**Supported platforms:** Native X11 and Wayland. First-class support for **sway** and **hyprland**.
 
 ![Panel Left](panel-sample-left.png)
 ![Panel Right](panel-sample-right.png)
@@ -19,6 +21,7 @@ any significant coding effort. It also ships with first-class support for LLMs (
 
 | Feature | **`oatbar`** | Basic bars | Bars with built-in plugins | DIY toolbar kits |
 |---------|:-------:|:-----:|:----:|:------:|
+| [Native X11 & Wayland support](installation.md) | **✅** | -[^x11_wayland] | -[^x11_wayland] | **✅** |
 | [Built-in system data](configuration/cookbook/data.md) | **✅** | **✅** | **✅** | - |
 | [Text widgets from custom data](configuration/block.md#text-block) | **✅** | **✅** | **✅** | **✅** |
 | [Advanced widgets](configuration/block.md) | **✅** | **✅** | - | **✅** |
@@ -32,7 +35,8 @@ any significant coding effort. It also ships with first-class support for LLMs (
 | [Consume data from *other* ecosystems like community scripts for `polybar`, `i3blocks`, `i3status`, `conky`](configuration/cookbook/data.md#third-party-sources) | **✅**[^other_eco] | - | - | **✅** |
 | [**NEW:** LLM Integration (Gemini, ChatGPT, Ollama, etc.)](configuration/cookbook/llm.md) | **✅** | - | - | **✅** |
 
-[^other_eco]: In can be partial, like the lack of support for `polybar` formatting, but a lot of scripts are useful.
+[^x11_wayland]: Most bars are X11-only or Wayland-only.
+[^other_eco]: Partial; e.g. no `polybar` formatting, but many scripts work.
 
 ## Example
 
