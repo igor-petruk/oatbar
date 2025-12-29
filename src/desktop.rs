@@ -232,11 +232,7 @@ mod x11_impl {
                     return Ok(());
                 }
                 Err(err) => {
-                    return Err(anyhow::anyhow!(
-                        "unexpected error: {:#?}, {}",
-                        err,
-                        err.to_string()
-                    ));
+                    return Err(anyhow::anyhow!("unexpected error: {:#?}, {}", err, err));
                 }
                 Ok(event) => event,
             };
