@@ -600,12 +600,106 @@ mod sway_impl {
 }
 
 // ============================================================================
+// Hyprland Implementation (using hyprland ipc for Hyprland-specific features)
+// ============================================================================
+
+#[cfg(feature = "wayland")]
+mod hyprland_impl {
+    use super::*;
+    use hyprland::{
+        data::{Client, Workspace, Workspaces as HyprlandWorkspaces},
+        dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
+        event_listener::EventListener,
+        prelude::*,
+    };
+    use std::sync::{Arc, Mutex};
+
+    fn refresh_state(state: &Arc<Mutex<DesktopState>>) -> anyhow::Result<()> {
+        let mut state = state.lock().unwrap();
+        let workspaces = HyprlandWorkspaces::get().context("Failed to get workspaces")?;
+        let active_workspace = Workspace::get_active().context("Failed to get active workspace")?;
+
+        let mut names: Vec<String> = workspaces.iter().map(|w| w.name.clone()).collect();
+        names.sort();
+        state.workspaces.names = names;
+
+        state.workspaces.current = workspaces
+            .iter()
+            .position(|w| w.id == active_workspace.id)
+            .unwrap_or(0);
+
+        if let Ok(Some(active_client)) = Client::get_active() {
+            state.active_window_title = active_client.title;
+        } else {
+            state.active_window_title = "".to_string();
+        }
+
+        Ok(())
+    }
+
+    pub fn run(set_workspace: Option<u32>) -> anyhow::Result<()> {
+        if let Some(workspace) = set_workspace {
+            Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
+                (workspace + 1) as i32,
+            )))
+            .context("Failed to switch workspace")?;
+            return Ok(());
+        }
+
+        let state = Arc::new(Mutex::new(DesktopState {
+            workspaces: super::Workspaces {
+                current: 0,
+                names: vec![],
+            },
+            active_window_title: String::new(),
+        }));
+
+        refresh_state(&state)?;
+
+        println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+        println!("[");
+        print_update(&state.lock().unwrap())?;
+
+        let mut event_listener = EventListener::new();
+
+        let state_clone = state.clone();
+        event_listener.add_workspace_changed_handler(move |_| {
+            if refresh_state(&state_clone).is_ok() {
+                if let Err(e) = print_update(&state_clone.lock().unwrap()) {
+                    tracing::error!("Failed to print update: {}", e);
+                }
+            }
+        });
+
+        let state_clone = state.clone();
+        event_listener.add_active_window_changed_handler(move |_| {
+            if refresh_state(&state_clone).is_ok() {
+                if let Err(e) = print_update(&state_clone.lock().unwrap()) {
+                    tracing::error!("Failed to print update: {}", e);
+                }
+            }
+        });
+
+        event_listener
+            .start_listener()
+            .context("Failed to start listener")?;
+
+        Ok(())
+    }
+}
+
+// ============================================================================
 // Main entry point with display server detection
 // ============================================================================
 
 #[cfg(feature = "wayland")]
 fn is_sway() -> bool {
     std::env::var("SWAYSOCK").is_ok()
+}
+
+#[cfg(feature = "wayland")]
+fn is_hyprland() -> bool {
+    std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok()
 }
 
 fn main() -> anyhow::Result<()> {
@@ -619,6 +713,9 @@ fn main() -> anyhow::Result<()> {
                 if is_sway() {
                     tracing::info!("Detected Sway, using swayipc");
                     sway_impl::run(set_workspace)
+                } else if is_hyprland() {
+                    tracing::info!("Detected Hyprland, using hyprland-ipc");
+                    hyprland_impl::run(set_workspace)
                 } else {
                     tracing::info!("Detected Wayland, using wlr-foreign-toplevel-management");
                     wayland_impl::run(set_workspace)
@@ -643,6 +740,8 @@ fn main() -> anyhow::Result<()> {
                     tracing::info!("X11 disabled, trying Wayland backend");
                     if is_sway() {
                         sway_impl::run(set_workspace)
+                    } else if is_hyprland() {
+                        hyprland_impl::run(set_workspace)
                     } else {
                         wayland_impl::run(set_workspace)
                     }

@@ -67,7 +67,7 @@ llm-mistral = ["llm", "llm/mistral"]
 llm-xai = ["llm", "llm/xai"]
 llm-ollama = ["llm", "llm/ollama"]
 x11 = ["dep:xcb", "cairo-rs/xcb"]
-wayland = ["dep:smithay-client-toolkit", "dep:wayland-client", "dep:calloop", "dep:calloop-wayland-source", "dep:swayipc", "dep:wayland-protocols-wlr", "dep:wayland-protocols"]
+wayland = ["dep:smithay-client-toolkit", "dep:wayland-client", "dep:calloop", "dep:calloop-wayland-source", "dep:swayipc", "dep:wayland-protocols-wlr", "dep:wayland-protocols", "dep:hyprland"]
 
 [dependencies]
 pprof = { version = "0.15", features = ["flamegraph"], optional = true }
@@ -108,6 +108,7 @@ wayland-client = { version = "0.31.11", optional = true }
 calloop = { version = "0.14.3", optional = true }
 calloop-wayland-source = { version = "0.4.1", optional = true }
 swayipc = { version = "3", optional = true }
+hyprland = { version = "0.4.0-beta.3", optional = true }
 wayland-protocols-wlr = { version = "0.3", features = ["client"], optional = true }
 wayland-protocols = { version = "0.32", features = ["client"], optional = true }
 
