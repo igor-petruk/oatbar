@@ -148,7 +148,7 @@ impl DisplayOptions<Option<Placeholder>> {
             decorations: self.decorations.clone().with_default(&default.decorations),
             hover_decorations: self
                 .hover_decorations
-                .with_default(&self.decorations.with_default(&default.hover_decorations)),
+                .with_default(&default.hover_decorations),
             show_if_matches: if self.show_if_matches.is_empty() {
                 default.show_if_matches.clone()
             } else {

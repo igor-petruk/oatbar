@@ -12,10 +12,14 @@ use crate::{
 use sct::reexports::client as smithay_client;
 use sct::shell::WaylandSurface;
 use sct::{
-    delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_shm,
-    registry_handlers,
+    delegate_compositor, delegate_layer, delegate_output, delegate_pointer, delegate_registry,
+    delegate_seat, delegate_shm, registry_handlers,
 };
-use smithay_client_toolkit::{self as sct};
+use smithay_client_toolkit::{
+    self as sct,
+    seat::pointer::{PointerEvent, PointerEventKind, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT},
+};
+use wayland_client::protocol::{wl_pointer, wl_seat};
 
 pub struct WaylandWindow {
     name: String,
@@ -27,8 +31,10 @@ pub struct WaylandWindow {
     _surface: wayland_client::protocol::wl_surface::WlSurface, // Keep surface alive
     layer_surface: sct::shell::wlr_layer::LayerSurface,
     pool: Option<sct::shm::slot::SlotPool>,
+
     width: u32,
     height: u32,
+    update_tx: crossbeam_channel::Sender<state::Update>,
 }
 
 impl WaylandWindow {
@@ -39,7 +45,8 @@ impl WaylandWindow {
         config: &config::Config<parse::Placeholder>,
         bar_config: config::Bar<parse::Placeholder>,
         state: Arc<RwLock<state::State>>,
-        _state_update_tx: crossbeam_channel::Sender<state::Update>,
+
+        update_tx: crossbeam_channel::Sender<state::Update>,
         notifier: notify::Notifier,
         qh: &smithay_client::QueueHandle<WaylandEngine>,
         compositor_state: &sct::compositor::CompositorState,
@@ -95,18 +102,31 @@ impl WaylandWindow {
             _surface: surface,
             layer_surface,
             pool: None,
+
             width: 0,
             height: 0,
+            update_tx,
         })
     }
 
     pub fn draw(
         &mut self,
-        qh: &smithay_client::QueueHandle<WaylandEngine>,
+        _qh: &smithay_client::QueueHandle<WaylandEngine>,
         shm: &sct::shm::Shm,
     ) -> anyhow::Result<()> {
         let width = self.width;
         let height = self.height;
+
+        // Don't draw if we haven't received configure event yet
+        if width == 0 || height == 0 {
+            tracing::trace!(
+                "Skipping draw: window not yet configured ({}x{})",
+                width,
+                height
+            );
+            return Ok(());
+        }
+
         let stride = width as i32 * 4;
         let size = (width * height * 4) as usize;
         tracing::trace!(
@@ -190,12 +210,46 @@ impl WaylandWindow {
             .wl_surface()
             .damage(0, 0, width as i32, height as i32);
 
-        self.layer_surface
-            .wl_surface()
-            .frame(qh, self.layer_surface.wl_surface().clone());
+        // Don't request frame callbacks for event-driven updates.
+        // Frame callbacks would cause unnecessary wakeups and busy-looping.
 
         self.layer_surface.wl_surface().commit();
         Ok(())
+    }
+    pub fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
+        self.layer_surface.wl_surface()
+    }
+
+    pub fn handle_motion(&self, x: f64, y: f64) -> anyhow::Result<()> {
+        // Need to replicate x11 behavior: update state with motion
+        self.update_tx()
+            .send(state::Update::MotionUpdate(state::MotionUpdate {
+                window_name: self.name.clone(),
+                position: Some((x as i16, y as i16)),
+            }))?;
+        Ok(())
+    }
+
+    fn update_tx(&self) -> crossbeam_channel::Sender<state::Update> {
+        self.update_tx.clone()
+    }
+
+    pub fn handle_motion_leave(&self) -> anyhow::Result<()> {
+        self.update_tx()
+            .send(state::Update::MotionUpdate(state::MotionUpdate {
+                window_name: self.name.clone(),
+                position: None,
+            }))?;
+        Ok(())
+    }
+
+    pub fn handle_button_press(
+        &mut self,
+        x: f64,
+        y: f64,
+        button: bar::Button,
+    ) -> anyhow::Result<()> {
+        self.bar.handle_button_press(x as i16, y as i16, button)
     }
 }
 //         let surface = conn.create_surface().context("Unable to create surface")?;
@@ -223,12 +277,129 @@ pub struct WaylandEngine {
     output_state: sct::output::OutputState,
     compositor_state: sct::compositor::CompositorState,
     shm: sct::shm::Shm,
+    seat_state: sct::seat::SeatState,
     layer_shell: sct::shell::wlr_layer::LayerShell,
     event_queue: Option<smithay_client::EventQueue<WaylandEngine>>,
     pub update_tx: crossbeam_channel::Sender<state::Update>,
     update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
     windows: Vec<WaylandWindow>,
     qh: smithay_client::QueueHandle<WaylandEngine>,
+    pointer_surface: Option<wayland_client::protocol::wl_surface::WlSurface>,
+    last_pointer_pos: (f64, f64),
+}
+
+impl sct::seat::pointer::PointerHandler for WaylandEngine {
+    fn pointer_frame(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _pointer: &wl_pointer::WlPointer,
+        events: &[PointerEvent],
+    ) {
+        for event in events {
+            match event.kind {
+                PointerEventKind::Enter { .. } => {
+                    self.pointer_surface = Some(event.surface.clone());
+                    self.last_pointer_pos = event.position;
+                    for window in &mut self.windows {
+                        if window.wl_surface() == &event.surface {
+                            if let Err(e) = window.handle_motion(event.position.0, event.position.1)
+                            {
+                                tracing::error!("handle_motion error: {}", e);
+                            }
+                            break;
+                        }
+                    }
+                }
+                PointerEventKind::Leave { .. } => {
+                    if self.pointer_surface.as_ref() == Some(&event.surface) {
+                        self.pointer_surface = None;
+                        for window in &mut self.windows {
+                            if window.wl_surface() == &event.surface {
+                                if let Err(e) = window.handle_motion_leave() {
+                                    tracing::error!("handle_motion_leave error: {}", e);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                PointerEventKind::Motion { .. } => {
+                    self.last_pointer_pos = event.position;
+                    if let Some(surface) = &self.pointer_surface {
+                        for window in &mut self.windows {
+                            if window.wl_surface() == surface {
+                                if let Err(e) =
+                                    window.handle_motion(event.position.0, event.position.1)
+                                {
+                                    tracing::error!("handle_motion error: {}", e);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                PointerEventKind::Press { button, .. } => {
+                    let button = match button {
+                        BTN_LEFT => bar::Button::Left,
+                        BTN_RIGHT => bar::Button::Right,
+                        BTN_MIDDLE => bar::Button::Middle,
+                        _ => return,
+                    };
+                    if let Some(surface) = &self.pointer_surface {
+                        for window in &mut self.windows {
+                            if window.wl_surface() == surface {
+                                if let Err(e) = window.handle_button_press(
+                                    self.last_pointer_pos.0,
+                                    self.last_pointer_pos.1,
+                                    button,
+                                ) {
+                                    tracing::error!("handle_button_press error: {}", e);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                PointerEventKind::Axis {
+                    vertical,
+                    horizontal: _,
+                    ..
+                } => {
+                    let value = if vertical.absolute > 0.0 {
+                        vertical.absolute
+                    } else {
+                        0.0
+                    };
+                    if value != 0.0 {
+                        let button = if value > 0.0 {
+                            bar::Button::ScrollDown
+                        } else {
+                            bar::Button::ScrollUp
+                        };
+                        if let Some(surface) = &self.pointer_surface {
+                            for window in &mut self.windows {
+                                if window.wl_surface() == surface {
+                                    if let Err(e) = window.handle_button_press(
+                                        self.last_pointer_pos.0,
+                                        self.last_pointer_pos.1,
+                                        button,
+                                    ) {
+                                        tracing::error!(
+                                            "handle_button_press (scroll) error: {}",
+                                            e
+                                        );
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 impl WaylandEngine {
@@ -255,6 +426,7 @@ impl WaylandEngine {
         let compositor_state = sct::compositor::CompositorState::bind(&globals, &qh)
             .context("Unable to create compositor state")?;
         let shm = sct::shm::Shm::bind(&globals, &qh).context("Unable to create shm state")?;
+        let seat_state = sct::seat::SeatState::new(&globals, &qh);
         let layer_shell = sct::shell::wlr_layer::LayerShell::bind(&globals, &qh)
             .context("Unable to create layer shell state")?;
 
@@ -282,12 +454,15 @@ impl WaylandEngine {
             update_rx: Some(update_rx),
             registry_state,
             shm,
+            seat_state,
             layer_shell,
             output_state,
             compositor_state,
             event_queue: Some(event_queue),
             windows,
             qh,
+            pointer_surface: None,
+            last_pointer_pos: (0.0, 0.0),
         })
     }
 }
@@ -309,10 +484,14 @@ impl Engine for WaylandEngine {
 
         // Convert channel type by resending, not optimal, but simple.
         if let Some(update_rx) = self.update_rx.take() {
-            thread::spawn("eng-state", move || loop {
+            thread::spawn("eng-state", move || {
                 while let Ok(state_update) = update_rx.recv() {
-                    tx.send(state_update).unwrap();
+                    if tx.send(state_update).is_err() {
+                        break;
+                    }
                 }
+                tracing::debug!("eng-state thread exiting");
+                Ok(())
             })
             .context("unable to spawn eng-state")?;
         }
@@ -336,7 +515,7 @@ impl Engine for WaylandEngine {
 
         loop {
             event_loop
-                .dispatch(std::time::Duration::from_millis(16), self)
+                .dispatch(None, self)
                 .context("Failed to dispatch event loop")?;
         }
     }
@@ -356,7 +535,50 @@ impl sct::registry::ProvidesRegistryState for WaylandEngine {
     fn registry(&mut self) -> &mut sct::registry::RegistryState {
         &mut self.registry_state
     }
-    registry_handlers!(sct::output::OutputState);
+    registry_handlers!(sct::output::OutputState, sct::seat::SeatState);
+}
+
+impl sct::seat::SeatHandler for WaylandEngine {
+    fn seat_state(&mut self) -> &mut sct::seat::SeatState {
+        &mut self.seat_state
+    }
+
+    fn new_seat(
+        &mut self,
+        _: &smithay_client::Connection,
+        _: &smithay_client::QueueHandle<Self>,
+        _: wl_seat::WlSeat,
+    ) {
+    }
+
+    fn new_capability(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        qh: &smithay_client::QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: sct::seat::Capability,
+    ) {
+        if capability == sct::seat::Capability::Pointer {
+            self.seat_state.get_pointer(qh, &seat).unwrap();
+        }
+    }
+
+    fn remove_capability(
+        &mut self,
+        _conn: &smithay_client::Connection,
+        _qh: &smithay_client::QueueHandle<Self>,
+        _seat: wl_seat::WlSeat,
+        _capability: sct::seat::Capability,
+    ) {
+    }
+
+    fn remove_seat(
+        &mut self,
+        _: &smithay_client::Connection,
+        _: &smithay_client::QueueHandle<Self>,
+        _: wl_seat::WlSeat,
+    ) {
+    }
 }
 
 impl sct::output::OutputHandler for WaylandEngine {
@@ -487,4 +709,6 @@ delegate_output!(WaylandEngine);
 delegate_registry!(WaylandEngine);
 delegate_compositor!(WaylandEngine);
 delegate_shm!(WaylandEngine);
+delegate_seat!(WaylandEngine);
+delegate_pointer!(WaylandEngine);
 delegate_layer!(WaylandEngine);
