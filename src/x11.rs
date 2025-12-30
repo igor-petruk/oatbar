@@ -352,7 +352,7 @@ impl Window {
             window_width,
             window_height,
         )?;
-        let context = cairo::Context::new(back_buffer_surface.clone())?;
+        let context = cairo::Context::new(shape_buffer_surface.clone())?;
         let shape_buffer_context = drawing::Context::new(
             context,
             font_cache,
