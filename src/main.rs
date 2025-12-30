@@ -27,6 +27,7 @@ mod logging;
 mod notify;
 #[allow(unused_macros)]
 mod parse;
+mod popup_visibility;
 mod process;
 mod protocol;
 mod source;

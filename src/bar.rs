@@ -27,6 +27,7 @@ use crate::{
     config::{self, AnyUpdated},
     drawing, notify,
     parse::{self, Placeholder},
+    popup_visibility::VecPlaceholderExt,
     process,
 };
 
@@ -482,7 +483,9 @@ impl Block for TextBlock {
     }
 
     fn is_visible(&self) -> bool {
-        self.config.display.show_if_matches.all_match()
+        let matches_ok = self.config.display.show_if_matches.all_match();
+        let popup_ok = self.config.display.popup_visible().unwrap_or(true);
+        matches_ok && popup_ok
     }
 
     fn popup(&self) -> Option<config::PopupMode> {
@@ -974,7 +977,9 @@ impl Block for EnumBlock {
     }
 
     fn is_visible(&self) -> bool {
-        self.config.display.show_if_matches.all_match()
+        let matches_ok = self.config.display.show_if_matches.all_match();
+        let popup_ok = self.config.display.popup_visible().unwrap_or(true);
+        matches_ok && popup_ok
     }
 
     fn popup(&self) -> Option<config::PopupMode> {
@@ -1112,7 +1117,9 @@ impl Block for ImageBlock {
     }
 
     fn is_visible(&self) -> bool {
-        self.config.display.show_if_matches.all_match()
+        let matches_ok = self.config.display.show_if_matches.all_match();
+        let popup_ok = self.config.display.popup_visible().unwrap_or(true);
+        matches_ok && popup_ok
     }
 
     fn popup(&self) -> Option<config::PopupMode> {
@@ -1588,10 +1595,27 @@ impl Bar {
             block_updates.redraw = RedrawScope::All;
         }
 
-        let visible_from_vars = if self.bar_config.show_if_matches.is_empty() {
+        for placeholder in self.bar_config.popup_show_if_some.iter_mut() {
+            placeholder.update(vars)?;
+        }
+
+        let visible_from_matches = if self.bar_config.show_if_matches.is_empty() {
             None
         } else {
             Some(self.bar_config.show_if_matches.all_match())
+        };
+
+        let visible_from_popup = if self.bar_config.popup_show_if_some.is_empty() {
+            None
+        } else {
+            Some(self.bar_config.popup_show_if_some.any_non_empty())
+        };
+
+        let visible_from_vars = match (visible_from_matches, visible_from_popup) {
+            (Some(m), Some(p)) => Some(m && p),
+            (Some(m), None) => Some(m),
+            (None, Some(p)) => Some(p),
+            (None, None) => None,
         };
 
         Ok(BarUpdates {

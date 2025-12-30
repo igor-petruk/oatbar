@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::parse::{Placeholder, PlaceholderContext};
+use crate::popup_visibility;
 use crate::source;
 
 use std::borrow::Cow;
@@ -108,13 +109,15 @@ pub struct DisplayOptions<Dynamic: Clone + Default + Debug> {
     pub hover_decorations: Decorations<Dynamic>,
     #[serde(default)]
     pub show_if_matches: Vec<(Dynamic, Regex)>,
+    #[serde(skip)]
+    pub popup_show_if_some: Vec<Dynamic>,
     pub popup: Option<PopupMode>,
 }
 
 impl DisplayOptions<Placeholder> {
     pub fn update(&mut self, vars: &dyn PlaceholderContext) -> anyhow::Result<bool> {
-        // self.output_format is resolved later
-        let mut updates = Vec::with_capacity(self.show_if_matches.len() + 4);
+        let mut updates =
+            Vec::with_capacity(self.show_if_matches.len() + self.popup_show_if_some.len() + 4);
         updates.extend_from_slice(&[
             self.font.update(vars).context("font")?,
             self.popup_value.update(vars).context("popup_value")?,
@@ -126,7 +129,22 @@ impl DisplayOptions<Placeholder> {
         for (expr, _) in self.show_if_matches.iter_mut() {
             updates.push(expr.update(vars)?);
         }
+        for expr in self.popup_show_if_some.iter_mut() {
+            updates.push(expr.update(vars)?);
+        }
         Ok(updates.any_updated())
+    }
+
+    pub fn popup_visible(&self) -> Option<bool> {
+        if self.popup_show_if_some.is_empty() {
+            None
+        } else {
+            Some(
+                self.popup_show_if_some
+                    .iter()
+                    .any(|p| !p.value.trim().is_empty()),
+            )
+        }
     }
 }
 
@@ -157,6 +175,7 @@ impl DisplayOptions<Option<Placeholder>> {
                     .map(|(expr, regex)| (expr.unwrap(), regex))
                     .collect()
             },
+            popup_show_if_some: vec![],
             popup: self.popup.or(default.popup),
             pango_markup: Some(self.pango_markup.unwrap_or(true)),
         }
@@ -623,6 +642,28 @@ impl Block<Option<Placeholder>> {
     }
 }
 
+impl Block<Placeholder> {
+    pub fn popup(&self) -> Option<PopupMode> {
+        match self {
+            Block::Text(e) => e.display.popup,
+            Block::Enum(e) => e.display.popup,
+            Block::Number(e) => e.display.popup,
+            #[cfg(feature = "image")]
+            Block::Image(e) => e.display.popup,
+        }
+    }
+
+    pub fn add_popup_var(&mut self, var: Placeholder) {
+        match self {
+            Block::Text(e) => e.display.popup_show_if_some.push(var),
+            Block::Enum(e) => e.display.popup_show_if_some.push(var),
+            Block::Number(e) => e.display.popup_show_if_some.push(var),
+            #[cfg(feature = "image")]
+            Block::Image(e) => e.display.popup_show_if_some.push(var),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum BarPosition {
@@ -711,6 +752,8 @@ pub struct Bar<Dynamic: Clone + Default + Debug> {
     pub popup_at_edge: bool,
     #[serde(default)]
     pub show_if_matches: Vec<(String, Regex)>,
+    #[serde(skip)]
+    pub popup_show_if_some: Vec<Dynamic>,
 }
 
 fn default_popup_at_edge() -> bool {
@@ -734,6 +777,7 @@ impl Bar<Option<Placeholder>> {
             popup: self.popup,
             popup_at_edge: self.popup_at_edge,
             show_if_matches: self.show_if_matches.clone(),
+            popup_show_if_some: vec![],
         }
     }
 }
@@ -914,6 +958,7 @@ pub fn default_display() -> DisplayOptions<Placeholder> {
         margin: Some(0.0),
         padding: Some(8.0),
         show_if_matches: vec![],
+        popup_show_if_some: vec![],
         popup: None,
         hover_decorations: decorations.clone(),
         decorations,
@@ -964,10 +1009,14 @@ pub fn load() -> anyhow::Result<Config<Placeholder>> {
     file.read_to_string(&mut data)?;
 
     let config: Config<Option<Placeholder>> = toml::from_str(&data)?;
-    let resolved_config = config.with_defaults();
+    let mut resolved_config = config.with_defaults();
     debug!("Parsed config:\n{:#?}", resolved_config);
+
+    popup_visibility::process_config(&mut resolved_config);
     Ok(resolved_config)
 }
+
+/* moved to popup_visibility.rs */
 
 #[cfg(test)]
 mod tests {
