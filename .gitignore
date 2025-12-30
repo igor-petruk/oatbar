@@ -1,3 +1,4 @@
 target
 *.core
 flamegraph.svg
+GEMINI.md
