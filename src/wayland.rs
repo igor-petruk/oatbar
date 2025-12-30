@@ -50,6 +50,7 @@ impl WaylandWindow {
         qh: &smithay_client::QueueHandle<WaylandEngine>,
         compositor_state: &sct::compositor::CompositorState,
         layer_shell: &sct::shell::wlr_layer::LayerShell,
+        output: Option<&smithay_client::protocol::wl_output::WlOutput>,
     ) -> anyhow::Result<Self> {
         let surface = compositor_state.create_surface(qh);
 
@@ -58,7 +59,7 @@ impl WaylandWindow {
             surface.clone(),
             sct::shell::wlr_layer::Layer::Top,
             Some(&name),
-            None,
+            output,
         );
 
         let margin = &bar_config.margin;
@@ -426,8 +427,42 @@ impl WaylandEngine {
         let layer_shell = sct::shell::wlr_layer::LayerShell::bind(&globals, &qh)
             .context("Unable to create layer shell state")?;
 
-        let mut windows = Vec::new();
+        let mut windows = Vec::with_capacity(config.bar.len());
+
+        // event_queue.blocking_dispatch(&mut engine)?;
+
         for (index, bar) in config.bar.iter().enumerate() {
+            let output = bar.monitor.as_ref().and_then(|name| {
+                output_state.outputs().find(|output| {
+                    if let Some(info) = output_state.info(output) {
+                        if let Some(output_name) = info.name {
+                            if output_name == *name {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                })
+            });
+
+            let output = output.or_else(|| output_state.outputs().next());
+
+            if let Some(name) = &bar.monitor {
+                tracing::info!(
+                    "Creating wayland window for bar {} on monitor {:?}: output {:?}",
+                    index,
+                    bar.monitor,
+                    output
+                );
+
+                if output.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Monitor {:?} not found, but specified for the bar",
+                        name
+                    ));
+                }
+            }
+
             let wayland_window = WaylandWindow::create_and_show(
                 format!("oatbar-bar-{}", index),
                 &config,
@@ -438,6 +473,7 @@ impl WaylandEngine {
                 &qh,
                 &compositor_state,
                 &layer_shell,
+                output.as_ref(),
             )
             .context("Unable to create wayland window")?;
             windows.push(wayland_window);
