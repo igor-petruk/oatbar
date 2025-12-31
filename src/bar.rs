@@ -1288,7 +1288,6 @@ impl BlockGroup {
                     block_updated
                 };
                 if popped_up {
-                    tracing::info!("{} popped up", block.name());
                     popup
                         .entry(popup_mode)
                         .or_default()

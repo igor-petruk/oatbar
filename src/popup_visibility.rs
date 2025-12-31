@@ -15,10 +15,14 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
-use tracing::info;
+// use std::time::{Duration, Instant};
 
 use crate::config::{Config, PopupMode};
 use crate::parse::Placeholder;
+use crate::state::{Update, UpdateEntry, VarUpdate};
+
+#[cfg(feature = "wayland")]
+use calloop;
 
 const POPUP_VAR_PREFIX: &str = "_internal:popup.";
 
@@ -110,7 +114,7 @@ pub fn process_config(config: &mut Config<Placeholder>) {
 
         let var_exprs: Vec<String> = sorted_vars.iter().map(|(expr, _)| expr.clone()).collect();
 
-        info!("Block '{}' popup_show_if_some: {:?}", block_name, var_exprs);
+        tracing::debug!("Block '{}' popup_show_if_some: {:?}", block_name, var_exprs);
 
         if let Some(block) = config.blocks.get_mut(&block_name) {
             for (_, placeholder) in sorted_vars {
@@ -126,10 +130,75 @@ pub fn process_config(config: &mut Config<Placeholder>) {
             sorted_vars.sort_by(|(a, _), (b, _)| a.cmp(b));
 
             let var_exprs: Vec<String> = sorted_vars.iter().map(|(expr, _)| expr.clone()).collect();
-            info!("Bar {} popup_show_if_some: {:?}", bar_idx, var_exprs);
+            tracing::debug!("Bar {} popup_show_if_some: {:?}", bar_idx, var_exprs);
 
             bar.popup_show_if_some = sorted_vars.into_iter().map(|(_, p)| p).collect();
         }
+    }
+}
+
+#[cfg(feature = "wayland")]
+pub struct PopupManager {
+    tokens: HashMap<String, calloop::RegistrationToken>,
+    last_time_hidden: HashMap<String, std::time::Instant>,
+}
+
+#[cfg(feature = "wayland")]
+impl PopupManager {
+    pub fn new() -> Self {
+        Self {
+            tokens: HashMap::new(),
+            last_time_hidden: HashMap::new(),
+        }
+    }
+
+    pub fn take_current_timer(&mut self, block_name: &str) -> Option<calloop::RegistrationToken> {
+        self.tokens.remove(block_name)
+    }
+
+    pub fn put_new_timer(&mut self, block_name: &str, token: calloop::RegistrationToken) {
+        self.tokens.insert(block_name.to_string(), token);
+    }
+
+    pub fn generate_update_to_show(&self, block_name: &str) -> Option<Update> {
+        if let Some(last_hidden) = self.last_time_hidden.get(block_name) {
+            if last_hidden.elapsed() < std::time::Duration::from_millis(100) {
+                // Don't show if it was hidden recently. This also breaks a loop where
+                // hiding the block causes it to be shown again due to visibility variable change.
+                // It is still not ideal and it is known to cause step-wise disappearance of popups.
+                // in some complicated combination of bar and partial bar modes. Hoperfully nobody
+                // will ever need to use such a combination.
+                return None;
+            }
+        }
+        tracing::debug!("Generating update to show for block {}", block_name);
+        Some(Update::VarUpdate(VarUpdate {
+            command_name: None,
+            entries: vec![UpdateEntry {
+                name: None,
+                instance: None,
+                var: popup_var_name(block_name),
+                value: "true".into(),
+            }],
+            error: None,
+        }))
+    }
+
+    pub fn generate_update_to_hide(&mut self, block_name: &str) -> Update {
+        tracing::debug!("Generating update to hide for block {}", block_name);
+        self.tokens.remove(block_name);
+        self.last_time_hidden
+            .insert(block_name.to_string(), std::time::Instant::now());
+        Update::VarUpdate(VarUpdate {
+            command_name: None,
+            entries: vec![UpdateEntry {
+                name: None,
+                instance: None,
+                var: popup_var_name(block_name),
+                value: "".into(),
+            }],
+            error: None,
+        })
     }
 }
 

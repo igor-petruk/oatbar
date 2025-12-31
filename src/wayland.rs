@@ -6,8 +6,11 @@ use crate::{
     bar::{self, BarUpdates, BlockUpdates},
     config, drawing,
     engine::Engine,
-    notify, parse, state, thread,
+    notify, parse,
+    popup_visibility::PopupManager,
+    state, thread,
 };
+use std::time::Duration;
 
 use sct::reexports::client as smithay_client;
 use sct::shell::WaylandSurface;
@@ -31,7 +34,7 @@ pub struct WaylandWindow {
     _surface: wayland_client::protocol::wl_surface::WlSurface, // Keep surface alive
     layer_surface: sct::shell::wlr_layer::LayerSurface,
     pool: Option<sct::shm::slot::SlotPool>,
-
+    popup_manager_mutex: Arc<Mutex<PopupManager>>,
     width: u32,
     height: u32,
     update_tx: crossbeam_channel::Sender<state::Update>,
@@ -51,6 +54,7 @@ impl WaylandWindow {
         compositor_state: &sct::compositor::CompositorState,
         layer_shell: &sct::shell::wlr_layer::LayerShell,
         output: Option<&smithay_client::protocol::wl_output::WlOutput>,
+        popup_manager_mutex: Arc<Mutex<PopupManager>>,
     ) -> anyhow::Result<Self> {
         let surface = compositor_state.create_surface(qh);
 
@@ -111,6 +115,7 @@ impl WaylandWindow {
             width: 0,
             height: 0,
             update_tx,
+            popup_manager_mutex,
         })
     }
 
@@ -119,6 +124,7 @@ impl WaylandWindow {
         _qh: &smithay_client::QueueHandle<WaylandEngine>,
         shm: &sct::shm::Shm,
         compositor_state: &sct::compositor::CompositorState,
+        loop_handle: &mut Option<calloop::LoopHandle<'static, WaylandEngine>>,
     ) -> anyhow::Result<()> {
         let width = self.width;
         let height = self.height;
@@ -202,6 +208,15 @@ impl WaylandWindow {
 
         self.bar.set_error(&mut context, error.clone());
 
+        if !updates.block_updates.popup.is_empty() {
+            tracing::debug!("Showing popups: {:#?}", updates.block_updates.popup);
+        }
+        for popup in updates.block_updates.popup.values() {
+            for block in popup {
+                self.trigger_popup(loop_handle, block.clone());
+            }
+        }
+
         let layout_changed = self.bar.layout_groups(self.width as f64, &None);
         tracing::debug!("Layout changed: {}", layout_changed);
 
@@ -265,6 +280,43 @@ impl WaylandWindow {
     ) -> anyhow::Result<()> {
         self.bar.handle_button_press(x as i16, y as i16, button)
     }
+
+    fn trigger_popup(
+        &mut self,
+        loop_handle: &mut Option<calloop::LoopHandle<'static, WaylandEngine>>,
+        block_name: String,
+    ) {
+        if loop_handle.is_none() {
+            return;
+        }
+        let loop_handle = loop_handle.as_mut().unwrap();
+        let mut popup_manager = self.popup_manager_mutex.lock().unwrap();
+        if let Some(token) = popup_manager.take_current_timer(&block_name) {
+            // Timer already exists, preparing to prolong it.
+            loop_handle.remove(token);
+        } else {
+            // First time creating a timer? Show the popup.
+            if let Some(update) = popup_manager.generate_update_to_show(&block_name) {
+                if let Err(e) = self.update_tx.send(update) {
+                    tracing::error!("Failed to send popup update: {:?}", e);
+                }
+            }
+        }
+        let timer = calloop::timer::Timer::from_duration(Duration::from_secs(1));
+        let block_clone = block_name.clone();
+        let popup_manager_clone = self.popup_manager_mutex.clone();
+        let token = loop_handle
+            .insert_source(timer, move |_, _, engine: &mut WaylandEngine| {
+                let mut popup_manager = popup_manager_clone.lock().unwrap();
+                let update_to_send = popup_manager.generate_update_to_hide(&block_clone);
+                if let Err(e) = engine.update_tx.send(update_to_send) {
+                    tracing::error!("Failed to send popup expired: {:?}", e);
+                }
+                calloop::timer::TimeoutAction::Drop
+            })
+            .expect("Failed to insert popup timer");
+        popup_manager.put_new_timer(&block_name, token);
+    }
 }
 
 pub struct WaylandEngine {
@@ -283,6 +335,9 @@ pub struct WaylandEngine {
     qh: smithay_client::QueueHandle<WaylandEngine>,
     pointer_surface: Option<wayland_client::protocol::wl_surface::WlSurface>,
     last_pointer_pos: (f64, f64),
+    popup_manager: std::sync::Arc<std::sync::Mutex<PopupManager>>,
+    // Set during run().
+    loop_handle: Option<calloop::LoopHandle<'static, WaylandEngine>>,
 }
 
 impl sct::seat::pointer::PointerHandler for WaylandEngine {
@@ -426,10 +481,9 @@ impl WaylandEngine {
         let seat_state = sct::seat::SeatState::new(&globals, &qh);
         let layer_shell = sct::shell::wlr_layer::LayerShell::bind(&globals, &qh)
             .context("Unable to create layer shell state")?;
+        let popup_manager = Arc::new(Mutex::new(PopupManager::new()));
 
         let mut windows = Vec::with_capacity(config.bar.len());
-
-        // event_queue.blocking_dispatch(&mut engine)?;
 
         for (index, bar) in config.bar.iter().enumerate() {
             let output = bar.monitor.as_ref().and_then(|name| {
@@ -474,6 +528,7 @@ impl WaylandEngine {
                 &compositor_state,
                 &layer_shell,
                 output.as_ref(),
+                popup_manager.clone(),
             )
             .context("Unable to create wayland window")?;
             windows.push(wayland_window);
@@ -495,6 +550,8 @@ impl WaylandEngine {
             qh,
             pointer_surface: None,
             last_pointer_pos: (0.0, 0.0),
+            popup_manager,
+            loop_handle: None,
         })
     }
 }
@@ -504,6 +561,7 @@ impl Engine for WaylandEngine {
         let mut event_loop: calloop::EventLoop<Self> =
             calloop::EventLoop::try_new().expect("Failed to create event loop");
         let loop_handle = event_loop.handle();
+        self.loop_handle = Some(loop_handle.clone());
 
         calloop_wayland_source::WaylandSource::new(
             self.conn.clone(),
@@ -527,7 +585,6 @@ impl Engine for WaylandEngine {
             })
             .context("unable to spawn eng-state")?;
         }
-
         loop_handle
             .insert_source(channel, move |state_update, _metadata, engine| {
                 if let calloop::channel::Event::Msg(state_update) = state_update {
@@ -537,9 +594,12 @@ impl Engine for WaylandEngine {
                         state.handle_state_update(state_update);
                     }
                     for window in engine.windows.iter_mut() {
-                        if let Err(err) =
-                            window.draw(&engine.qh, &engine.shm, &engine.compositor_state)
-                        {
+                        if let Err(err) = window.draw(
+                            &engine.qh,
+                            &engine.shm,
+                            &engine.compositor_state,
+                            &mut engine.loop_handle,
+                        ) {
                             tracing::error!("unable to draw window: {}", err);
                         }
                     }
@@ -719,7 +779,9 @@ impl sct::shell::wlr_layer::LayerShellHandler for WaylandEngine {
                 }
 
                 // Initial draw or redraw on resize
-                if let Err(e) = window.draw(qh, &self.shm, &self.compositor_state) {
+                if let Err(e) =
+                    window.draw(qh, &self.shm, &self.compositor_state, &mut self.loop_handle)
+                {
                     tracing::error!("Failed to draw: {}", e);
                 }
             }
