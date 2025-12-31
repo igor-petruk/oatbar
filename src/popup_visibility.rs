@@ -18,11 +18,9 @@ use std::collections::HashMap;
 // use std::time::{Duration, Instant};
 
 use crate::config::{Config, PopupMode};
+use crate::engine;
 use crate::parse::Placeholder;
 use crate::state::{Update, UpdateEntry, VarUpdate};
-
-#[cfg(feature = "wayland")]
-use calloop;
 
 const POPUP_VAR_PREFIX: &str = "_internal:popup.";
 
@@ -152,15 +150,15 @@ impl PopupManager {
         }
     }
 
-    pub fn take_current_timer(&mut self, block_name: &str) -> Option<calloop::RegistrationToken> {
+    fn take_current_timer(&mut self, block_name: &str) -> Option<calloop::RegistrationToken> {
         self.tokens.remove(block_name)
     }
 
-    pub fn put_new_timer(&mut self, block_name: &str, token: calloop::RegistrationToken) {
+    fn put_new_timer(&mut self, block_name: &str, token: calloop::RegistrationToken) {
         self.tokens.insert(block_name.to_string(), token);
     }
 
-    pub fn generate_update_to_show(&self, block_name: &str) -> Option<Update> {
+    fn generate_update_to_show(&self, block_name: &str) -> Option<Update> {
         if let Some(last_hidden) = self.last_time_hidden.get(block_name) {
             if last_hidden.elapsed() < std::time::Duration::from_millis(100) {
                 // Don't show if it was hidden recently. This also breaks a loop where
@@ -184,7 +182,7 @@ impl PopupManager {
         }))
     }
 
-    pub fn generate_update_to_hide(&mut self, block_name: &str) -> Update {
+    fn generate_update_to_hide(&mut self, block_name: &str) -> Update {
         tracing::debug!("Generating update to hide for block {}", block_name);
         self.tokens.remove(block_name);
         self.last_time_hidden
@@ -199,6 +197,44 @@ impl PopupManager {
             }],
             error: None,
         })
+    }
+
+    pub fn trigger_popup<T: engine::Engine>(
+        popup_manager_mutex: &std::sync::Arc<std::sync::Mutex<Self>>,
+        loop_handle: &mut Option<calloop::LoopHandle<'static, T>>,
+        update_tx: crossbeam_channel::Sender<Update>,
+        block_name: String,
+    ) {
+        if loop_handle.is_none() {
+            return;
+        }
+        let loop_handle = loop_handle.as_mut().unwrap();
+        let mut popup_manager = popup_manager_mutex.lock().unwrap();
+        if let Some(token) = popup_manager.take_current_timer(&block_name) {
+            // Timer already exists, preparing to prolong it.
+            loop_handle.remove(token);
+        } else {
+            // First time creating a timer? Show the popup.
+            if let Some(update) = popup_manager.generate_update_to_show(&block_name) {
+                if let Err(e) = update_tx.send(update) {
+                    tracing::error!("Failed to send popup update: {:?}", e);
+                }
+            }
+        }
+        let timer = calloop::timer::Timer::from_duration(std::time::Duration::from_secs(1));
+        let block_clone = block_name.clone();
+        let popup_manager_clone = popup_manager_mutex.clone();
+        let token = loop_handle
+            .insert_source(timer, move |_, _, _| {
+                let mut popup_manager = popup_manager_clone.lock().unwrap();
+                let update_to_send = popup_manager.generate_update_to_hide(&block_clone);
+                if let Err(e) = update_tx.send(update_to_send) {
+                    tracing::error!("Failed to send popup expired: {:?}", e);
+                }
+                calloop::timer::TimeoutAction::Drop
+            })
+            .expect("Failed to insert popup timer");
+        popup_manager.put_new_timer(&block_name, token);
     }
 }
 

@@ -10,8 +10,6 @@ use crate::{
     popup_visibility::PopupManager,
     state, thread,
 };
-use std::time::Duration;
-
 use sct::reexports::client as smithay_client;
 use sct::shell::WaylandSurface;
 use sct::{
@@ -213,7 +211,12 @@ impl WaylandWindow {
         }
         for popup in updates.block_updates.popup.values() {
             for block in popup {
-                self.trigger_popup(loop_handle, block.clone());
+                PopupManager::trigger_popup(
+                    &self.popup_manager_mutex,
+                    loop_handle,
+                    self.update_tx.clone(),
+                    block.clone(),
+                );
             }
         }
 
@@ -279,43 +282,6 @@ impl WaylandWindow {
         button: bar::Button,
     ) -> anyhow::Result<()> {
         self.bar.handle_button_press(x as i16, y as i16, button)
-    }
-
-    fn trigger_popup(
-        &mut self,
-        loop_handle: &mut Option<calloop::LoopHandle<'static, WaylandEngine>>,
-        block_name: String,
-    ) {
-        if loop_handle.is_none() {
-            return;
-        }
-        let loop_handle = loop_handle.as_mut().unwrap();
-        let mut popup_manager = self.popup_manager_mutex.lock().unwrap();
-        if let Some(token) = popup_manager.take_current_timer(&block_name) {
-            // Timer already exists, preparing to prolong it.
-            loop_handle.remove(token);
-        } else {
-            // First time creating a timer? Show the popup.
-            if let Some(update) = popup_manager.generate_update_to_show(&block_name) {
-                if let Err(e) = self.update_tx.send(update) {
-                    tracing::error!("Failed to send popup update: {:?}", e);
-                }
-            }
-        }
-        let timer = calloop::timer::Timer::from_duration(Duration::from_secs(1));
-        let block_clone = block_name.clone();
-        let popup_manager_clone = self.popup_manager_mutex.clone();
-        let token = loop_handle
-            .insert_source(timer, move |_, _, engine: &mut WaylandEngine| {
-                let mut popup_manager = popup_manager_clone.lock().unwrap();
-                let update_to_send = popup_manager.generate_update_to_hide(&block_clone);
-                if let Err(e) = engine.update_tx.send(update_to_send) {
-                    tracing::error!("Failed to send popup expired: {:?}", e);
-                }
-                calloop::timer::TimeoutAction::Drop
-            })
-            .expect("Failed to insert popup timer");
-        popup_manager.put_new_timer(&block_name, token);
     }
 }
 

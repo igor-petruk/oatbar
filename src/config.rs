@@ -136,9 +136,7 @@ impl DisplayOptions<Placeholder> {
     }
 
     pub fn popup_visible(&self) -> Option<bool> {
-        if self.popup.is_none() {
-            None
-        } else if self.popup_show_if_some.is_empty() {
+        if self.popup.is_none() || self.popup_show_if_some.is_empty() {
             None
         } else {
             Some(
