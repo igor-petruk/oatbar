@@ -135,13 +135,11 @@ pub fn process_config(config: &mut Config<Placeholder>) {
     }
 }
 
-#[cfg(feature = "wayland")]
 pub struct PopupManager {
     tokens: HashMap<String, calloop::RegistrationToken>,
     last_time_hidden: HashMap<String, std::time::Instant>,
 }
 
-#[cfg(feature = "wayland")]
 impl PopupManager {
     pub fn new() -> Self {
         Self {
