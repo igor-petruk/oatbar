@@ -211,7 +211,7 @@ impl Command {
     ) -> anyhow::Result<()> {
         let mut child = std::process::Command::new("sh")
             .arg("-c")
-            .arg(&self.config.command)
+            .arg(format!("exec {}", &self.config.command))
             .stderr(std::process::Stdio::inherit())
             .stdout(std::process::Stdio::piped())
             .spawn()
