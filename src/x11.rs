@@ -723,6 +723,7 @@ pub struct XOrgEngine {
     screen: x::ScreenBuf,
     pub update_tx: crossbeam_channel::Sender<state::Update>,
     update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
+    loop_handle: Option<calloop::LoopHandle<'static, Self>>,
 }
 
 impl XOrgEngine {
@@ -792,35 +793,7 @@ impl XOrgEngine {
             screen,
             update_tx,
             update_rx: Some(update_rx),
-        })
-    }
-
-    pub fn spawn_state_update_thread(
-        &self,
-        state_update_rx: crossbeam_channel::Receiver<state::Update>,
-    ) -> anyhow::Result<()> {
-        let window_ids = self.window_ids.clone();
-        let conn = self.conn.clone();
-        let state = self.state.clone();
-
-        thread::spawn("eng-state", move || loop {
-            while let Ok(state_update) = state_update_rx.recv() {
-                {
-                    let mut state = state.write().unwrap();
-                    state.handle_state_update(state_update);
-                }
-                for window in window_ids.iter() {
-                    xutils::send(
-                        &conn,
-                        &x::SendEvent {
-                            destination: x::SendEventDest::Window(*window),
-                            event_mask: x::EventMask::EXPOSURE,
-                            propagate: false,
-                            event: &x::ExposeEvent::new(*window, 0, 0, 1, 1, 1),
-                        },
-                    )?;
-                }
-            }
+            loop_handle: None,
         })
     }
 
@@ -884,31 +857,88 @@ impl XOrgEngine {
         }
         Ok(())
     }
+
+    fn pipe_xevents(
+        &self,
+        calloop_tx: calloop::channel::Sender<EngineMessage>,
+    ) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let calloop_tx_xevent = calloop_tx.clone();
+        thread::spawn("eng-xevent", move || loop {
+            while let Ok(event) = xutils::get_event(&conn) {
+                if let Some(event) = event {
+                    calloop_tx_xevent
+                        .send(EngineMessage::XEvent(event))
+                        .unwrap();
+                } else {
+                    break;
+                }
+            }
+        })
+        .context("engine xevent")
+    }
+
+    fn pipe_state_updates(
+        &mut self,
+        calloop_tx: calloop::channel::Sender<EngineMessage>,
+    ) -> anyhow::Result<()> {
+        let state_update_rx = self.update_rx.take().unwrap();
+        let calloop_tx_state = calloop_tx.clone();
+        thread::spawn("eng-state", move || loop {
+            while let Ok(state_update) = state_update_rx.recv() {
+                calloop_tx_state
+                    .send(EngineMessage::Update(state_update))
+                    .unwrap();
+            }
+        })
+        .context("engine state update")
+    }
+}
+
+enum EngineMessage {
+    XEvent(xcb::Event),
+    Update(state::Update),
 }
 
 impl Engine for XOrgEngine {
     fn run(&mut self) -> anyhow::Result<()> {
-        match self.update_rx.take() {
-            Some(update_rx) => {
-                self.spawn_state_update_thread(update_rx)
-                    .context("engine state update")?;
-            }
-            None => {
-                return Err(anyhow::anyhow!("run() can be run only once"));
-            }
-        }
-        loop {
-            let event = xutils::get_event(&self.conn).context("failed getting an X event")?;
-            match event {
-                Some(event) => {
-                    if let Err(e) = self.handle_event(&event) {
-                        tracing::error!("Failed handling event {:?}, error: {:?}", event, e);
+        let mut event_loop: calloop::EventLoop<Self> =
+            calloop::EventLoop::try_new().expect("Failed to create event loop");
+        let loop_handle = event_loop.handle();
+        self.loop_handle = Some(loop_handle.clone());
+
+        let (calloop_tx, calloop_rx) = calloop::channel::channel();
+
+        self.pipe_state_updates(calloop_tx.clone())
+            .context("engine pipe state updates")?;
+
+        self.pipe_xevents(calloop_tx.clone())
+            .context("engine pipe xevents")?;
+
+        loop_handle
+            .insert_source(calloop_rx, move |evt, _, engine| match evt {
+                calloop::channel::Event::Msg(msg) => match msg {
+                    EngineMessage::XEvent(event) => {
+                        engine.handle_event(&event).unwrap();
                     }
-                }
-                None => {
-                    return Ok(());
-                }
-            }
+                    EngineMessage::Update(state_update) => {
+                        {
+                            let mut state = engine.state.write().unwrap();
+                            state.handle_state_update(state_update);
+                        }
+                        for window in engine.windows.values_mut() {
+                            if let Err(e) = window.render(false) {
+                                tracing::error!("Failed to render bar {:?}", e);
+                            }
+                        }
+                    }
+                },
+                calloop::channel::Event::Closed => {}
+            })
+            .expect("Failed to insert X11 source");
+
+        loop {
+            event_loop.dispatch(None, self).context("engine dispatch")?;
         }
     }
 
