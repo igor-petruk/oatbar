@@ -35,6 +35,7 @@ pub struct Window {
     state_update_tx: crossbeam_channel::Sender<state::Update>,
     popup_manager_mutex: Arc<Mutex<popup_visibility::PopupManager>>,
     update_tx: crossbeam_channel::Sender<state::Update>,
+    visible: bool,
 }
 
 impl Window {
@@ -129,16 +130,18 @@ impl Window {
             ],
         });
 
-        let raw_motion_mask_buf =
-            xinput::EventMaskBuf::new(xinput::Device::All, &[xinput::XiEventMask::RAW_MOTION]);
+        if bar_config.popup && bar_config.popup_at_edge {
+            let raw_motion_mask_buf =
+                xinput::EventMaskBuf::new(xinput::Device::All, &[xinput::XiEventMask::RAW_MOTION]);
 
-        xutils::send(
-            &conn,
-            &xinput::XiSelectEvents {
-                window: screen.root(),
-                masks: &[raw_motion_mask_buf],
-            },
-        )?;
+            xutils::send(
+                &conn,
+                &xinput::XiSelectEvents {
+                    window: screen.root(),
+                    masks: &[raw_motion_mask_buf],
+                },
+            )?;
+        }
 
         let app_name = "oatbar".as_bytes();
         xutils::replace_property_atom(&conn, id, x::ATOM_WM_NAME, x::ATOM_STRING, app_name)?;
@@ -282,7 +285,10 @@ impl Window {
         )?;
         conn.flush()?;
 
-        xutils::send(&conn, &x::MapWindow { window: id })?;
+        let initially_visible = !bar_config.popup;
+        if initially_visible {
+            xutils::send(&conn, &x::MapWindow { window: id })?;
+        }
         if !bar_config.popup && bar_config.position != config::BarPosition::Center {
             config_value_list.extend_from_slice(&[
                 x::ConfigWindow::Sibling(wm_info.support),
@@ -324,6 +330,7 @@ impl Window {
             bar_config,
             popup_manager_mutex,
             update_tx,
+            visible: initially_visible,
         })
     }
 
@@ -379,6 +386,18 @@ impl Window {
                     block.clone(),
                 );
             }
+            if self.bar_config.popup {
+                if let Some(visible) = updates.visible_from_vars {
+                    if visible != self.visible {
+                        self.visible = visible;
+                        if visible {
+                            xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+                        } else {
+                            xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
+                        }
+                    }
+                }
+            }
         }
         let mut redraw = updates.block_updates.redraw;
         let layout_changed = self.bar.layout_groups(self.width as f64);
@@ -399,7 +418,7 @@ impl Window {
         self.bar.handle_button_press(x, y, button)
     }
 
-    pub fn handle_raw_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
+    pub fn handle_raw_motion(&mut self, x: i16, y: i16) -> anyhow::Result<()> {
         self.handle_motion_popup(x, y)?;
         Ok(())
     }
@@ -422,22 +441,34 @@ impl Window {
         Ok(())
     }
 
-    pub fn handle_motion_popup(&self, _x: i16, _y: i16) -> anyhow::Result<()> {
+    pub fn handle_motion_popup(&mut self, _x: i16, y: i16) -> anyhow::Result<()> {
         if !self.bar_config.popup || !self.bar_config.popup_at_edge {
             return Ok(());
         }
-        // let edge_size: i16 = 3;
-        // let screen_height: i16 = self.screen.height_in_pixels() as i16;
-        // let over_window = match self.bar_config.position {
-        //     config::BarPosition::Top => y < self.height as i16,
-        //     config::BarPosition::Bottom => y > screen_height - self.height as i16,
-        //     config::BarPosition::Center => false,
-        // };
-        // let over_edge = match self.bar_config.position {
-        //     config::BarPosition::Top => y < edge_size,
-        //     config::BarPosition::Bottom => y > screen_height - edge_size,
-        //     config::BarPosition::Center => false,
-        // };
+        let edge_size: i16 = 3;
+        let screen_height: i16 = self.screen.height_in_pixels() as i16;
+        let over_window = match self.bar_config.position {
+            config::BarPosition::Top => y < self.height as i16,
+            config::BarPosition::Bottom => y > screen_height - self.height as i16,
+            config::BarPosition::Center => false,
+        };
+        let over_edge = match self.bar_config.position {
+            config::BarPosition::Top => y < edge_size,
+            config::BarPosition::Bottom => y > screen_height - edge_size,
+            config::BarPosition::Center => false,
+        };
+
+        if over_window || over_edge {
+            if !self.visible {
+                self.visible = true;
+                xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+            }
+        } else {
+            if self.visible {
+                self.visible = false;
+                xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
+            }
+        }
 
         Ok(())
     }
@@ -676,7 +707,7 @@ impl XOrgEngine {
                         window: self.screen.root(),
                     },
                 )?;
-                for window in self.windows.values() {
+                for window in self.windows.values_mut() {
                     window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
                 }
             }
