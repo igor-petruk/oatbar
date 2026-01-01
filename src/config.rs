@@ -748,16 +748,12 @@ pub struct Bar<Dynamic: Clone + Default + Debug> {
     pub background: Dynamic,
     #[serde(default)]
     pub popup: bool,
-    #[serde(default = "default_popup_at_edge")]
+    #[serde(default)]
     pub popup_at_edge: bool,
     #[serde(default)]
     pub show_if_matches: Vec<(Dynamic, Regex)>,
     #[serde(skip)]
     pub popup_show_if_some: Vec<Dynamic>,
-}
-
-fn default_popup_at_edge() -> bool {
-    true
 }
 
 impl Bar<Option<Placeholder>> {

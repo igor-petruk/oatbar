@@ -386,15 +386,15 @@ impl Window {
                     block.clone(),
                 );
             }
-            if self.bar_config.popup {
-                if let Some(visible) = updates.visible_from_vars {
-                    if visible != self.visible {
-                        self.visible = visible;
-                        if visible {
-                            xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
-                        } else {
-                            xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
-                        }
+        }
+        if self.bar_config.popup {
+            if let Some(visible) = updates.visible_from_vars {
+                if visible != self.visible {
+                    self.visible = visible;
+                    if visible {
+                        xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+                    } else {
+                        xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
                     }
                 }
             }
@@ -442,7 +442,7 @@ impl Window {
     }
 
     pub fn handle_motion_popup(&mut self, _x: i16, y: i16) -> anyhow::Result<()> {
-        if !self.bar_config.popup || !self.bar_config.popup_at_edge {
+        if !self.bar_config.popup_at_edge {
             return Ok(());
         }
         let edge_size: i16 = 3;

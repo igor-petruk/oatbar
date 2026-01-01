@@ -1394,8 +1394,6 @@ impl BlockUpdates {
 #[derive(Debug)]
 pub struct BarUpdates {
     pub block_updates: BlockUpdates,
-    // TODO: Remove implement programmatic visibility control
-    #[allow(unused)]
     pub visible_from_vars: Option<bool>,
 }
 
