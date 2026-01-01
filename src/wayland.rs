@@ -33,9 +33,9 @@ pub struct WaylandWindow {
     layer_surface: sct::shell::wlr_layer::LayerSurface,
     pool: Option<sct::shm::slot::SlotPool>,
     popup_manager_mutex: Arc<Mutex<PopupManager>>,
+    update_tx: crossbeam_channel::Sender<state::Update>,
     width: u32,
     height: u32,
-    update_tx: crossbeam_channel::Sender<state::Update>,
 }
 
 impl WaylandWindow {
@@ -84,9 +84,13 @@ impl WaylandWindow {
 
         // For center position, use exclusive_zone = -1 to float above windows without affecting layout
         // For top/bottom, use positive exclusive zone to push windows
-        let exclusive_zone = match bar_config.position {
-            config::BarPosition::Center => -1,
-            _ => window_height as i32,
+        let exclusive_zone = if bar_config.popup {
+            -1
+        } else {
+            match bar_config.position {
+                config::BarPosition::Center => -1,
+                _ => window_height as i32,
+            }
         };
         layer_surface.set_exclusive_zone(exclusive_zone);
         layer_surface.set_keyboard_interactivity(
