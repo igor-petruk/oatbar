@@ -224,7 +224,7 @@ impl WaylandWindow {
             }
         }
 
-        let layout_changed = self.bar.layout_groups(self.width as f64, &None);
+        let layout_changed = self.bar.layout_groups(self.width as f64);
         tracing::debug!("Layout changed: {}", layout_changed);
 
         self.bar

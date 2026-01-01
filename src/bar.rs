@@ -1139,30 +1139,7 @@ struct BlockGroup {
 }
 
 impl BlockGroup {
-    fn visible_per_popup_mode(
-        &self,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-        popup_mode: config::PopupMode,
-    ) -> bool {
-        let partial_show = show_only.is_some();
-        !partial_show
-            || show_only
-                .as_ref()
-                .map(move |m| {
-                    let trigger_blocks = m.get(&popup_mode).cloned().unwrap_or_default();
-                    self.blocks
-                        .iter()
-                        .any(|block| trigger_blocks.contains(block.name()))
-                })
-                .unwrap_or_default()
-    }
-
-    fn build_layout(
-        &self,
-        entire_bar_visible: bool,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-        bar_height: f64,
-    ) -> (Vec<(usize, Dimensions)>, Vec<InputRect>) {
+    fn build_layout(&self, bar_height: f64) -> (Vec<(usize, Dimensions)>, Vec<InputRect>) {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(self.blocks.len());
         let mut input_rects = Vec::with_capacity(self.blocks.len());
@@ -1170,25 +1147,8 @@ impl BlockGroup {
         let mut eat_separators = true;
         let mut last_edge = Some(Left);
 
-        let single_blocks = show_only
-            .as_ref()
-            .and_then(|m| m.get(&config::PopupMode::Block))
-            .cloned()
-            .unwrap_or_default();
-
-        let entire_partial_visible =
-            self.visible_per_popup_mode(show_only, config::PopupMode::PartialBar);
-
         for (block_idx, b) in self.blocks.iter().enumerate() {
             if !b.is_visible() {
-                continue;
-            }
-            let block_visible = single_blocks.contains(b.name());
-            if !entire_bar_visible
-                && !entire_partial_visible
-                && !block_visible
-                && b.separator_type().is_none()
-            {
                 continue;
             }
             let sep_type = &b.separator_type();
@@ -1312,14 +1272,9 @@ impl BlockGroup {
         Ok(BlockUpdates { redraw, popup })
     }
 
-    fn layout_group(
-        &mut self,
-        entire_bar_visible: bool,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-        bar_height: f64,
-    ) -> bool {
+    fn layout_group(&mut self, bar_height: f64) -> bool {
         let old_layout = self.layout.clone();
-        let (layout, input_rects) = self.build_layout(entire_bar_visible, show_only, bar_height);
+        let (layout, input_rects) = self.build_layout(bar_height);
         self.layout = layout;
         self.input_rects = input_rects;
         let mut dim = Dimensions {
@@ -1625,36 +1580,12 @@ impl Bar {
         })
     }
 
-    pub fn layout_groups(
-        &mut self,
-        drawing_area_width: f64,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) -> bool {
-        let entire_bar_visible = self
-            .left_group
-            .visible_per_popup_mode(show_only, config::PopupMode::Bar)
-            || self
-                .center_group
-                .visible_per_popup_mode(show_only, config::PopupMode::Bar)
-            || self
-                .right_group
-                .visible_per_popup_mode(show_only, config::PopupMode::Bar);
-
-        let left_changed = self.left_group.layout_group(
-            entire_bar_visible,
-            show_only,
-            self.bar_config.height as f64,
-        );
-        let center_changed = self.center_group.layout_group(
-            entire_bar_visible,
-            show_only,
-            self.bar_config.height as f64,
-        );
-        let right_changed = self.right_group.layout_group(
-            entire_bar_visible,
-            show_only,
-            self.bar_config.height as f64,
-        );
+    pub fn layout_groups(&mut self, drawing_area_width: f64) -> bool {
+        let left_changed = self.left_group.layout_group(self.bar_config.height as f64);
+        let center_changed = self
+            .center_group
+            .layout_group(self.bar_config.height as f64);
+        let right_changed = self.right_group.layout_group(self.bar_config.height as f64);
 
         let width = drawing_area_width
             - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;

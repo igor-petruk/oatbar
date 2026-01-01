@@ -368,19 +368,20 @@ impl Window {
         self.bar
             .set_error(&mut self.back_buffer_context, error.clone());
 
-        for popup in updates.block_updates.popup.values() {
-            for block in popup {
-                popup_visibility::PopupManager::trigger_popup(
-                    &self.popup_manager_mutex,
-                    loop_handle,
-                    self.update_tx.clone(),
-                    block.clone(),
-                );
+        if self.bar_config.popup {
+            for popup in updates.block_updates.popup.values() {
+                for block in popup {
+                    popup_visibility::PopupManager::trigger_popup(
+                        &self.popup_manager_mutex,
+                        loop_handle,
+                        self.update_tx.clone(),
+                        block.clone(),
+                    );
+                }
             }
         }
-
         let mut redraw = updates.block_updates.redraw;
-        let layout_changed = self.bar.layout_groups(self.width as f64, &None);
+        let layout_changed = self.bar.layout_groups(self.width as f64);
         if layout_changed {
             redraw = bar::RedrawScope::All;
         }
