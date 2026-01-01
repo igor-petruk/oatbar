@@ -751,7 +751,7 @@ pub struct Bar<Dynamic: Clone + Default + Debug> {
     #[serde(default = "default_popup_at_edge")]
     pub popup_at_edge: bool,
     #[serde(default)]
-    pub show_if_matches: Vec<(String, Regex)>,
+    pub show_if_matches: Vec<(Dynamic, Regex)>,
     #[serde(skip)]
     pub popup_show_if_some: Vec<Dynamic>,
 }
@@ -774,9 +774,18 @@ impl Bar<Option<Placeholder>> {
                 .background
                 .clone()
                 .unwrap_or_else(|| Placeholder::infallable("#191919")),
-            popup: self.popup,
+            popup: self.popup || !self.show_if_matches.is_empty() || self.popup_at_edge,
             popup_at_edge: self.popup_at_edge,
-            show_if_matches: self.show_if_matches.clone(),
+            show_if_matches: self
+                .show_if_matches
+                .iter()
+                .map(|(dynamic, regex)| {
+                    (
+                        dynamic.clone().expect("Impossible to write such TOML"),
+                        regex.clone(),
+                    )
+                })
+                .collect(),
             popup_show_if_some: vec![],
         }
     }

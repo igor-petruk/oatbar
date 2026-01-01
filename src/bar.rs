@@ -1529,6 +1529,12 @@ impl Bar {
         pointer_position: Option<(i16, i16)>,
     ) -> anyhow::Result<BarUpdates> {
         self.bar_config.background.update(vars)?;
+        for show_if_match in self.bar_config.show_if_matches.iter_mut() {
+            show_if_match.0.update(vars)?;
+        }
+        for popup_show_if_some in self.bar_config.popup_show_if_some.iter_mut() {
+            popup_show_if_some.update(vars)?;
+        }
 
         let fit_to_height = (self.bar_config.height
             - self.bar_config.margin.top
@@ -1558,6 +1564,10 @@ impl Bar {
         let visible_from_matches = if self.bar_config.show_if_matches.is_empty() {
             None
         } else {
+            tracing::info!(
+                "Checking show_if_matches: {}",
+                self.bar_config.show_if_matches.all_match()
+            );
             Some(self.bar_config.show_if_matches.all_match())
         };
 

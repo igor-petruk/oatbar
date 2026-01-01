@@ -36,6 +36,8 @@ pub struct WaylandWindow {
     update_tx: crossbeam_channel::Sender<state::Update>,
     width: u32,
     height: u32,
+    visible: bool,
+    bar_config: config::Bar<parse::Placeholder>,
 }
 
 impl WaylandWindow {
@@ -98,6 +100,7 @@ impl WaylandWindow {
         );
         layer_surface.commit();
         let bar = bar::Bar::new(config, bar_config.clone(), notifier.clone())?;
+        let visible = !bar_config.popup;
 
         let font_cache = Arc::new(Mutex::new(drawing::FontCache::new()));
         #[cfg(feature = "image")]
@@ -118,6 +121,8 @@ impl WaylandWindow {
             height: 0,
             update_tx,
             popup_manager_mutex,
+            visible,
+            bar_config,
         })
     }
 
@@ -227,9 +232,27 @@ impl WaylandWindow {
         let layout_changed = self.bar.layout_groups(self.width as f64);
         tracing::debug!("Layout changed: {}", layout_changed);
 
-        self.bar
-            .render(&context, &bar::RedrawScope::All)
-            .context("Failed to render bar")?;
+        if self.bar_config.popup {
+            if let Some(visible) = updates.visible_from_vars {
+                self.visible = visible;
+            }
+        }
+
+        if !self.bar_config.popup_at_edge && !self.visible {
+            self.layer_surface.wl_surface().attach(None, 0, 0);
+            self.layer_surface.wl_surface().commit();
+            return Ok(());
+        }
+
+        if self.bar_config.popup_at_edge && !self.visible {
+            // Clear to transparent
+            context.context.set_operator(cairo::Operator::Clear);
+            context.context.paint().unwrap();
+        } else {
+            self.bar
+                .render(&context, &bar::RedrawScope::All)
+                .context("Failed to render bar")?;
+        }
 
         buffer
             .attach_to(self.layer_surface.wl_surface())
@@ -239,14 +262,31 @@ impl WaylandWindow {
             .damage(0, 0, width as i32, height as i32);
 
         // Set input region to only accept clicks on blocks
-        let input_rects = self.bar.get_input_rects();
-        if let Ok(region) = sct::compositor::Region::new(compositor_state) {
-            for rect in &input_rects {
-                region.add(rect.x, rect.y, rect.width, rect.height);
+        if self.bar_config.popup_at_edge {
+            if !self.visible {
+                if let Ok(region) = sct::compositor::Region::new(compositor_state) {
+                    let y = match self.bar_config.position {
+                        config::BarPosition::Bottom => self.height as i32 - 1,
+                        _ => 0,
+                    };
+                    region.add(0, y, self.width as i32, 1);
+                    self.layer_surface
+                        .wl_surface()
+                        .set_input_region(Some(region.wl_region()));
+                }
+            } else {
+                self.layer_surface.wl_surface().set_input_region(None);
             }
-            self.layer_surface
-                .wl_surface()
-                .set_input_region(Some(region.wl_region()));
+        } else {
+            let input_rects = self.bar.get_input_rects();
+            if let Ok(region) = sct::compositor::Region::new(compositor_state) {
+                for rect in &input_rects {
+                    region.add(rect.x, rect.y, rect.width, rect.height);
+                }
+                self.layer_surface
+                    .wl_surface()
+                    .set_input_region(Some(region.wl_region()));
+            }
         }
 
         self.layer_surface.wl_surface().commit();
@@ -256,13 +296,18 @@ impl WaylandWindow {
         self.layer_surface.wl_surface()
     }
 
-    pub fn handle_motion(&self, x: f64, y: f64) -> anyhow::Result<()> {
+    pub fn handle_motion(&mut self, x: f64, y: f64) -> anyhow::Result<()> {
         // Need to replicate x11 behavior: update state with motion
         self.update_tx()
             .send(state::Update::MotionUpdate(state::MotionUpdate {
                 window_name: self.name.clone(),
                 position: Some((x as i16, y as i16)),
             }))?;
+        if self.bar_config.popup_at_edge && !self.visible {
+            self.visible = true;
+            // Force redraw to show bar
+            self.update_tx().send(state::Update::ForceRedraw)?;
+        }
         Ok(())
     }
 
@@ -270,12 +315,17 @@ impl WaylandWindow {
         self.update_tx.clone()
     }
 
-    pub fn handle_motion_leave(&self) -> anyhow::Result<()> {
+    pub fn handle_motion_leave(&mut self) -> anyhow::Result<()> {
         self.update_tx()
             .send(state::Update::MotionUpdate(state::MotionUpdate {
                 window_name: self.name.clone(),
                 position: None,
             }))?;
+        if self.bar_config.popup_at_edge && self.visible {
+            self.visible = false;
+            // Force redraw to hide bar
+            self.update_tx().send(state::Update::ForceRedraw)?;
+        }
         Ok(())
     }
 
