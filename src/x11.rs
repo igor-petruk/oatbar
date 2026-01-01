@@ -114,7 +114,9 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
-                x::Cw::OverrideRedirect(bar_config.popup),
+                x::Cw::OverrideRedirect(
+                    bar_config.popup || bar_config.position == config::BarPosition::Center,
+                ),
                 //x::Cw::OverrideRedirect(true),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE
@@ -156,7 +158,7 @@ impl Window {
             &["_NET_WM_STATE_STICKY", "_NET_WM_STATE_ABOVE"],
         )?;
 
-        if !bar_config.popup {
+        if !bar_config.popup && bar_config.position != config::BarPosition::Center {
             let top = bar_config.position == config::BarPosition::Top;
             let sp_result = xutils::replace_property(
                 &conn,
@@ -280,8 +282,8 @@ impl Window {
         )?;
         conn.flush()?;
 
-        if !bar_config.popup {
-            xutils::send(&conn, &x::MapWindow { window: id })?;
+        xutils::send(&conn, &x::MapWindow { window: id })?;
+        if !bar_config.popup && bar_config.position != config::BarPosition::Center {
             config_value_list.extend_from_slice(&[
                 x::ConfigWindow::Sibling(wm_info.support),
                 x::ConfigWindow::StackMode(x::StackMode::Below),
@@ -368,16 +370,14 @@ impl Window {
         self.bar
             .set_error(&mut self.back_buffer_context, error.clone());
 
-        if self.bar_config.popup {
-            for popup in updates.block_updates.popup.values() {
-                for block in popup {
-                    popup_visibility::PopupManager::trigger_popup(
-                        &self.popup_manager_mutex,
-                        loop_handle,
-                        self.update_tx.clone(),
-                        block.clone(),
-                    );
-                }
+        for popup in updates.block_updates.popup.values() {
+            for block in popup {
+                popup_visibility::PopupManager::trigger_popup(
+                    &self.popup_manager_mutex,
+                    loop_handle,
+                    self.update_tx.clone(),
+                    block.clone(),
+                );
             }
         }
         let mut redraw = updates.block_updates.redraw;
