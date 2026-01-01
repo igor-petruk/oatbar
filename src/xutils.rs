@@ -151,11 +151,7 @@ pub fn handler_event_errors(
             return Ok(None);
         }
         Err(err) => {
-            return Err(anyhow::anyhow!(
-                "unexpected error: {:#?}, {}",
-                err,
-                err.to_string()
-            ));
+            return Err(anyhow::anyhow!("unexpected error: {:#?}, {}", err, err));
         }
         Ok(event) => event,
     };

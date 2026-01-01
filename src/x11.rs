@@ -1,135 +1,18 @@
-// Copyright 2023 Oatbar Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+#![allow(dead_code)]
 use anyhow::Context;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{Arc, Mutex, RwLock},
-    time::{Duration, SystemTime},
 };
 use xcb::{x, xinput, Xid};
 
 use crate::{
     bar::{self, BarUpdates, BlockUpdates},
-    config, drawing, notify, parse, state, timer, wmready, xutils,
+    config, drawing,
+    engine::Engine,
+    notify, parse, popup_visibility, state, thread, wmready, xutils,
 };
 use tracing::*;
-
-pub struct VisibilityControl {
-    name: String,
-    conn: Arc<xcb::Connection>,
-    window_id: x::Window,
-    timer: Option<timer::Timer>,
-    show_only: Option<HashMap<config::PopupMode, HashSet<String>>>,
-    visible: bool,
-    default_visibility: bool,
-    popped_up: bool,
-}
-
-impl VisibilityControl {
-    fn is_poping_up(&self) -> bool {
-        self.timer.is_some()
-    }
-
-    fn set_visible(&mut self, visible: bool) -> anyhow::Result<()> {
-        if self.visible == visible {
-            return Ok(());
-        }
-        if visible {
-            xutils::send(
-                &self.conn,
-                &x::MapWindow {
-                    window: self.window_id,
-                },
-            )?;
-        } else {
-            xutils::send(
-                &self.conn,
-                &x::UnmapWindow {
-                    window: self.window_id,
-                },
-            )?;
-        }
-        self.conn.flush()?;
-        self.visible = visible;
-        Ok(())
-    }
-
-    fn extend_show_only(&mut self, extra_show_only: HashMap<config::PopupMode, HashSet<String>>) {
-        if extra_show_only.is_empty() {
-            return;
-        }
-
-        let show_only = self.show_only.get_or_insert_with(Default::default);
-
-        for (k, v) in extra_show_only.into_iter() {
-            show_only.entry(k).or_default().extend(v.into_iter());
-        }
-    }
-
-    fn set_default_visibility(&mut self, value: bool) -> anyhow::Result<()> {
-        if value == self.default_visibility {
-            return Ok(());
-        }
-        self.default_visibility = value;
-        if !self.popped_up {
-            self.set_visible(self.default_visibility)?;
-        }
-        Ok(())
-    }
-
-    fn reset_show_only(&mut self) {
-        self.show_only = None
-    }
-
-    fn show_or_prolong_popup(
-        visibility_control_lock: &Arc<RwLock<VisibilityControl>>,
-    ) -> anyhow::Result<()> {
-        let reset_timer_at = SystemTime::now()
-            .checked_add(Duration::from_secs(1))
-            .unwrap();
-        let mut visibility_control = visibility_control_lock.write().unwrap();
-        match &visibility_control.timer {
-            Some(timer) => {
-                timer.set_at(reset_timer_at);
-            }
-            None => {
-                let timer = {
-                    visibility_control.set_visible(true)?;
-                    visibility_control.popped_up = true;
-                    let visibility_control_lock = visibility_control_lock.clone();
-                    timer::Timer::new(
-                        &format!("pptimer-{}", visibility_control.name),
-                        reset_timer_at,
-                        move || {
-                            let mut visibility_control = visibility_control_lock.write().unwrap();
-                            visibility_control.timer = None;
-                            visibility_control.reset_show_only();
-                            let default_visibility = visibility_control.default_visibility;
-                            visibility_control.popped_up = false;
-                            if let Err(e) = visibility_control.set_visible(default_visibility) {
-                                tracing::error!("Failed to show window: {:?}", e);
-                            }
-                        },
-                    )?
-                };
-                visibility_control.timer = Some(timer);
-            }
-        }
-        Ok(())
-    }
-}
 
 pub struct Window {
     pub conn: Arc<xcb::Connection>,
@@ -138,7 +21,11 @@ pub struct Window {
     pub width: u16,
     pub height: u16,
     back_buffer_context: drawing::Context,
+    back_buffer_surface: cairo::XCBSurface,
+    back_buffer_pixmap: x::Pixmap,
     shape_buffer_context: drawing::Context,
+    shape_buffer_surface: cairo::XCBSurface,
+    shape_buffer_pixmap: x::Pixmap,
     swap_gc: x::Gcontext,
     bar: bar::Bar,
     // bar_index: usize,
@@ -146,7 +33,9 @@ pub struct Window {
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
     state_update_tx: crossbeam_channel::Sender<state::Update>,
-    visibility_control: Arc<RwLock<VisibilityControl>>,
+    popup_manager_mutex: Arc<Mutex<popup_visibility::PopupManager>>,
+    update_tx: crossbeam_channel::Sender<state::Update>,
+    visible: bool,
 }
 
 impl Window {
@@ -161,6 +50,8 @@ impl Window {
         state_update_tx: crossbeam_channel::Sender<state::Update>,
         wm_info: &wmready::WMInfo,
         notifier: notify::Notifier,
+        popup_manager_mutex: Arc<Mutex<popup_visibility::PopupManager>>,
+        update_tx: crossbeam_channel::Sender<state::Update>,
     ) -> anyhow::Result<Self> {
         info!("Loading bar {:?}", name);
         let screen = {
@@ -224,7 +115,9 @@ impl Window {
             visual: vis32.visual_id(),
             value_list: &[
                 x::Cw::BorderPixel(screen.white_pixel()),
-                x::Cw::OverrideRedirect(bar_config.popup),
+                x::Cw::OverrideRedirect(
+                    bar_config.popup || bar_config.position == config::BarPosition::Center,
+                ),
                 //x::Cw::OverrideRedirect(true),
                 x::Cw::EventMask(
                     x::EventMask::EXPOSURE
@@ -237,16 +130,18 @@ impl Window {
             ],
         });
 
-        let raw_motion_mask_buf =
-            xinput::EventMaskBuf::new(xinput::Device::All, &[xinput::XiEventMask::RAW_MOTION]);
+        if bar_config.popup && bar_config.popup_at_edge {
+            let raw_motion_mask_buf =
+                xinput::EventMaskBuf::new(xinput::Device::All, &[xinput::XiEventMask::RAW_MOTION]);
 
-        xutils::send(
-            &conn,
-            &xinput::XiSelectEvents {
-                window: screen.root(),
-                masks: &[raw_motion_mask_buf],
-            },
-        )?;
+            xutils::send(
+                &conn,
+                &xinput::XiSelectEvents {
+                    window: screen.root(),
+                    masks: &[raw_motion_mask_buf],
+                },
+            )?;
+        }
 
         let app_name = "oatbar".as_bytes();
         xutils::replace_property_atom(&conn, id, x::ATOM_WM_NAME, x::ATOM_STRING, app_name)?;
@@ -266,7 +161,7 @@ impl Window {
             &["_NET_WM_STATE_STICKY", "_NET_WM_STATE_ABOVE"],
         )?;
 
-        if !bar_config.popup {
+        if !bar_config.popup && bar_config.position != config::BarPosition::Center {
             let top = bar_config.position == config::BarPosition::Top;
             let sp_result = xutils::replace_property(
                 &conn,
@@ -309,12 +204,12 @@ impl Window {
                 debug!("Unable to set _NET_WM_STRUT: {:?}", e);
             }
         }
-        let back_buffer: x::Pixmap = conn.generate_id();
+        let back_buffer_pixmap: x::Pixmap = conn.generate_id();
         xutils::send(
             &conn,
             &x::CreatePixmap {
                 depth: 32,
-                pid: back_buffer,
+                pid: back_buffer_pixmap,
                 drawable: xcb::x::Drawable::Window(id),
                 width: window_width,
                 height: window_height,
@@ -325,23 +220,28 @@ impl Window {
         #[cfg(feature = "image")]
         let image_loader = drawing::ImageLoader::new();
 
-        let back_buffer_surface =
-            make_pixmap_surface(&conn, &back_buffer, &mut vis32, window_width, window_height)?;
+        let back_buffer_surface = make_pixmap_surface(
+            &conn,
+            &back_buffer_pixmap,
+            &mut vis32,
+            window_width,
+            window_height,
+        )?;
+        let context = cairo::Context::new(back_buffer_surface.clone())?;
         let back_buffer_context = drawing::Context::new(
+            context,
             font_cache.clone(),
             #[cfg(feature = "image")]
             image_loader.clone(),
-            back_buffer,
-            back_buffer_surface,
             drawing::Mode::Full,
         )?;
 
-        let shape_buffer: x::Pixmap = conn.generate_id();
+        let shape_buffer_pixmap: x::Pixmap = conn.generate_id();
         xutils::send(
             &conn,
             &x::CreatePixmap {
                 depth: 1,
-                pid: shape_buffer,
+                pid: shape_buffer_pixmap,
                 drawable: xcb::x::Drawable::Window(id),
                 width: window_width,
                 height: window_height,
@@ -349,17 +249,17 @@ impl Window {
         )?;
         let shape_buffer_surface = make_pixmap_surface_for_bitmap(
             &conn,
-            &shape_buffer,
+            &shape_buffer_pixmap,
             &screen,
             window_width,
             window_height,
         )?;
+        let context = cairo::Context::new(shape_buffer_surface.clone())?;
         let shape_buffer_context = drawing::Context::new(
+            context,
             font_cache,
             #[cfg(feature = "image")]
             image_loader,
-            shape_buffer,
-            shape_buffer_surface,
             drawing::Mode::Shape,
         )?;
 
@@ -385,8 +285,11 @@ impl Window {
         )?;
         conn.flush()?;
 
-        if !bar_config.popup {
+        let initially_visible = !bar_config.popup;
+        if initially_visible {
             xutils::send(&conn, &x::MapWindow { window: id })?;
+        }
+        if !bar_config.popup && bar_config.position != config::BarPosition::Center {
             config_value_list.extend_from_slice(&[
                 x::ConfigWindow::Sibling(wm_info.support),
                 x::ConfigWindow::StackMode(x::StackMode::Below),
@@ -404,8 +307,6 @@ impl Window {
         }
         conn.flush()?;
 
-        let visible = !bar_config.popup;
-
         let bar = bar::Bar::new(config, bar_config.clone(), notifier.clone())?;
 
         Ok(Self {
@@ -415,7 +316,11 @@ impl Window {
             width: window_width,
             height: window_height,
             back_buffer_context,
+            back_buffer_surface,
+            back_buffer_pixmap,
             shape_buffer_context,
+            shape_buffer_surface,
+            shape_buffer_pixmap,
             swap_gc,
             // bar_index,
             bar,
@@ -423,16 +328,9 @@ impl Window {
             state_update_tx,
             screen,
             bar_config,
-            visibility_control: Arc::new(RwLock::new(VisibilityControl {
-                name,
-                window_id: id,
-                timer: None,
-                conn,
-                show_only: None,
-                visible,
-                default_visibility: visible,
-                popped_up: false,
-            })),
+            popup_manager_mutex,
+            update_tx,
+            visible: initially_visible,
         })
     }
 
@@ -446,13 +344,16 @@ impl Window {
         Ok(())
     }
 
-    pub fn render(&mut self, from_os: bool) -> anyhow::Result<()> {
+    pub fn render(
+        &mut self,
+        loop_handle: &mut Option<calloop::LoopHandle<'static, XOrgEngine>>,
+    ) -> anyhow::Result<()> {
         let state = self.state.clone();
         let state = state.read().unwrap();
         let pointer_position = state.pointer_position.get(&self.name).copied();
         let mut error = state.build_error_msg();
 
-        let mut updates =
+        let updates =
             match self
                 .bar
                 .update(&mut self.back_buffer_context, &state.vars, pointer_position)
@@ -476,50 +377,35 @@ impl Window {
         self.bar
             .set_error(&mut self.back_buffer_context, error.clone());
 
-        if from_os {
-            updates.block_updates.redraw = bar::RedrawScope::All;
-        }
-
-        if self.bar_config.popup && !updates.block_updates.popup.is_empty() {
-            if let Err(e) = VisibilityControl::show_or_prolong_popup(&self.visibility_control) {
-                tracing::error!("Showing popup failed: {:?}", e);
+        for popup in updates.block_updates.popup.values() {
+            for block in popup {
+                popup_visibility::PopupManager::trigger_popup(
+                    &self.popup_manager_mutex,
+                    loop_handle,
+                    self.update_tx.clone(),
+                    block.clone(),
+                );
             }
         }
-        let (visible, show_only, mut redraw) = {
-            let mut visibility_control = self.visibility_control.write().unwrap();
-            if let Some(visible_from_vars) = updates.visible_from_vars {
-                visibility_control.set_default_visibility(visible_from_vars)?;
+        if self.bar_config.popup {
+            if let Some(visible) = updates.visible_from_vars {
+                if visible != self.visible {
+                    self.visible = visible;
+                    if visible {
+                        xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+                    } else {
+                        xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
+                    }
+                }
             }
-            if self.bar_config.popup {
-                visibility_control.extend_show_only(updates.block_updates.popup);
-                let redraw_mode = if visibility_control.show_only.is_some() {
-                    bar::RedrawScope::All
-                } else {
-                    updates.block_updates.redraw
-                };
-                // Maybe there is a race condition between visibility and rendering.
-                (
-                    visibility_control.visible,
-                    visibility_control.show_only.clone(),
-                    redraw_mode,
-                )
-            } else {
-                (
-                    visibility_control.visible,
-                    None,
-                    updates.block_updates.redraw,
-                )
-            }
-        };
-
-        if visible && redraw != bar::RedrawScope::None {
-            let layout_changed = self.bar.layout_groups(self.width as f64, &show_only);
-            if layout_changed {
-                redraw = bar::RedrawScope::All;
-            }
-
-            self.render_bar(&redraw)?;
         }
+        let mut redraw = updates.block_updates.redraw;
+        let layout_changed = self.bar.layout_groups(self.width as f64);
+        if layout_changed {
+            redraw = bar::RedrawScope::All;
+        }
+
+        self.render_bar(&redraw)?;
         Ok(())
     }
 
@@ -532,7 +418,7 @@ impl Window {
         self.bar.handle_button_press(x, y, button)
     }
 
-    pub fn handle_raw_motion(&self, x: i16, y: i16) -> anyhow::Result<()> {
+    pub fn handle_raw_motion(&mut self, x: i16, y: i16) -> anyhow::Result<()> {
         self.handle_motion_popup(x, y)?;
         Ok(())
     }
@@ -555,8 +441,8 @@ impl Window {
         Ok(())
     }
 
-    pub fn handle_motion_popup(&self, _x: i16, y: i16) -> anyhow::Result<()> {
-        if !self.bar_config.popup || !self.bar_config.popup_at_edge {
+    pub fn handle_motion_popup(&mut self, _x: i16, y: i16) -> anyhow::Result<()> {
+        if !self.bar_config.popup_at_edge {
             return Ok(());
         }
         let edge_size: i16 = 3;
@@ -572,20 +458,23 @@ impl Window {
             config::BarPosition::Center => false,
         };
 
-        let mut visibility_control = self.visibility_control.write().unwrap();
-        if !visibility_control.is_poping_up() {
-            if !visibility_control.visible && over_edge {
-                visibility_control.set_visible(true)?;
-            } else if visibility_control.visible && !over_window {
-                visibility_control.set_visible(false)?;
-                visibility_control.reset_show_only();
+        if over_window || over_edge {
+            if !self.visible {
+                self.visible = true;
+                xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
+            }
+        } else {
+            if self.visible {
+                self.visible = false;
+                xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
             }
         }
+
         Ok(())
     }
 
     fn apply_shape(&self) -> anyhow::Result<()> {
-        self.shape_buffer_context.buffer_surface.flush();
+        self.shape_buffer_surface.flush();
         xutils::send(
             &self.conn,
             &xcb::shape::Mask {
@@ -594,14 +483,14 @@ impl Window {
                 destination_window: self.id,
                 x_offset: 0,
                 y_offset: 0,
-                source_bitmap: self.shape_buffer_context.buffer,
+                source_bitmap: self.shape_buffer_pixmap,
             },
         )?;
         Ok(())
     }
 
     fn swap_buffers(&self) -> anyhow::Result<()> {
-        self.back_buffer_context.buffer_surface.flush();
+        self.back_buffer_surface.flush();
         xutils::send(
             &self.conn,
             &xcb::x::ClearArea {
@@ -617,7 +506,7 @@ impl Window {
         xutils::send(
             &self.conn,
             &xcb::x::CopyArea {
-                src_drawable: xcb::x::Drawable::Pixmap(self.back_buffer_context.buffer),
+                src_drawable: xcb::x::Drawable::Pixmap(self.back_buffer_pixmap),
                 dst_drawable: xcb::x::Drawable::Window(self.id),
                 src_x: 0,
                 src_y: 0,
@@ -711,4 +600,242 @@ fn make_pixmap_surface_for_bitmap(
     conn.flush()?;
 
     Ok(pixmap_surface)
+}
+
+pub struct XOrgEngine {
+    windows: HashMap<x::Window, Window>,
+    window_ids: Vec<x::Window>,
+    state: Arc<RwLock<state::State>>,
+    conn: Arc<xcb::Connection>,
+    screen: x::ScreenBuf,
+    pub update_tx: crossbeam_channel::Sender<state::Update>,
+    update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
+    popup_manager: std::sync::Arc<std::sync::Mutex<popup_visibility::PopupManager>>,
+    // Set during run().
+    loop_handle: Option<calloop::LoopHandle<'static, Self>>,
+}
+
+impl XOrgEngine {
+    pub fn new(
+        config: config::Config<parse::Placeholder>,
+        initial_state: state::State,
+        notifier: notify::Notifier,
+    ) -> anyhow::Result<Self> {
+        let state = Arc::new(RwLock::new(initial_state));
+        let (update_tx, update_rx) = crossbeam_channel::unbounded();
+
+        let (conn, _) = xcb::Connection::connect_with_xlib_display_and_extensions(
+            &[
+                xcb::Extension::Input,
+                xcb::Extension::Shape,
+                xcb::Extension::RandR,
+            ],
+            &[],
+        )
+        .unwrap();
+        let conn = Arc::new(conn);
+        let popup_manager = Arc::new(Mutex::new(popup_visibility::PopupManager::new()));
+
+        let wm_info = wmready::wait().context("Unable to connect to WM")?;
+
+        let screen = {
+            let setup = conn.get_setup();
+            setup.roots().next().unwrap()
+        }
+        .to_owned();
+
+        tracing::info!(
+            "XInput init: {:?}",
+            xutils::query(
+                &conn,
+                &xinput::XiQueryVersion {
+                    major_version: 2,
+                    minor_version: 0,
+                },
+            )
+            .context("init xinput 2.0 extension")?
+        );
+
+        let mut windows = HashMap::new();
+
+        for (index, bar) in config.bar.iter().enumerate() {
+            let window = Window::create_and_show(
+                format!("bar{}", index),
+                // index,
+                &config,
+                bar.clone(),
+                conn.clone(),
+                state.clone(),
+                update_tx.clone(),
+                &wm_info,
+                notifier.clone(),
+                popup_manager.clone(),
+                update_tx.clone(),
+            )?;
+            windows.insert(window.id, window);
+        }
+
+        let window_ids = windows.keys().cloned().collect();
+
+        Ok(Self {
+            windows,
+            window_ids,
+            state,
+            conn,
+            screen,
+            update_tx,
+            update_rx: Some(update_rx),
+            loop_handle: None,
+            popup_manager,
+        })
+    }
+
+    fn handle_event(&mut self, event: &xcb::Event) -> anyhow::Result<()> {
+        match event {
+            xcb::Event::X(x::Event::Expose(event)) => {
+                if let Some(window) = self.windows.get_mut(&event.window()) {
+                    // Hack for now to distinguish on-demand expose.
+                    if let Err(e) = window.render(&mut self.loop_handle) {
+                        tracing::error!("Failed to render bar {:?}", e);
+                    }
+                }
+            }
+            xcb::Event::Input(xinput::Event::RawMotion(_event)) => {
+                let pointer = xutils::query(
+                    &self.conn,
+                    &x::QueryPointer {
+                        window: self.screen.root(),
+                    },
+                )?;
+                for window in self.windows.values_mut() {
+                    window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
+                }
+            }
+            xcb::Event::X(x::Event::MotionNotify(event)) => {
+                if let Some(window) = self.windows.get(&event.event()) {
+                    window.handle_motion(event.event_x(), event.event_y())?;
+                }
+            }
+            xcb::Event::X(x::Event::LeaveNotify(event)) => {
+                if let Some(window) = self.windows.get(&event.event()) {
+                    window.handle_motion_leave()?;
+                }
+            }
+            xcb::Event::X(x::Event::ButtonPress(event)) => {
+                for window in self.windows.values_mut() {
+                    if window.id == event.event() {
+                        tracing::trace!(
+                            "Button press: X={}, Y={}, button={}",
+                            event.event_x(),
+                            event.event_y(),
+                            event.detail()
+                        );
+                        let button = match event.detail() {
+                            1 => Some(bar::Button::Left),
+                            2 => Some(bar::Button::Middle),
+                            3 => Some(bar::Button::Right),
+                            4 => Some(bar::Button::ScrollUp),
+                            5 => Some(bar::Button::ScrollDown),
+                            _ => None,
+                        };
+                        if let Some(button) = button {
+                            window.handle_button_press(event.event_x(), event.event_y(), button)?;
+                        }
+                    }
+                }
+            }
+            _ => {
+                tracing::debug!("Unhandled XCB event: {:?}", event);
+            }
+        }
+        Ok(())
+    }
+
+    fn pipe_xevents(
+        &self,
+        calloop_tx: calloop::channel::Sender<EngineMessage>,
+    ) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let calloop_tx_xevent = calloop_tx.clone();
+        thread::spawn("eng-xevent", move || loop {
+            while let Ok(event) = xutils::get_event(&conn) {
+                if let Some(event) = event {
+                    calloop_tx_xevent
+                        .send(EngineMessage::XEvent(event))
+                        .unwrap();
+                } else {
+                    break;
+                }
+            }
+        })
+        .context("engine xevent")
+    }
+
+    fn pipe_state_updates(
+        &mut self,
+        calloop_tx: calloop::channel::Sender<EngineMessage>,
+    ) -> anyhow::Result<()> {
+        let state_update_rx = self.update_rx.take().unwrap();
+        let calloop_tx_state = calloop_tx.clone();
+        thread::spawn("eng-state", move || loop {
+            while let Ok(state_update) = state_update_rx.recv() {
+                calloop_tx_state
+                    .send(EngineMessage::Update(state_update))
+                    .unwrap();
+            }
+        })
+        .context("engine state update")
+    }
+}
+
+enum EngineMessage {
+    XEvent(xcb::Event),
+    Update(state::Update),
+}
+
+impl Engine for XOrgEngine {
+    fn run(&mut self) -> anyhow::Result<()> {
+        let mut event_loop: calloop::EventLoop<Self> =
+            calloop::EventLoop::try_new().expect("Failed to create event loop");
+        let loop_handle = event_loop.handle();
+        self.loop_handle = Some(loop_handle.clone());
+
+        let (calloop_tx, calloop_rx) = calloop::channel::channel();
+
+        self.pipe_state_updates(calloop_tx.clone())
+            .context("engine pipe state updates")?;
+
+        self.pipe_xevents(calloop_tx.clone())
+            .context("engine pipe xevents")?;
+
+        loop_handle
+            .insert_source(calloop_rx, move |evt, _, engine| match evt {
+                calloop::channel::Event::Msg(msg) => match msg {
+                    EngineMessage::XEvent(event) => {
+                        engine.handle_event(&event).unwrap();
+                    }
+                    EngineMessage::Update(state_update) => {
+                        {
+                            let mut state = engine.state.write().unwrap();
+                            state.handle_state_update(state_update);
+                        }
+                        for window in engine.windows.values_mut() {
+                            if let Err(e) = window.render(&mut engine.loop_handle) {
+                                tracing::error!("Failed to render bar {:?}", e);
+                            }
+                        }
+                    }
+                },
+                calloop::channel::Event::Closed => {}
+            })
+            .expect("Failed to insert X11 source");
+
+        loop {
+            event_loop.dispatch(None, self).context("engine dispatch")?;
+        }
+    }
+
+    fn update_tx(&self) -> crossbeam_channel::Sender<state::Update> {
+        self.update_tx.clone()
+    }
 }

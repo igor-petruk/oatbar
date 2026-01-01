@@ -56,6 +56,10 @@ impl State {
         }
     }
 
+    pub fn initialize_vars(&mut self) {
+        self.handle_var_update(Default::default());
+    }
+
     pub fn build_error_msg(&self) -> Option<ErrorMessage> {
         if let Some(error) = &self.error {
             Some(ErrorMessage {
@@ -76,6 +80,7 @@ impl State {
         match state_update {
             Update::VarUpdate(u) => self.handle_var_update(u),
             Update::MotionUpdate(u) => self.handle_motion_update(u),
+            Update::ForceRedraw => {}
         }
     }
 
@@ -192,6 +197,7 @@ pub struct VarUpdate {
 pub enum Update {
     VarUpdate(VarUpdate),
     MotionUpdate(MotionUpdate),
+    ForceRedraw,
 }
 
 #[derive(Debug, Default, Clone)]

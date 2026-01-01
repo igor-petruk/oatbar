@@ -31,6 +31,12 @@ $ oatctl var help
 
 You can declare your additional variables that do not come from commands. This is useful to
 pre-process data with [`replace` and `replace_first_match`](./block.md#common-properties) to be used in multiple blocks.
+ 
+ Supported properties:
+ *   `name`: Unique name of the variable.
+ *   `value`: The value of the variable, supports placeholders.
+ *   `replace`: List of regex replacements.
+ *   `replace_first_match`: Whether to stop after the first replacement (default: `false`).
 
 ```toml
 [[var]]
@@ -44,6 +50,23 @@ value = "<span ${clock_color_attr}>${clock:value}</span>"
 
 Standalone variables can use each other only in the order they are declared in the file,
 otherwise the result is undefined.
+
+### Switch-Case Logic
+
+`replace_first_match=true` allows implementing a switch-case logic where you map a set of known values to other values, optionally providing a default at the end. Since processing stops after the first match, order matters.
+
+```toml
+[[var]]
+name="status_icon"
+value="${player:status}"
+replace_first_match=true
+replace=[
+    ["^playing$", "▶"],
+    ["^paused$", "⏸"],
+    ["^stopped$", "⏹"],
+    [".*", ""] # Default/Catch-all
+]
+```
 
 ## Filters
 

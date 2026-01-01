@@ -1,6 +1,6 @@
 use anyhow::Context;
-use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 
 pub fn init(instance_name: &str) -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard> {
     let log_dir = dirs::cache_dir()
@@ -29,15 +29,15 @@ pub fn init(instance_name: &str) -> anyhow::Result<tracing_appender::non_blockin
         .with_thread_names(true)
         .compact();
 
-    let stderr_level = if cfg!(debug_assertions) {
-        LevelFilter::TRACE
+    let filter = if cfg!(debug_assertions) {
+        EnvFilter::new("trace,calloop=info")
     } else {
-        LevelFilter::INFO
+        EnvFilter::new("info")
     };
 
     let registry = tracing_subscriber::registry()
-        .with(file_layer.with_filter(stderr_level))
-        .with(stderr_layer.with_filter(stderr_level));
+        .with(file_layer.with_filter(filter.clone()))
+        .with(stderr_layer.with_filter(filter));
 
     registry.init();
 

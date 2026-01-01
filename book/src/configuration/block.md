@@ -28,12 +28,18 @@ All blocks share the following properties.
 | `font` | string | `inherit` | Font definition (e.g., `Monospace 12`). |
 | `background` | color | `transparent`| Background color (Hex `#RRGGBB` or `#RRGGBBAA`). |
 | `foreground` | color | `inherit` | Text color. |
-| `line_width` | float | `0.0` | Width of border lines. |
+| `line_width` | float | `1.1` | Width of border lines. |
 | `overline_color` | color | `None` | Color of the top border line. |
 | `underline_color` | color | `None` | Color of the bottom border line. |
 | `edgeline_color` | color | `None` | Color of the side border lines (left/right). |
+| `hover_background` | color | `None`| Background color on hover. |
+| `hover_foreground` | color | `None` | Text color on hover. |
+| `hover_line_width` | float | `None` | Width of border lines on hover. |
+| `hover_overline_color` | color | `None` | Color of the top border line on hover. |
+| `hover_underline_color` | color | `None` | Color of the bottom border line on hover. |
+| `hover_edgeline_color` | color | `None` | Color of the side border lines (left/right) on hover. |
 | `margin` | float | `0.0` | Space outside the block. |
-| `padding` | float | `0.0` | Space inside the block (around text). |
+| `padding` | float | `8.0` | Space inside the block (around text). |
 | `separator_type` | string | `None` | Separator style: `left`, `right`, `gap`. |
 | `separator_radius` | float | `0.0` | Radius for rounded separators. |
 | `popup` | string | `None` | Popup behavior: `block`, `partial_bar`, `bar`. |
@@ -244,8 +250,22 @@ type="enum"
 Enum is different from text block as it renders multiple child text blocks called
 `variants`, only one of which is `active`. *Example:* keyboard layout switch.
 
-Almost every common property related to block display has an `active_` counterpart
-to configure an active block. For example `background` and `active_background`.
+Almost every common property related to block display has an `active_` counterpart to configure the active variant.
+
+| Property | Description |
+|---|---|
+| `active_font` | Font for the active variant. |
+| `active_background` | Background color for the active variant. |
+| `active_foreground` | Text color for the active variant. |
+| `active_line_width` | Border line width for the active variant. |
+| `active_overline_color` | Top border color for the active variant. |
+| `active_underline_color` | Bottom border color for the active variant. |
+| `active_edgeline_color` | Side border color for the active variant. |
+| `active_margin` | Margin for the active variant. |
+| `active_padding` | Padding for the active variant. |
+| `active_output_format` | Format string for the active variant. |
+| `active_pango_markup` | Enable/disable Pango markup for the active variant. |
+| `active_hover_...` | All `hover_` properties are also available with `active_` prefix (e.g. `active_hover_background`). |
 
 ```toml
 # A separated list of variants, e.g. "ua,se,us".

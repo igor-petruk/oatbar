@@ -27,6 +27,7 @@ use crate::{
     config::{self, AnyUpdated},
     drawing, notify,
     parse::{self, Placeholder},
+    popup_visibility::VecPlaceholderExt,
     process,
 };
 
@@ -38,6 +39,15 @@ const ERROR_BLOCK_NAME: &str = "__error";
 struct Dimensions {
     width: f64,
     height: f64,
+}
+
+/// Represents a clickable rectangle area for input region calculation
+#[derive(Debug, Clone)]
+pub struct InputRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -473,7 +483,9 @@ impl Block for TextBlock {
     }
 
     fn is_visible(&self) -> bool {
-        self.config.display.show_if_matches.all_match()
+        let matches_ok = self.config.display.show_if_matches.all_match();
+        let popup_ok = self.config.display.popup_visible().unwrap_or(true);
+        matches_ok && popup_ok
     }
 
     fn popup(&self) -> Option<config::PopupMode> {
@@ -965,7 +977,9 @@ impl Block for EnumBlock {
     }
 
     fn is_visible(&self) -> bool {
-        self.config.display.show_if_matches.all_match()
+        let matches_ok = self.config.display.show_if_matches.all_match();
+        let popup_ok = self.config.display.popup_visible().unwrap_or(true);
+        matches_ok && popup_ok
     }
 
     fn popup(&self) -> Option<config::PopupMode> {
@@ -997,7 +1011,6 @@ impl ImageBlock {
         cache_images: bool,
     ) -> anyhow::Result<cairo::ImageSurface> {
         if let Some(max_image_height) = self.config.image_options.max_image_height {
-            tracing::info!("MIH: {}", max_image_height);
             if (max_image_height as f64) < fit_to_height {
                 fit_to_height = max_image_height as f64;
             }
@@ -1103,7 +1116,9 @@ impl Block for ImageBlock {
     }
 
     fn is_visible(&self) -> bool {
-        self.config.display.show_if_matches.all_match()
+        let matches_ok = self.config.display.show_if_matches.all_match();
+        let popup_ok = self.config.display.popup_visible().unwrap_or(true);
+        matches_ok && popup_ok
     }
 
     fn popup(&self) -> Option<config::PopupMode> {
@@ -1119,57 +1134,20 @@ struct BlockGroup {
     blocks: Vec<Box<dyn DebugBlock>>,
     dimensions: Dimensions,
     layout: Vec<(usize, Dimensions)>,
+    input_rects: Vec<InputRect>,
 }
 
 impl BlockGroup {
-    fn visible_per_popup_mode(
-        &self,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-        popup_mode: config::PopupMode,
-    ) -> bool {
-        let partial_show = show_only.is_some();
-        !partial_show
-            || show_only
-                .as_ref()
-                .map(move |m| {
-                    let trigger_blocks = m.get(&popup_mode).cloned().unwrap_or_default();
-                    self.blocks
-                        .iter()
-                        .any(|block| trigger_blocks.contains(block.name()))
-                })
-                .unwrap_or_default()
-    }
-
-    fn build_layout(
-        &self,
-        entire_bar_visible: bool,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) -> Vec<(usize, Dimensions)> {
+    fn build_layout(&self, bar_height: f64) -> (Vec<(usize, Dimensions)>, Vec<InputRect>) {
         use config::SeparatorType::*;
         let mut output = Vec::with_capacity(self.blocks.len());
+        let mut input_rects = Vec::with_capacity(self.blocks.len());
 
         let mut eat_separators = true;
         let mut last_edge = Some(Left);
 
-        let single_blocks = show_only
-            .as_ref()
-            .and_then(|m| m.get(&config::PopupMode::Block))
-            .cloned()
-            .unwrap_or_default();
-
-        let entire_partial_visible =
-            self.visible_per_popup_mode(show_only, config::PopupMode::PartialBar);
-
         for (block_idx, b) in self.blocks.iter().enumerate() {
             if !b.is_visible() {
-                continue;
-            }
-            let block_visible = single_blocks.contains(b.name());
-            if !entire_bar_visible
-                && !entire_partial_visible
-                && !block_visible
-                && b.separator_type().is_none()
-            {
                 continue;
             }
             let sep_type = &b.separator_type();
@@ -1200,6 +1178,7 @@ impl BlockGroup {
         let mut output = Vec::with_capacity(input.len());
         let mut input_iter = input.into_iter().peekable();
         last_edge = None;
+        let mut pos: f64 = 0.0;
 
         while let Some((block_idx, dim)) = input_iter.next() {
             let b = self.blocks.get(block_idx).unwrap();
@@ -1229,10 +1208,21 @@ impl BlockGroup {
                 }
             }
 
+            // Only add rectangles for non-separator blocks
+            if b.separator_type().is_none() && dim.width > 0.0 {
+                input_rects.push(InputRect {
+                    x: pos as i32,
+                    y: 0,
+                    width: dim.width.ceil() as i32,
+                    height: bar_height as i32,
+                });
+            }
+            pos += dim.width;
+
             output.push((block_idx, dim));
         }
 
-        output
+        (output, input_rects)
     }
 
     fn update(
@@ -1257,7 +1247,6 @@ impl BlockGroup {
                     block_updated
                 };
                 if popped_up {
-                    tracing::info!("{} popped up", block.name());
                     popup
                         .entry(popup_mode)
                         .or_default()
@@ -1282,13 +1271,11 @@ impl BlockGroup {
         Ok(BlockUpdates { redraw, popup })
     }
 
-    fn layout_group(
-        &mut self,
-        entire_bar_visible: bool,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) -> bool {
+    fn layout_group(&mut self, bar_height: f64) -> bool {
         let old_layout = self.layout.clone();
-        self.layout = self.build_layout(entire_bar_visible, show_only);
+        let (layout, input_rects) = self.build_layout(bar_height);
+        self.layout = layout;
+        self.input_rects = input_rects;
         let mut dim = Dimensions {
             width: 0.0,
             height: 0.0,
@@ -1350,6 +1337,20 @@ impl BlockGroup {
             pos += b_dim.width;
         }
         Ok(())
+    }
+
+    /// Returns input rectangles for all visible blocks in this group.
+    /// The offset is the group's x position on the bar.
+    fn get_input_rects(&self, group_offset: f64) -> Vec<InputRect> {
+        self.input_rects
+            .iter()
+            .map(|r| InputRect {
+                x: r.x + group_offset as i32,
+                y: r.y,
+                width: r.width,
+                height: r.height,
+            })
+            .collect()
     }
 }
 
@@ -1448,6 +1449,7 @@ impl Bar {
                 width: 0.0,
                 height: 0.0,
             },
+            input_rects: vec![],
         }
     }
 
@@ -1524,6 +1526,12 @@ impl Bar {
         pointer_position: Option<(i16, i16)>,
     ) -> anyhow::Result<BarUpdates> {
         self.bar_config.background.update(vars)?;
+        for show_if_match in self.bar_config.show_if_matches.iter_mut() {
+            show_if_match.0.update(vars)?;
+        }
+        for popup_show_if_some in self.bar_config.popup_show_if_some.iter_mut() {
+            popup_show_if_some.update(vars)?;
+        }
 
         let fit_to_height = (self.bar_config.height
             - self.bar_config.margin.top
@@ -1546,10 +1554,27 @@ impl Bar {
             block_updates.redraw = RedrawScope::All;
         }
 
-        let visible_from_vars = if self.bar_config.show_if_matches.is_empty() {
+        for placeholder in self.bar_config.popup_show_if_some.iter_mut() {
+            placeholder.update(vars)?;
+        }
+
+        let visible_from_matches = if self.bar_config.show_if_matches.is_empty() {
             None
         } else {
             Some(self.bar_config.show_if_matches.all_match())
+        };
+
+        let visible_from_popup = if self.bar_config.popup_show_if_some.is_empty() {
+            None
+        } else {
+            Some(self.bar_config.popup_show_if_some.any_non_empty())
+        };
+
+        let visible_from_vars = match (visible_from_matches, visible_from_popup) {
+            (Some(m), Some(p)) => Some(m && p),
+            (Some(m), None) => Some(m),
+            (None, Some(p)) => Some(p),
+            (None, None) => None,
         };
 
         Ok(BarUpdates {
@@ -1558,26 +1583,12 @@ impl Bar {
         })
     }
 
-    pub fn layout_groups(
-        &mut self,
-        drawing_area_width: f64,
-        show_only: &Option<HashMap<config::PopupMode, HashSet<String>>>,
-    ) -> bool {
-        let entire_bar_visible = self
-            .left_group
-            .visible_per_popup_mode(show_only, config::PopupMode::Bar)
-            || self
-                .center_group
-                .visible_per_popup_mode(show_only, config::PopupMode::Bar)
-            || self
-                .right_group
-                .visible_per_popup_mode(show_only, config::PopupMode::Bar);
-
-        let left_changed = self.left_group.layout_group(entire_bar_visible, show_only);
+    pub fn layout_groups(&mut self, drawing_area_width: f64) -> bool {
+        let left_changed = self.left_group.layout_group(self.bar_config.height as f64);
         let center_changed = self
             .center_group
-            .layout_group(entire_bar_visible, show_only);
-        let right_changed = self.right_group.layout_group(entire_bar_visible, show_only);
+            .layout_group(self.bar_config.height as f64);
+        let right_changed = self.right_group.layout_group(self.bar_config.height as f64);
 
         let width = drawing_area_width
             - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;
@@ -1607,6 +1618,52 @@ impl Bar {
         }
 
         Ok(())
+    }
+
+    /// Returns all input rectangles for clickable areas of the bar.
+    /// These rectangles account for margins and include all visible blocks.
+    pub fn get_input_rects(&self) -> Vec<InputRect> {
+        let bar = &self.bar_config;
+        let margin_left = bar.margin.left as f64;
+        let margin_top = bar.margin.top as i32;
+
+        let mut rects = Vec::new();
+
+        // Get rectangles from each group with their offsets
+        rects.extend(
+            self.left_group
+                .get_input_rects(0.0)
+                .into_iter()
+                .map(|mut r| {
+                    r.x += margin_left as i32;
+                    r.y += margin_top;
+                    r
+                }),
+        );
+
+        rects.extend(
+            self.center_group
+                .get_input_rects(self.center_group_pos)
+                .into_iter()
+                .map(|mut r| {
+                    r.x += margin_left as i32;
+                    r.y += margin_top;
+                    r
+                }),
+        );
+
+        rects.extend(
+            self.right_group
+                .get_input_rects(self.right_group_pos)
+                .into_iter()
+                .map(|mut r| {
+                    r.x += margin_left as i32;
+                    r.y += margin_top;
+                    r
+                }),
+        );
+
+        rects
     }
 
     pub fn render(

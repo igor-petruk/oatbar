@@ -27,15 +27,22 @@ mod logging;
 mod notify;
 #[allow(unused_macros)]
 mod parse;
+mod popup_visibility;
 mod process;
 mod protocol;
 mod source;
 mod state;
 mod thread;
 mod timer;
-mod window;
+#[cfg(feature = "wayland")]
+mod wayland;
+#[cfg(feature = "x11")]
 mod wmready;
+#[cfg(feature = "x11")]
+mod x11;
+#[cfg(feature = "x11")]
 mod xrandr;
+#[cfg(feature = "x11")]
 mod xutils;
 
 use clap::Parser;
@@ -69,21 +76,22 @@ fn main() -> anyhow::Result<()> {
 
     let (ipc_server_tx, ipc_server_rx) = crossbeam_channel::unbounded();
 
-    let state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
+    let mut state: state::State = state::State::new(config.clone(), vec![ipc_server_tx]);
+    state.initialize_vars();
 
-    let mut engine = engine::Engine::new(config, state, notify::Notifier::new())?;
+    let mut engine = engine::load(config, state, notify::Notifier::new())?;
 
     let mut poker = source::Poker::new();
     for (index, config) in commands.into_iter().enumerate() {
         let command = source::Command { index, config };
         let command_name = command.name();
-        command.spawn(engine.update_tx.clone(), poker.add(command_name))?;
+        command.spawn(engine.update_tx().clone(), poker.add(command_name))?;
     }
 
     ipcserver::Server::spawn(
         &cli.instance_name,
         poker,
-        engine.update_tx.clone(),
+        engine.update_tx().clone(),
         ipc_server_rx,
     )?;
 

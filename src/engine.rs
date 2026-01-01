@@ -1,216 +1,94 @@
-// Copyright 2023 Oatbar Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+use crossbeam_channel::Sender;
 
-use anyhow::Context;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use xcb::{x, xinput};
+use crate::{config, notify, parse, state};
 
-use crate::{bar, config, notify, parse, state, thread, window, wmready, xutils};
-
-pub struct Engine {
-    windows: HashMap<x::Window, window::Window>,
-    window_ids: Vec<x::Window>,
-    state: Arc<RwLock<state::State>>,
-    conn: Arc<xcb::Connection>,
-    screen: x::ScreenBuf,
-    pub update_tx: crossbeam_channel::Sender<state::Update>,
-    update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
+/// Enum representing the detected display server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisplayServer {
+    /// Wayland display server
+    Wayland,
+    /// X11/XOrg display server
+    X11,
 }
 
-impl Engine {
-    pub fn new(
-        config: config::Config<parse::Placeholder>,
-        initial_state: state::State,
-        notifier: notify::Notifier,
-    ) -> anyhow::Result<Self> {
-        let state = Arc::new(RwLock::new(initial_state));
-        let (update_tx, update_rx) = crossbeam_channel::unbounded();
+/// Detect the current display server based on environment variables.
+///
+/// Detection priority:
+/// 1. `WAYLAND_DISPLAY` set → Wayland
+/// 2. `DISPLAY` set → X11
+/// 3. Returns `None` if neither is set
+pub fn detect() -> Option<DisplayServer> {
+    if std::env::var("WAYLAND_DISPLAY").is_ok() {
+        Some(DisplayServer::Wayland)
+    } else if std::env::var("DISPLAY").is_ok() {
+        Some(DisplayServer::X11)
+    } else {
+        None
+    }
+}
 
-        let (conn, _) = xcb::Connection::connect_with_xlib_display_and_extensions(
-            &[
-                xcb::Extension::Input,
-                xcb::Extension::Shape,
-                xcb::Extension::RandR,
-            ],
-            &[],
-        )
-        .unwrap();
-        let conn = Arc::new(conn);
+/// Common trait for display server engines (X11 and Wayland).
+pub trait Engine {
+    /// Run the engine's main event loop.
+    fn run(&mut self) -> anyhow::Result<()>;
+    /// Get a clone of the update sender channel.
+    fn update_tx(&self) -> Sender<state::Update>;
+}
 
-        let wm_info = wmready::wait().context("Unable to connect to WM")?;
+/// Load the appropriate engine based on feature flags and environment.
+///
+/// Detection priority:
+/// 1. If `WAYLAND_DISPLAY` is set and `wayland` feature is enabled, use Wayland.
+/// 2. If `DISPLAY` is set and `x11` feature is enabled, use X11.
+/// 3. Fall back to Wayland if available, then X11.
+pub fn load(
+    config: config::Config<parse::Placeholder>,
+    state: state::State,
+    notifier: notify::Notifier,
+) -> anyhow::Result<Box<dyn Engine>> {
+    let detected = detect();
 
-        let screen = {
-            let setup = conn.get_setup();
-            setup.roots().next().unwrap()
-        }
-        .to_owned();
-
-        tracing::info!(
-            "XInput init: {:?}",
-            xutils::query(
-                &conn,
-                &xinput::XiQueryVersion {
-                    major_version: 2,
-                    minor_version: 0,
-                },
-            )
-            .context("init xinput 2.0 extension")?
-        );
-
-        let mut windows = HashMap::new();
-
-        for (index, bar) in config.bar.iter().enumerate() {
-            let window = window::Window::create_and_show(
-                format!("bar{}", index),
-                // index,
-                &config,
-                bar.clone(),
-                conn.clone(),
-                state.clone(),
-                update_tx.clone(),
-                &wm_info,
-                notifier.clone(),
-            )?;
-            windows.insert(window.id, window);
-        }
-
-        let window_ids = windows.keys().cloned().collect();
-
-        Ok(Self {
-            windows,
-            window_ids,
-            state,
-            conn,
-            screen,
-            update_tx,
-            update_rx: Some(update_rx),
-        })
+    // Try Wayland first if WAYLAND_DISPLAY is set
+    #[cfg(feature = "wayland")]
+    if detected == Some(DisplayServer::Wayland) {
+        tracing::info!("WAYLAND_DISPLAY is set, using Wayland engine");
+        return Ok(Box::new(crate::wayland::WaylandEngine::new(
+            config, state, notifier,
+        )?));
     }
 
-    pub fn spawn_state_update_thread(
-        &self,
-        state_update_rx: crossbeam_channel::Receiver<state::Update>,
-    ) -> anyhow::Result<()> {
-        let window_ids = self.window_ids.clone();
-        let conn = self.conn.clone();
-        let state = self.state.clone();
-
-        thread::spawn("eng-state", move || loop {
-            while let Ok(state_update) = state_update_rx.recv() {
-                {
-                    let mut state = state.write().unwrap();
-                    state.handle_state_update(state_update);
-                }
-                for window in window_ids.iter() {
-                    xutils::send(
-                        &conn,
-                        &x::SendEvent {
-                            destination: x::SendEventDest::Window(*window),
-                            event_mask: x::EventMask::EXPOSURE,
-                            propagate: false,
-                            event: &x::ExposeEvent::new(*window, 0, 0, 1, 1, 1),
-                        },
-                    )?;
-                }
-            }
-        })
+    // Try X11 if DISPLAY is set
+    #[cfg(feature = "x11")]
+    if detected == Some(DisplayServer::X11) {
+        tracing::info!("DISPLAY is set, using X11 engine");
+        return Ok(Box::new(crate::x11::XOrgEngine::new(
+            config, state, notifier,
+        )?));
     }
 
-    fn handle_event(&mut self, event: &xcb::Event) -> anyhow::Result<()> {
-        match event {
-            xcb::Event::X(x::Event::Expose(event)) => {
-                if let Some(window) = self.windows.get_mut(&event.window()) {
-                    // Hack for now to distinguish on-demand expose.
-                    if let Err(e) = window.render(event.width() != 1) {
-                        tracing::error!("Failed to render bar {:?}", e);
-                    }
-                }
-            }
-            xcb::Event::Input(xinput::Event::RawMotion(_event)) => {
-                let pointer = xutils::query(
-                    &self.conn,
-                    &x::QueryPointer {
-                        window: self.screen.root(),
-                    },
-                )?;
-                for window in self.windows.values() {
-                    window.handle_raw_motion(pointer.root_x(), pointer.root_y())?;
-                }
-            }
-            xcb::Event::X(x::Event::MotionNotify(event)) => {
-                if let Some(window) = self.windows.get(&event.event()) {
-                    window.handle_motion(event.event_x(), event.event_y())?;
-                }
-            }
-            xcb::Event::X(x::Event::LeaveNotify(event)) => {
-                if let Some(window) = self.windows.get(&event.event()) {
-                    window.handle_motion_leave()?;
-                }
-            }
-            xcb::Event::X(x::Event::ButtonPress(event)) => {
-                for window in self.windows.values_mut() {
-                    if window.id == event.event() {
-                        tracing::trace!(
-                            "Button press: X={}, Y={}, button={}",
-                            event.event_x(),
-                            event.event_y(),
-                            event.detail()
-                        );
-                        let button = match event.detail() {
-                            1 => Some(bar::Button::Left),
-                            2 => Some(bar::Button::Middle),
-                            3 => Some(bar::Button::Right),
-                            4 => Some(bar::Button::ScrollUp),
-                            5 => Some(bar::Button::ScrollDown),
-                            _ => None,
-                        };
-                        if let Some(button) = button {
-                            window.handle_button_press(event.event_x(), event.event_y(), button)?;
-                        }
-                    }
-                }
-            }
-            _ => {
-                tracing::debug!("Unhandled XCB event: {:?}", event);
-            }
-        }
-        Ok(())
+    // Fallback to Wayland if no env var is set but feature is enabled
+    #[allow(unreachable_code)]
+    #[cfg(feature = "wayland")]
+    {
+        tracing::info!("No display env var set, trying Wayland engine as fallback");
+        return Ok(Box::new(crate::wayland::WaylandEngine::new(
+            config, state, notifier,
+        )?));
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        match self.update_rx.take() {
-            Some(update_rx) => {
-                self.spawn_state_update_thread(update_rx)
-                    .context("engine state update")?;
-            }
-            None => {
-                return Err(anyhow::anyhow!("run() can be run only once"));
-            }
-        }
-        loop {
-            let event = xutils::get_event(&self.conn).context("failed getting an X event")?;
-            match event {
-                Some(event) => {
-                    if let Err(e) = self.handle_event(&event) {
-                        tracing::error!("Failed handling event {:?}, error: {:?}", event, e);
-                    }
-                }
-                None => {
-                    return Ok(());
-                }
-            }
-        }
+    // Fallback to X11 if no env var is set but feature is enabled
+    #[allow(unreachable_code)]
+    #[cfg(feature = "x11")]
+    {
+        tracing::info!("No display env var set, trying X11 engine as fallback");
+        return Ok(Box::new(crate::x11::XOrgEngine::new(
+            config, state, notifier,
+        )?));
     }
+
+    #[allow(unreachable_code)]
+    Err(anyhow::anyhow!(
+        "No suitable engine found. Ensure WAYLAND_DISPLAY or DISPLAY is set, \
+         and the corresponding feature (x11 or wayland) is enabled."
+    ))
 }
