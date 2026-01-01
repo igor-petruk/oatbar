@@ -1011,7 +1011,6 @@ impl ImageBlock {
         cache_images: bool,
     ) -> anyhow::Result<cairo::ImageSurface> {
         if let Some(max_image_height) = self.config.image_options.max_image_height {
-            tracing::info!("MIH: {}", max_image_height);
             if (max_image_height as f64) < fit_to_height {
                 fit_to_height = max_image_height as f64;
             }
@@ -1564,10 +1563,6 @@ impl Bar {
         let visible_from_matches = if self.bar_config.show_if_matches.is_empty() {
             None
         } else {
-            tracing::info!(
-                "Checking show_if_matches: {}",
-                self.bar_config.show_if_matches.all_match()
-            );
             Some(self.bar_config.show_if_matches.all_match())
         };
 
