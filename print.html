@@ -1,0 +1,2241 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Oatbar</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-04455b86.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-5ccd24b1.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Oatbar</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/igor-petruk/oatbar/tree/main" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="oatbar---desktop-bar-for-x11-and-wayland"><a class="header" href="#oatbar---desktop-bar-for-x11-and-wayland">Oatbar - desktop bar for X11 and Wayland</a></h1>
+<p><a href="https://crates.io/crates/oatbar"><img src="https://img.shields.io/crates/v/oatbar.svg" alt="Latest Version"></a>
+<img src="https://img.shields.io/github/actions/workflow/status/igor-petruk/oatbar/on-push.yml" alt="Latest Build">
+<img src="https://img.shields.io/crates/l/oatbar" alt="Crates.io License">
+<img src="https://img.shields.io/github/languages/top/igor-petruk/oatbar" alt="GitHub top language">
+<img src="https://img.shields.io/crates/d/oatbar?label=Cargo.io%20downloads" alt="Crates.io"></p>
+<p><strong>Supported platforms:</strong> Native X11 and Wayland. First-class support for <strong>sway</strong> and <strong>hyprland</strong>.</p>
+<p><img src="panel-sample-left.png" alt="Panel Left">
+<img src="panel-sample-right.png" alt="Panel Right">
+<a href="main.png"><img src="main.png" alt="Screenshot"></a></p>
+<p>The motivation for creation of <code>oatbar</code> was to extend on the idea of Unix-way for toolbars.
+Inspired by <code>i3bar</code> which consumes a JSON stream that controls it’s appearance, we take this
+idea much further without becoming a DIY widget toolkit.</p>
+<p>JSON or plain text streams can be turned into text panels, progress bars or even images without
+any significant coding effort. It also ships with first-class support for LLMs (Large Language Models) to process your data.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th style="text-align: center"><strong><code>oatbar</code></strong></th><th style="text-align: center">Basic bars</th><th style="text-align: center">Bars with built-in plugins</th><th style="text-align: center">DIY toolbar kits</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#installation-1">Native X11 &amp; Wayland support</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-<sup class="footnote-reference" id="fr-x11_wayland-1"><a href="#footnote-x11_wayland">1</a></sup></td><td style="text-align: center">-<sup class="footnote-reference" id="fr-x11_wayland-2"><a href="#footnote-x11_wayland">1</a></sup></td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="#data">Built-in system data</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td></tr>
+<tr><td><a href="#text-block">Text widgets from custom data</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="#block">Advanced widgets</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="#block">Advanced widgets with data from a custom script</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="#image-block">Display image files from a custom script</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="#dynamic-image-block">Generate images dynamically in a custom script</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="cookbook/appearance.html">Control all appearance from a custom script</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="#example">Minimal coding</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td></tr>
+<tr><td><a href="#common-blocks">Built-in plugins have no appearance advantage over custom scripts</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="configuration/command">Unix-way input via pipes means customization programming language is not forced upon you</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td></tr>
+<tr><td><a href="#third-party-sources">Consume data from <em>other</em> ecosystems like community scripts for <code>polybar</code>, <code>i3blocks</code>, <code>i3status</code>, <code>conky</code></a></td><td style="text-align: center"><strong>✅</strong><sup class="footnote-reference" id="fr-other_eco-1"><a href="#footnote-other_eco">2</a></sup></td><td style="text-align: center">-</td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+<tr><td><a href="#llm-1"><strong>NEW:</strong> LLM Integration (Gemini, ChatGPT, Ollama, etc.)</a></td><td style="text-align: center"><strong>✅</strong></td><td style="text-align: center">-</td><td style="text-align: center">-</td><td style="text-align: center"><strong>✅</strong></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="example"><a class="header" href="#example">Example</a></h2>
+<pre><code class="language-toml">[[bar]]
+height=32
+blocks_left=["workspace"]
+blocks_right=["clock"]
+
+[[command]]
+name="clock"
+command="date '+%a %b %e %H:%M:%S'"
+interval=1
+
+[[command]]
+name="desktop"
+command="oatbar-desktop"
+
+[[block]]
+name = 'workspace'
+type = 'enum'
+active = '${desktop:workspace.active}'
+variants = '${desktop:workspace.variants}'
+on_mouse_left = "oatbar-desktop $BLOCK_INDEX"
+
+[[block]]
+name = 'clock'
+type = 'text'
+value = '${clock:value}'
+</code></pre>
+<p>Here <code>clock</code> command sends plain text, but <code>desktop</code> streams
+structured data in JSON. Each is connected to text and enum selector
+widgets respectively. <code>oatbar-desktop</code> ships with <code>oatbar</code>, but it is an external tool
+to a bar, as can be replaced your own script.</p>
+<p>Feel free to run <code>oatbar-desktop</code> and investigate it’s output. <code>oatbar</code> consumes
+<a href="#formats">multiple text formats</a> and this data can be
+displayed with minimal configuration on widgets called <a href="#block">blocks</a>.</p>
+<h2 id="ideas"><a class="header" href="#ideas">Ideas</a></h2>
+<p>I truly aspire to build something unique with <code>oatbar</code>, something what other status bars lack. Do you have a cool or unconventional feature you’d like to see in <code>oatbar</code>?</p>
+<p><a href="https://github.com/igor-petruk/oatbar/discussions">Join the disussion and brainstorm!</a></p>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<ul>
+<li>
+<p><a href="#installation-1">Installation</a></p>
+</li>
+<li>
+<p><a href="configuration">Configuration</a></p>
+</li>
+</ul>
+<hr>
+<ol class="footnote-definition">
+<li id="footnote-x11_wayland">
+<p>Most bars are X11-only or Wayland-only. <a href="#fr-x11_wayland-1">↩</a> <a href="#fr-x11_wayland-2">↩2</a></p>
+</li>
+<li id="footnote-other_eco">
+<p>Partial; e.g. no <code>polybar</code> formatting, but many scripts work. <a href="#fr-other_eco-1">↩</a></p>
+</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="installation-1"><a href="#installation-1" class="header">Installation</a></h1>
+<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
+<p>Please install <code>cargo</code> via the package manager or <a href="http://rustup.rs">rustup.rs</a>.</p>
+<h3 id="supported-platforms"><a class="header" href="#supported-platforms">Supported Platforms</a></h3>
+<p><code>oatbar</code> supports both <strong>X11</strong> and <strong>Wayland</strong> compositors, including:</p>
+<ul>
+<li><strong>Wayland:</strong> sway, hyprland</li>
+<li><strong>X11:</strong> i3, bspwm, and other X11 window managers</li>
+</ul>
+<blockquote class="blockquote-tag blockquote-tag-note">
+<p class="blockquote-tag-title"><svg viewbox="0 0 16 16" width="18" height="18"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p>
+<p>Wayland support uses a pure-Rust implementation and does not require any additional system libraries.
+The <code>libxcb</code>/<code>x11-xcb</code> dependency is only required for X11 support.</p>
+</blockquote>
+<h3 id="dependencies"><a class="header" href="#dependencies">Dependencies</a></h3>
+<h4 id="archlinux"><a class="header" href="#archlinux">ArchLinux</a></h4>
+<pre><code class="language-sh"># For both X11 and Wayland (default)
+pacman -Sy pango cairo libxcb pkgconf
+
+# For Wayland only (build with --no-default-features -F wayland)
+pacman -Sy pango cairo pkgconf
+</code></pre>
+<h4 id="ubuntudebian"><a class="header" href="#ubuntudebian">Ubuntu/Debian</a></h4>
+<pre><code class="language-sh"># For both X11 and Wayland (default)
+apt-get install -y build-essential pkg-config \ 
+  libcairo2-dev libpango1.0-dev libx11-xcb-dev
+
+# For Wayland only (build with --no-default-features -F wayland)
+apt-get install -y build-essential pkg-config \ 
+  libcairo2-dev libpango1.0-dev
+</code></pre>
+<h4 id="other"><a class="header" href="#other">Other</a></h4>
+<p>Install the development packages for the following libraries:</p>
+<ul>
+<li>Cairo</li>
+<li>Pango</li>
+<li>x11-xcb (only required for X11 support)</li>
+</ul>
+<h3 id="install"><a class="header" href="#install">Install</a></h3>
+<pre><code class="language-sh">cargo install oatbar
+</code></pre>
+<p>During the first launch the bar will create a default config at
+<code>~/.config/oatbar.toml</code> that should work on most machines. Run:</p>
+<pre><code class="language-sh">oatbar
+</code></pre>
+<p>And you should see:</p>
+<p><img src="new-setup.png" alt="New setup"></p>
+<h3 id="netbsd"><a class="header" href="#netbsd">NetBSD</a></h3>
+<p>On NetBSD, a package is available from the official repositories.
+To install it, simply run:</p>
+<pre><code>pkgin install oatbar
+</code></pre>
+<h3 id="next"><a class="header" href="#next">Next</a></h3>
+<p><a href="configuration">Configuration</a></p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="overview"><a class="header" href="#overview">Overview</a></h1>
+<p>The configuration for the <code>oatbar</code> is located at <code>~/.config/oatbar.toml</code>. If you do
+not have this file, it would be generated with reasonable defaults.</p>
+<p><img src="new-setup.png" alt="New setup"></p>
+<p>Proceed to <a href="#concepts">concepts</a> to learn basic building blocks
+of <code>oatbar</code> configuration.</p>
+<p>Proceed to <a href="configuration/cookbook">cookbook</a> if you are familiar with concepts and you are looking for a <em>recipe</em> to solve a particular problem, proceed to
+the particular problem.</p>
+<div class="warning">
+<p>The configuration is unstable.</p>
+<p>Until 1.0 release, the configuration change is unstable and
+can change between minor releases. Community feedback is needed
+to make sure that when configuration stabilizes, it is the best
+possible.</p>
+</div>
+
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="concepts"><a class="header" href="#concepts">Concepts</a></h1>
+<p><code>oatbar</code> configuration is built around four main concepts that work together to display information.</p>
+<ul>
+<li><a href="#bar"><strong>Bar</strong></a> (<code>[[bar]]</code>): The top-level window and layout container.</li>
+<li><a href="#block"><strong>Block</strong></a> (<code>[[block]]</code>): Visual widgets (text, images, graphs) displayed on the bar.</li>
+<li><a href="#command"><strong>Command</strong></a> (<code>[[command]]</code>): External programs that fetch data.</li>
+<li><a href="#variable"><strong>Variable</strong></a> (<code>[[var]]</code>): Named data holders populated by commands and used by blocks.</li>
+</ul>
+<hr>
+<h2 id="data-flow"><a class="header" href="#data-flow">Data Flow</a></h2>
+<ol>
+<li><strong>Command</strong> runs (e.g., <code>date</code>) and outputs text.</li>
+<li><code>oatbar</code> parses the output and updates a <strong>Variable</strong> (e.g., <code>${clock:value}</code>).</li>
+<li><strong>Block</strong> references the variable in its <code>value</code> property (e.g., <code>value="Time: ${clock:value}"</code>).</li>
+<li><strong>Bar</strong> re-renders the block with the new text.</li>
+</ol>
+<h2 id="variable-interpolation"><a class="header" href="#variable-interpolation">Variable Interpolation</a></h2>
+<p>String properties in blocks support variable interpolation using the <code>${...}</code> syntax.</p>
+<h3 id="syntax"><a class="header" href="#syntax">Syntax</a></h3>
+<ul>
+<li><strong>Basic</strong>: <code>${command_name:variable_name}</code></li>
+<li><strong>With Property</strong>: <code>${command_name:variable_name.property}</code> (for complex data like i3bar JSON).</li>
+<li><strong>Filters</strong>: <code>${variable|filter:arg}</code> (e.g., <code>${cpu|align:&gt;3}</code>).</li>
+</ul>
+<h3 id="example-1"><a class="header" href="#example-1">Example</a></h3>
+<pre><code class="language-toml">[[command]]
+name="clock"
+command="date +%H:%M"
+interval=60
+
+[[block]]
+name="my_clock"
+type="text"
+value="Time: ${clock:value}"
+</code></pre>
+<h2 id="debugging"><a class="header" href="#debugging">Debugging</a></h2>
+<p>Use <code>oatctl</code> to inspect the current state of variables and blocks.</p>
+<pre><code class="language-bash"># List all active variables and their values
+oatctl var ls
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="bar"><a class="header" href="#bar">Bar</a></h1>
+<p>Bar is a single panel that is positioned at the top or the bottom of a screen.</p>
+<p>Here are all the properties it can have:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>height</code></td><td>int</td><td><code>32</code></td><td>Height of the bar in pixels.</td></tr>
+<tr><td><code>position</code></td><td>string</td><td><code>bottom</code></td><td>Position on screen: <code>top</code>, <code>bottom</code> or <code>center</code>.</td></tr>
+<tr><td><code>monitor</code></td><td>string</td><td><code>primary</code></td><td>Monitor name (from <code>xrandr</code>) to display the bar on.</td></tr>
+<tr><td><code>blocks_left</code></td><td>list</td><td><code>[]</code></td><td>List of block names to align to the left.</td></tr>
+<tr><td><code>blocks_center</code></td><td>list</td><td><code>[]</code></td><td>List of block names to align to the center.</td></tr>
+<tr><td><code>blocks_right</code></td><td>list</td><td><code>[]</code></td><td>List of block names to align to the right.</td></tr>
+<tr><td><code>margin</code></td><td>int/object</td><td><code>0</code></td><td>Margin around the bar. Can be a single number or <code>{top=0, bottom=0, left=0, right=0}</code>.</td></tr>
+<tr><td><code>background</code></td><td>color</td><td><code>transparent</code></td><td>Background color of the entire bar.</td></tr>
+<tr><td><code>popup</code></td><td>bool</td><td><code>false</code></td><td>If <code>true</code>, the bar is hidden until triggered by a block (see <a href="#popups-and-visibility">Block</a>) or mouse at edge.</td></tr>
+<tr><td><code>popup_at_edge</code></td><td>bool</td><td><code>false</code></td><td>If <code>true</code>, showing the mouse at the screen edge triggers the popup.</td></tr>
+<tr><td><code>show_if_matches</code></td><td>list</td><td><code>[]</code></td><td>List of <code>[expression, regex]</code> pairs. Bar is visible only if <strong>all</strong> regexes match.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="example-2"><a class="header" href="#example-2">Example</a></h3>
+<pre><code class="language-toml">[[bar]]
+height=32
+position="top"
+monitor="eDP-1"
+background="#1e1e2e"
+margin={left=10, right=10, top=5, bottom=0}
+blocks_left=["workspace"]
+blocks_center=["window_title"]
+blocks_right=["clock", "sys_info"]
+popup=false
+popup_at_edge=true
+show_if_matches=[["${desktop:workspace.active}", "1"]]
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="command"><a class="header" href="#command">Command</a></h1>
+<p>Command is an external program that provides data to <code>oatbar</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name</code></td><td>string</td><td><strong>Required</strong></td><td>Unique identifier for the command. Used in variable namespaces (e.g., <code>${name:value}</code>).</td></tr>
+<tr><td><code>command</code></td><td>string</td><td><strong>Required</strong></td><td>Shell command to execute (run via <code>sh -c</code>).</td></tr>
+<tr><td><code>interval</code></td><td>int</td><td><code>10</code></td><td>Execution interval in seconds.</td></tr>
+<tr><td><code>once</code></td><td>bool</td><td><code>false</code></td><td>If <code>true</code>, run only once at startup.</td></tr>
+<tr><td><code>format</code></td><td>string</td><td><code>auto</code></td><td>Output format: <code>plain</code>, <code>i3bar</code> or <code>auto</code>.</td></tr>
+<tr><td><code>line_names</code></td><td>list</td><td><code>[]</code></td><td>Names for variables when command outputs multiple lines (e.g., <code>["first", "second"]</code> maps to <code>${name:first}</code>, <code>${name:second}</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="example-3"><a class="header" href="#example-3">Example</a></h3>
+<pre><code class="language-toml"># Runs periodically
+[[command]]
+name="disk_free"
+command="df -h / | tail -1 | awk '{print $5}'"
+interval=60
+format="plain"
+
+# Runs once
+[[command]]
+name="uname"
+command="uname -a"
+once=true
+
+# Streams continuously (e.g., oatbar-desktop)
+[[command]]
+name="desktop"
+command="oatbar-desktop"
+format="i3bar"
+
+# Multi-line output
+[[command]]
+name="user_info"
+command="echo $USER; echo $HOST"
+line_names=["user", "host"]
+</code></pre>
+<p><code>oatbar</code> will run each command as <code>sh -c "command"</code> to support basic shell
+substitutions.</p>
+<h3 id="formats"><a class="header" href="#formats">Formats</a></h3>
+<p>Formats are usually auto-detected and there is no need to set <code>format</code> explicitly.</p>
+<h4 id="plain"><a class="header" href="#plain"><code>plain</code></a></h4>
+<p>Plain text format is just text printed to <code>stdout</code>.</p>
+<pre><code class="language-toml">name="hello"
+command="echo Hello world"
+</code></pre>
+<p>This will set <code>${hello:value}</code> <a href="#variable">variable</a> to be used
+by <a href="#block">blocks</a>. If the command outputs multiple lines, each print
+will set this variable to a new value. If the command runs indefinitely, the
+pauses between prints can be used to only update the variable when necessary.
+When the command is complete, it will be restarted after <code>interval</code>
+seconds (the default is <code>10</code>).</p>
+<p>If <code>line_names</code> are set, then the output is expected in groups of
+multiple lines, each will set it’s own variable, like <code>${hello:first_name}</code> and
+<code>${hello:last_name}</code> in the following example:</p>
+<pre><code class="language-toml">name="hello"
+line_names=["first_name", "last_name"]
+</code></pre>
+<p>Many <a href="https://github.com/polybar/polybar-scripts"><code>polybar</code> scripts</a> can be
+used via the <code>plain</code> format, as soon as they don’t use polybar specific
+formatting.</p>
+<p><a href="https://vivien.github.io/i3blocks/#_format"><code>i3blocks</code> raw format</a> plugins
+can be consumed too by means of the <code>line_names</code> set to standard names for
+<code>i3blocks</code>.</p>
+<h4 id="i3bar"><a class="header" href="#i3bar"><code>i3bar</code></a></h4>
+<p><a href="https://oatbar.app/index.html"><code>i3bar</code> format</a> is the richest supported format.
+It supports multiple streams of data across multiple “instances” of these streams.
+In <a href="configuration/i3wm.org"><code>i3wm</code></a> this format fully controls the display of <code>i3bar</code>, where
+for <code>oatbar</code> it is a yet another data source that needs to be explicitly
+connected to properties of the blocks. For example instead of coloring
+the block, you can choose to color the entire bar. Or you can use color <code>red</code> coming
+from an <code>i3bar</code> plugin as a signal to show a hidden block.</p>
+<p>Plugins that <code>oatbar</code> ships with use this format.</p>
+<pre><code class="language-toml">[[command]]
+name="desktop"
+command="oatbar-desktop"
+</code></pre>
+<p>The command <code>output-desktop</code> outputs:</p>
+<pre><code class="language-json">{"version":1}
+[
+[{"full_text":"workspace: 1","name":"workspace","active":0,"value":"1","variants":"1,2,3"},
+{"full_text":"window: Alacritty","name":"window_title","value":"Alacritty"}],
+...
+</code></pre>
+<p>This command is named <code>desktop</code> in the config.</p>
+<p>Each entry is groups variables under a different <code>name</code> that
+represents a purpose of the data stream, in this case: <code>workspace</code>
+and <code>window_title</code>. Multiple entries with the same <code>name</code>, but different
+<code>instance</code> field to represent further breakdown (e.g. names of
+network interfaces from a network plugin).</p>
+<p>The output from above will set
+the following variables, run <code>oatbar</code> and see them in real-time</p>
+<pre><code class="language-shell">$ oatctl var ls
+desktop:workspace.active=0
+desktop:workspace.value=1
+desktop:workspace.variants=1,2,3
+desktop:workspace.full_text=workspace: 1
+desktop:window_title.value=Alacritty
+desktop:window_title.full_text=window: Alacritty
+</code></pre>
+<p>If <code>instance</code> is present in the entry, then the name of the variable is
+<code>command_name:name.instance.variable</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="block"><a class="header" href="#block">Block</a></h1>
+<p>Blocks are the widgets displaying pieces of information on the bar.</p>
+<p><code>oatbar</code> provides a lot of hidden power via these widgets, as they can provide
+more than they initially seem. Consider that the most of the string properties
+of blocks support variable substitution, directly controlled by your scripts.</p>
+<p>The reference below explains properties of these blocks and the
+<a href="configuration/cookbook">Cookbook</a> shows how to use them in a very clever way.</p>
+<ul>
+<li><a href="#example-4">Example</a></li>
+<li><a href="#configuration-inheritance">Configuration Inheritance</a>
+<ul>
+<li><a href="#global-default-example">Global Default Example</a></li>
+<li><a href="#named-default-example">Named Default Example</a></li>
+</ul>
+</li>
+<li><a href="#text-block">Text block</a></li>
+<li><a href="#number-block">Number block</a>
+<ul>
+<li><a href="#number-as-text">Number as text</a></li>
+<li><a href="#progress-bar">Progress bar</a></li>
+</ul>
+</li>
+<li><a href="#enum-block">Enum block</a></li>
+<li><a href="#image-block">Image block</a></li>
+<li><a href="#popups-and-visibility">Popups and Visibility</a>
+<ul>
+<li><a href="#popup-settings">Popup Settings</a></li>
+<li><a href="#why-popup_value">Why <code>popup_value</code>?</a></li>
+<li><a href="#example-media-player">Example: Media Player</a></li>
+</ul>
+</li>
+</ul>
+<p>All blocks share the following properties.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name</code></td><td>string</td><td><strong>Required</strong></td><td>Unique identifier for the block.</td></tr>
+<tr><td><code>type</code></td><td>string</td><td><code>text</code></td><td>Block type: <code>text</code>, <code>number</code>, <code>enum</code>, <code>image</code>.</td></tr>
+<tr><td><code>value</code></td><td>string</td><td><code>""</code></td><td>The content to display. Supports variables (e.g., <code>${cmd:var}</code>).</td></tr>
+<tr><td><code>show_if_matches</code></td><td>list</td><td><code>[]</code></td><td>List of <code>[expression, regex]</code> pairs. Block is visible only if <strong>all</strong> regexes match.</td></tr>
+<tr><td><code>replace</code></td><td>list</td><td><code>[]</code></td><td>List of <code>[regex, replacement]</code> pairs applied to <code>value</code>.</td></tr>
+<tr><td><code>replace_first_match</code></td><td>bool</td><td><code>true</code></td><td>If <code>false</code>, applies all replacements; if <code>true</code>, stops after first match.</td></tr>
+<tr><td><code>output_format</code></td><td>string</td><td><code>None</code></td><td>Final formatting string (e.g., <code>CPU: ${value}</code>).</td></tr>
+<tr><td><code>pango_markup</code></td><td>bool</td><td><code>true</code></td><td>Enable <a href="https://docs.gtk.org/Pango/pango_markup.html">Pango Markup</a> parsing.</td></tr>
+<tr><td><code>font</code></td><td>string</td><td><code>inherit</code></td><td>Font definition (e.g., <code>Monospace 12</code>).</td></tr>
+<tr><td><code>background</code></td><td>color</td><td><code>transparent</code></td><td>Background color (Hex <code>#RRGGBB</code> or <code>#RRGGBBAA</code>).</td></tr>
+<tr><td><code>foreground</code></td><td>color</td><td><code>inherit</code></td><td>Text color.</td></tr>
+<tr><td><code>line_width</code></td><td>float</td><td><code>1.1</code></td><td>Width of border lines.</td></tr>
+<tr><td><code>overline_color</code></td><td>color</td><td><code>None</code></td><td>Color of the top border line.</td></tr>
+<tr><td><code>underline_color</code></td><td>color</td><td><code>None</code></td><td>Color of the bottom border line.</td></tr>
+<tr><td><code>edgeline_color</code></td><td>color</td><td><code>None</code></td><td>Color of the side border lines (left/right).</td></tr>
+<tr><td><code>hover_background</code></td><td>color</td><td><code>None</code></td><td>Background color on hover.</td></tr>
+<tr><td><code>hover_foreground</code></td><td>color</td><td><code>None</code></td><td>Text color on hover.</td></tr>
+<tr><td><code>hover_line_width</code></td><td>float</td><td><code>None</code></td><td>Width of border lines on hover.</td></tr>
+<tr><td><code>hover_overline_color</code></td><td>color</td><td><code>None</code></td><td>Color of the top border line on hover.</td></tr>
+<tr><td><code>hover_underline_color</code></td><td>color</td><td><code>None</code></td><td>Color of the bottom border line on hover.</td></tr>
+<tr><td><code>hover_edgeline_color</code></td><td>color</td><td><code>None</code></td><td>Color of the side border lines (left/right) on hover.</td></tr>
+<tr><td><code>margin</code></td><td>float</td><td><code>0.0</code></td><td>Space outside the block.</td></tr>
+<tr><td><code>padding</code></td><td>float</td><td><code>8.0</code></td><td>Space inside the block (around text).</td></tr>
+<tr><td><code>separator_type</code></td><td>string</td><td><code>None</code></td><td>Separator style: <code>left</code>, <code>right</code>, <code>gap</code>.</td></tr>
+<tr><td><code>separator_radius</code></td><td>float</td><td><code>0.0</code></td><td>Radius for rounded separators.</td></tr>
+<tr><td><code>popup</code></td><td>string</td><td><code>None</code></td><td>Popup behavior: <code>block</code>, <code>partial_bar</code>, <code>bar</code>.</td></tr>
+<tr><td><code>popup_value</code></td><td>string</td><td><code>None</code></td><td>Variable that triggers the popup on change.</td></tr>
+<tr><td><code>on_mouse_left</code></td><td>string</td><td><code>None</code></td><td>Command to run on left click.</td></tr>
+<tr><td><code>on_mouse_middle</code></td><td>string</td><td><code>None</code></td><td>Command to run on middle click.</td></tr>
+<tr><td><code>on_mouse_right</code></td><td>string</td><td><code>None</code></td><td>Command to run on right click.</td></tr>
+<tr><td><code>on_scroll_up</code></td><td>string</td><td><code>None</code></td><td>Command to run on scroll up.</td></tr>
+<tr><td><code>on_scroll_down</code></td><td>string</td><td><code>None</code></td><td>Command to run on scroll down.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="example-4"><a class="header" href="#example-4">Example</a></h3>
+<pre><code class="language-toml">[[block]]
+name="clock"
+type="text"
+value="&lt;span weight='bold'&gt;${clock:value}&lt;/span&gt;"
+background="#1e1e2e"
+foreground="#cdd6f4"
+padding=8
+margin=4
+line_width=2.0
+underline_color="#fab387"
+on_mouse_left="calendar"
+show_if_matches=[["${clock:value}", ".+"]]
+</code></pre>
+<h3 id="configuration-inheritance"><a class="header" href="#configuration-inheritance">Configuration Inheritance</a></h3>
+<p>To avoid repetition, you can use <code>default_block</code> to define common properties. <code>oatbar</code> uses a cascading configuration system:</p>
+<ol>
+<li><strong>Global Default</strong>: A <code>[[default_block]]</code> without a <code>name</code> applies to <strong>all</strong> blocks.</li>
+<li><strong>Named Default</strong>: A <code>[[default_block]]</code> with a <code>name</code> inherits from the Global Default.</li>
+<li><strong>Block</strong>: A <code>[[block]]</code> inherits from a Named Default (if <code>inherit</code> is set) or directly from the Global Default.</li>
+</ol>
+<h4 id="global-default-example"><a class="header" href="#global-default-example">Global Default Example</a></h4>
+<p>This sets a default background for every block in the bar.</p>
+<pre><code class="language-toml">[[default_block]]
+background="#202020"
+padding=5
+</code></pre>
+<h4 id="named-default-example"><a class="header" href="#named-default-example">Named Default Example</a></h4>
+<p>You can define specific styles (e.g., “active” vs “inactive”) and apply them to specific blocks.</p>
+<pre><code class="language-toml">[[default_block]]
+name="active_style"
+background="#fab387"
+foreground="#1e1e2e"
+ 
+[[block]]
+name="my_block"
+inherit="active_style"
+value="I am active!"
+</code></pre>
+<p>In this case, <code>my_block</code> will have:</p>
+<ul>
+<li><code>padding=5</code> (from Global Default)</li>
+<li><code>background="#fab387"</code> (from Named Default “active_style”, overriding Global)</li>
+<li><code>foreground="#1e1e2e"</code> (from Named Default “active_style”)</li>
+<li><code>value="I am active!"</code> (from Block)</li>
+</ul>
+<h2 id="text-block"><a class="header" href="#text-block">Text block</a></h2>
+<pre><code class="language-toml">[[block]]
+type="text"
+</code></pre>
+<p>Text blocks include all common properties, which should be enough to show
+basic text or icons using <a href="https://docs.gtk.org/Pango/pango_markup.html">Pango markup</a>,
+icon fonts such as <a href="https://fontawesome.com/">Font Awesome</a>,
+<a href="https://www.nerdfonts.com/">Nerd Fonts</a>, <a href="https://icomoon.io/">IcoMoon</a> or emojis.</p>
+<p>In addition, text blocks are used as separators to create <strong>partial bars</strong>.
+They are smaller bars within a bar that groups multiple blocks together.</p>
+<p><img src="configuration/img/separators.png" alt="Separators"></p>
+<pre><code class="language-toml">[[bar]]
+blocks_right=["L", "music", "R", "E", "L", "layout", "S", "clock", "R"]
+
+[[block]]
+name="music"
+...
+show_if_matches = [['${player:now_playing.full_text}', '.+']]
+popup = "partial_bar"
+
+[[block]]
+name="S"
+type = "text"
+separator_type = "gap"
+value = "|"
+
+[[block]]
+name="E"
+type = "text"
+separator_type = "gap"
+value = " "
+background = "#00000000"
+
+[[block]]
+name="L"
+type = "text"
+separator_type = "left"
+separator_radius = 8.0
+
+[[block]]
+name="R"
+type = "text"
+separator_type = "right"
+separator_radius = 8.0
+</code></pre>
+<p><code>separator_type</code> gives a hint on where partial bars are located.
+This helps when <code>popup="partial_bar"</code>. It also helps to collapse
+unnecessary separators when normal blocks around them are hidden.</p>
+<h2 id="number-block"><a class="header" href="#number-block">Number block</a></h2>
+<pre><code class="language-toml">[[block]]
+type="number"
+</code></pre>
+<p>Number can be displayed as text on the text block. But the real
+value comes when the bar understands that the data is a number.</p>
+<p>In addition to common properties, the number blocks
+support unit conversions and alternative forms of display,
+such as progress bars.</p>
+<pre><code class="language-toml"># Min/max values are used in progress bars.
+# They are set as string because they support
+# variable substituion and can be specified in units.
+min_value="0"
+max_value="1000"
+
+# A number type that input represents.
+#  - number - a number from min to max
+#  - percent - a number from 0 to 100, '%' is ommitted from the input when parsing.
+#  - bytes - a number that supports byte unit suffixes, e.g. "GB", "kb",
+#      - See https://docs.rs/bytesize/latest/bytesize/
+number_type="percent"
+
+# A sorted list of ramp formats. If set, prior to wrapping with `output_format`,
+# wrap to the format from the entry larger than `value`.
+ramp = [
+  ["80%", "&lt;span foreground='yellow'&gt;${value}&lt;/span&gt;"],
+  ["90%", "&lt;span foreground='red'&gt;${value}&lt;/span&gt;"],
+]
+</code></pre>
+<p><code>number_display</code> can be used to select the widget that is going to display your
+number on the block.</p>
+<h3 id="number-as-text"><a class="header" href="#number-as-text">Number as text</a></h3>
+<p>You can display the number as text as you would have with a <code>text</code> block, but there
+is a benefit of additional functionality, such as unit conversions and ramp
+functionality.</p>
+<pre><code class="language-toml">[[block]]
+type="number"
+name="cpu"
+...
+number_display="progress_bar"
+</code></pre>
+<h3 id="progress-bar"><a class="header" href="#progress-bar">Progress bar</a></h3>
+<pre><code class="language-toml">[[block]]
+type="number"
+name="cpu"
+...
+number_display="progress_bar"
+# How many characters to use for the progress bar.
+progress_bar_size=10
+# Progress bar characters. In this example would render: "━━━━雷     "
+empty=" "
+fill="━"
+indicator="雷"
+# Each of the above can be a ramp
+# fill = [
+#  ["", "━"],
+#  ["60%", "&lt;span foreground='yellow'&gt;━&lt;/span&gt;"],
+#  ["90%", "&lt;span foreground='red'&gt;━&lt;/span&gt;"],
+# ]
+</code></pre>
+<h2 id="enum-block"><a class="header" href="#enum-block">Enum block</a></h2>
+<pre><code class="language-toml">[[block]]
+type="enum"
+</code></pre>
+<p>Enum is different from text block as it renders multiple child text blocks called
+<code>variants</code>, only one of which is <code>active</code>. <em>Example:</em> keyboard layout switch.</p>
+<p>Almost every common property related to block display has an <code>active_</code> counterpart to configure the active variant.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>active_font</code></td><td>Font for the active variant.</td></tr>
+<tr><td><code>active_background</code></td><td>Background color for the active variant.</td></tr>
+<tr><td><code>active_foreground</code></td><td>Text color for the active variant.</td></tr>
+<tr><td><code>active_line_width</code></td><td>Border line width for the active variant.</td></tr>
+<tr><td><code>active_overline_color</code></td><td>Top border color for the active variant.</td></tr>
+<tr><td><code>active_underline_color</code></td><td>Bottom border color for the active variant.</td></tr>
+<tr><td><code>active_edgeline_color</code></td><td>Side border color for the active variant.</td></tr>
+<tr><td><code>active_margin</code></td><td>Margin for the active variant.</td></tr>
+<tr><td><code>active_padding</code></td><td>Padding for the active variant.</td></tr>
+<tr><td><code>active_output_format</code></td><td>Format string for the active variant.</td></tr>
+<tr><td><code>active_pango_markup</code></td><td>Enable/disable Pango markup for the active variant.</td></tr>
+<tr><td><code>active_hover_...</code></td><td>All <code>hover_</code> properties are also available with <code>active_</code> prefix (e.g. <code>active_hover_background</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-toml"># A separated list of variants, e.g. "ua,se,us".
+variants = '${keyboard:layout.variants}'
+# An index of the item that is to be active starting from 0.
+active = '${keyboard:layout.active}'
+# A separator for the variants list. Default: ",".
+enum_separator="|"
+</code></pre>
+<p>Text processing via <code>replace</code> is done per item of the <code>variants</code> separately,
+not together. If an variant becomes empty as a result of processing, it will
+not be displayed, but it won’t impact the meaning of <code>active</code> index.</p>
+<p><code>BLOCK_INDEX</code> environment variable set for <code>on_mouse_left</code> command is set to
+the index of the variant that was clicked on.</p>
+<h2 id="image-block"><a class="header" href="#image-block">Image block</a></h2>
+<pre><code class="language-toml">[[block]]
+type="image"
+</code></pre>
+<p>In image blocks, the <code>value</code> property is interpreted as and image file name to be
+rendered. Supported formats: BMP, ICO, JPEG, PNG, SVG, WEBP.</p>
+<pre><code># If set, can shrink the image smaller than automatically determined size.
+max_image_height=20
+# If this value is set and changed, then image caching gets disabled and
+# image is reloaded from the filesystem even if the filename stayed the same.
+# It can be used by a command to generate dynamic images under the same filename.
+updater_value="${image_generator:timestamp}"
+</code></pre>
+<p>images or download them from the Internet on flight in the command that generates
+a filename.</p>
+<h2 id="popups-and-visibility"><a class="header" href="#popups-and-visibility">Popups and Visibility</a></h2>
+<p><code>oatbar</code> allows blocks to be hidden by default and “pop up” only when important information needs to be shown.</p>
+<h3 id="popup-settings"><a class="header" href="#popup-settings">Popup Settings</a></h3>
+<ul>
+<li><code>popup</code>: Defines <strong>what</strong> pops up.
+<ul>
+<li><code>bar</code>: The entire bar is shown (if <code>[[bar]] popup=true</code>).</li>
+<li><code>partial_bar</code>: Only the section of the bar containing this block is shown (useful for “toast” notifications).</li>
+<li><code>block</code>: Only this specific block is shown.</li>
+</ul>
+</li>
+<li><code>popup_value</code>: Defines <strong>when</strong> it pops up.
+<ul>
+<li>If set, the popup triggers only when this variable <strong>changes</strong>.</li>
+<li>If <strong>not</strong> set, the popup triggers on <strong>every update</strong> to the block.</li>
+</ul>
+</li>
+</ul>
+<h3 id="why-popup_value"><a class="header" href="#why-popup_value">Why <code>popup_value</code>?</a></h3>
+<p>Without <code>popup_value</code>, a block that updates every second (like a clock) would keep the popup open indefinitely. By binding <code>popup_value</code> to a specific event variable (e.g., <code>${volume:value}</code>), you ensure the popup only appears when that specific value changes, even if other parts of the block update.</p>
+<h3 id="example-media-player"><a class="header" href="#example-media-player">Example: Media Player</a></h3>
+<p>Consider a media player block that shows the song title and the current playback time.</p>
+<pre><code class="language-toml">[[block]]
+name="media"
+type="text"
+# Updates every second due to ${player:position}
+value="${player:title} - ${player:position}"
+popup="partial_bar"
+# Only popup when the song title changes, ignoring position updates
+popup_value="${player:title}"
+</code></pre>
+<p>Without <code>popup_value</code>, the bar would pop up every second as the playback time updates. With <code>popup_value</code>, it only appears when the song changes.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="variable"><a class="header" href="#variable">Variable</a></h1>
+<ul>
+<li><a href="#standalone-variables">Standalone variables</a>
+<ul>
+<li><a href="#switch-case-logic">Switch-Case Logic</a></li>
+<li><a href="#filters">Filters</a></li>
+</ul>
+</li>
+</ul>
+<p>Variables are at length described in the <a href="#command">Command</a> section
+where they are produced and in the <a href="#block">Block</a> section where they
+are consumed.</p>
+<p>If <code>oatbar</code> is running and you have added a few commands, you can see all available variables
+using <code>oatctl</code> command:</p>
+<pre><code>$ oatctl var ls
+clock:value=Mon Jul  8 00:40:19
+desktop:window_title.full_text=window: Alacritty
+desktop:window_title.value=Alacritty
+desktop:workspace.active=0
+desktop:workspace.full_text=workspace: 1
+desktop:workspace.value=1
+desktop:workspace.variants=1,2
+...
+</code></pre>
+<p>More info on how to get and set variables programmatically:</p>
+<pre><code>$ oatctl var help
+</code></pre>
+<h1 id="standalone-variables"><a class="header" href="#standalone-variables">Standalone variables</a></h1>
+<p>You can declare your additional variables that do not come from commands. This is useful to
+pre-process data with <a href="#common-properties"><code>replace</code> and <code>replace_first_match</code></a> to be used in multiple blocks.</p>
+<p>Supported properties:</p>
+<ul>
+<li><code>name</code>: Unique name of the variable.</li>
+<li><code>value</code>: The value of the variable, supports placeholders.</li>
+<li><code>replace</code>: List of regex replacements.</li>
+<li><code>replace_first_match</code>: Whether to stop after the first replacement (default: <code>false</code>).</li>
+</ul>
+<pre><code class="language-toml">[[var]]
+name="clock_color_attr"
+value = '${clock:color}'
+replace = [["(.+)","foreground='$1'"]]
+
+[[block]]
+value = "&lt;span ${clock_color_attr}&gt;${clock:value}&lt;/span&gt;"
+</code></pre>
+<p>Standalone variables can use each other only in the order they are declared in the file,
+otherwise the result is undefined.</p>
+<h3 id="switch-case-logic"><a class="header" href="#switch-case-logic">Switch-Case Logic</a></h3>
+<p><code>replace_first_match=true</code> allows implementing a switch-case logic where you map a set of known values to other values, optionally providing a default at the end. Since processing stops after the first match, order matters.</p>
+<pre><code class="language-toml">[[var]]
+name="status_icon"
+value="${player:status}"
+replace_first_match=true
+replace=[
+    ["^playing$", "▶"],
+    ["^paused$", "⏸"],
+    ["^stopped$", "⏹"],
+    [".*", ""] # Default/Catch-all
+]
+</code></pre>
+<h2 id="filters"><a class="header" href="#filters">Filters</a></h2>
+<p>Filters are additional functions you can apply to values inside of the <code>${...}</code> expressions. Example:</p>
+<pre><code class="language-toml">value = '${desktop:window_title.value|def:(no selected window)|max:100}'
+</code></pre>
+<p>Supported filters:</p>
+<ul>
+<li><code>def</code> sets the default value if the input variable is empty</li>
+<li><code>max</code> limits the length of the input. If it is larger, it is shortened with ellipsis (<code>...</code>)</li>
+<li><code>align</code> aligns the text to occupy a fixed width.
+<ul>
+<li>Syntax: <code>align:[filler][alignment][width]</code></li>
+<li><code>alignment</code> must be one of: <code>&lt;</code> (left), <code>^</code> (center), or <code>&gt;</code> (right).</li>
+<li><code>filler</code> is an optional character (defaults to space).</li>
+<li><code>width</code> is the target width.</li>
+<li>Examples:
+<ul>
+<li><code>align:&lt;10</code> -&gt; Left align, space padding (e.g. <code>hello     </code>)</li>
+<li><code>align:-&gt;10</code> -&gt; Right align, <code>-</code> padding (e.g. <code>-----hello</code>)</li>
+<li><code>align:_^10</code> -&gt; Center align, <code>_</code> padding (e.g. <code>__hello___</code>)</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cookbook"><a class="header" href="#cookbook">Cookbook</a></h1>
+<p><code>oatbar</code> tries to keep pre-packaged plugins or modules to a minimum.
+Instead it offers easy ways of achieving the same by integrating
+external data sources, tools or modules from ecosystems of other bars.</p>
+<h2 id="next-1"><a class="header" href="#next-1">Next</a></h2>
+<ol>
+<li>Learn where to get <a href="#data"><strong>data</strong></a> to show it on the bar.</li>
+<li>If you have the data, proceed learning how to <a href="#appearance"><strong>display</strong></a> it.</li>
+<li>If you know the basic, see some <a href="#advanced-examples"><strong>advanced applications</strong></a> of <code>oatbar</code> concepts.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="data"><a class="header" href="#data">Data</a></h1>
+<p>This chapter contains examples of common sources and methods of ingesting
+data for your blocks.</p>
+<ul>
+<li><a href="#common-blocks">Common Blocks</a>
+<ul>
+<li><a href="#app-launcher">App Launcher</a></li>
+<li><a href="#clock">Clock</a></li>
+<li><a href="#keyboard">Keyboard</a>
+<ul>
+<li><a href="#layout">Layout</a></li>
+<li><a href="#indicators">Indicators</a></li>
+</ul>
+</li>
+<li><a href="#active-workspaces-and-windows">Active workspaces and windows</a></li>
+<li><a href="#system-stats">System stats</a></li>
+<li><a href="#disk-space">Disk space</a></li>
+<li><a href="#llm">LLM</a></li>
+</ul>
+</li>
+<li><a href="#third-party-sources">Third-party sources</a>
+<ul>
+<li><a href="#i3status"><code>i3status</code></a></li>
+<li><a href="#conky"><code>conky</code></a></li>
+<li><a href="#i3blocks"><code>i3blocks</code></a></li>
+<li><a href="#http-apis">HTTP APIs</a></li>
+<li><a href="#file">File</a></li>
+<li><a href="#socket">Socket</a></li>
+</ul>
+</li>
+</ul>
+<h2 id="common-blocks"><a class="header" href="#common-blocks">Common Blocks</a></h2>
+<h3 id="app-launcher"><a class="header" href="#app-launcher">App Launcher</a></h3>
+<pre><code class="language-toml">[[block]]
+name='browser'
+type = 'text'
+value = "&lt;span font='Font Awesome 6 Free 22'&gt;&lt;/span&gt; "
+on_mouse_left = 'chrome'
+</code></pre>
+<h3 id="clock"><a class="header" href="#clock">Clock</a></h3>
+<pre><code class="language-toml">[[command]]
+name="clock"
+command="date '+%a %b %e %H:%M:%S'"
+interval=1
+
+[[block]]
+name = 'clock'
+type = 'text'
+value = '${clock:value}'
+</code></pre>
+<p>If you do not need to show seconds, you can make <code>interval</code> smaller.</p>
+<h3 id="keyboard"><a class="header" href="#keyboard">Keyboard</a></h3>
+<p><code>oatbar</code> ships with keyboard status utility that streams keyboard layouts
+and indicator values in <code>i3bar</code> format.</p>
+<p>If you run it, you will see</p>
+<pre><code class="language-json">❯ oatbar-keyboard
+{"version":1}
+[
+[{"full_text":"layout: us","name":"layout","active":0,"value":"us","variants":"us,ua"},
+{"full_text":"caps_lock:off","name":"indicator","instance":"caps_lock","value":"off"},
+ ...],
+</code></pre>
+<p>Enable it with</p>
+<pre><code class="language-toml">[[command]]
+name="keyboard"
+command="oatbar-keyboard"
+</code></pre>
+<h4 id="layout"><a class="header" href="#layout">Layout</a></h4>
+<p><code>oatbar-keyboard</code> is designed to work with <code>setxkbmap</code>.
+For example you set up your layouts on each WM start like this:</p>
+<pre><code class="language-shell">setxkbmap -layout us,ua -option grp:alt_space_toggle
+</code></pre>
+<p>Enable <code>oatbar-keyboard</code> and use an <code>enum</code> block:</p>
+<pre><code class="language-toml">[[block]]
+name = 'layout'
+type = 'enum'
+active = '${keyboard:layout.active}'
+variants = '${keyboard:layout.variants}'
+on_mouse_left = "oatbar-keyboard layout set $BLOCK_INDEX"
+</code></pre>
+<h4 id="indicators"><a class="header" href="#indicators">Indicators</a></h4>
+<p>Show indicators, such as <code>caps_lock</code>, <code>scroll_lock</code> and <code>num_lock</code>
+as follows:</p>
+<pre><code class="language-toml">[[block]]
+name = 'caps_lock'
+type = 'text'
+value = '${keyboard:indicator.caps_lock.full_text}'
+</code></pre>
+<h3 id="active-workspaces-and-windows"><a class="header" href="#active-workspaces-and-windows">Active workspaces and windows</a></h3>
+<p><code>oatbar-desktop</code> talks to your WM via EWMH protocol to obtain
+the information about active workspaces and windows.</p>
+<pre><code class="language-json">❯ oatbar-desktop
+{"version":1}
+[
+[{"full_text":"workspace: 1","name":"workspace","active":0,"value":"1","variants":"1,2,3"},
+{"full_text":"window: Alacritty","name":"window_title","value":"Alacritty"}],
+</code></pre>
+<pre><code class="language-toml">[[command]]
+name="desktop"
+command="oatbar-desktop"
+
+[[block]]
+name = 'workspace'
+type = 'enum'
+active = '${desktop:workspace.active}'
+variants = '${desktop:workspace.variants}'
+# Optional replacement with icons
+replace = [
+   ["1",""],
+   ["2",""],
+   ["3",""]
+]
+font="Font Awesome 6 Free 13"
+on_mouse_left = "oatbar-desktop $BLOCK_INDEX"
+
+[[block]]
+name='window'
+type = 'text'
+value = '${desktop:window_title.value|max:100}'
+pango_markup = false  # Window title can happen to have HTML.
+</code></pre>
+<h3 id="system-stats"><a class="header" href="#system-stats">System stats</a></h3>
+<p><code>oatbar</code> ships with a <code>oatbar-stats</code> utility that streams system stats in the <code>i3bar</code>
+format:</p>
+<ul>
+<li>CPU</li>
+<li>Memory</li>
+<li>Network
+<ul>
+<li>Interface names</li>
+<li>Running status</li>
+<li>Address</li>
+<li>Download and upload rates</li>
+</ul>
+</li>
+</ul>
+<p>There is a lot of data you can display on your <code>blocks</code>. Enable <code>oatbar-stats</code>
+like this:</p>
+<pre><code class="language-toml">[[command]]
+name="stats"
+command="oatbar-stats"
+</code></pre>
+<p>Restart <code>oatbar</code> and examine the new variables.</p>
+<pre><code class="language-shell">oatctl var ls | grep '^stats:'
+</code></pre>
+<p>The example output below.</p>
+<pre><code class="language-ini">stats:cpu.full_text=cpu:  2%
+stats:cpu.percent=2
+stats:memory.free=8744980480
+stats:memory.full_text=mem: 73% 32.9 GB
+stats:memory.percent=73
+stats:memory.total=32915705856
+stats:memory.used=24170725376
+stats:net.igc0.full_text=igc0: 192.168.0.160
+stats:net.igc0.ipv4_0_addr=192.168.0.160
+stats:net.igc0.ipv4_0_broadcast=192.168.0.255
+stats:net.igc0.ipv4_0_run=true
+stats:net.igc0.ipv4_0_up=true
+stats:net.igc0.mac_0_addr=48:21:0b:35:ca:08
+stats:net.igc0.mac_0_run=true
+stats:net.igc0.mac_0_up=true
+stats:net.igc0.rx_per_sec=1704
+stats:net.igc0.tx_per_sec=1110
+...
+</code></pre>
+<p>Entries with <code>full_text</code> are a good start to display directly,
+if you do not need more fine grained customizations.</p>
+<pre><code class="language-toml">[[block]]
+name="ethernet"
+type="text"
+value="${stats:net.igc0.full_text}"
+</code></pre>
+<h3 id="disk-space"><a class="header" href="#disk-space">Disk space</a></h3>
+<p>Example for <code>/home</code> directory partition:</p>
+<pre><code class="language-toml">[[command]]
+name="home_free"
+command="df -h /home | tail -1 | awk '{print $5}'"
+interval=60
+
+[[block]]
+name='home_free'
+type = 'text'
+value = '&lt;b&gt;/home&lt;/b&gt; ${home_free:value}'
+</code></pre>
+<h3 id="llm"><a class="header" href="#llm">LLM</a></h3>
+<p><code>oatbar</code> ships with <code>oatbar-llm</code>, a powerful utility that uses LLMs to process data and return it in <code>i3bar</code> format.</p>
+<p>Due to the power and flexibility of this feature, it has its own dedicated section in the cookbook.</p>
+<p>See <a href="#llm-1">LLM Cookbook</a> for examples and <a href="#llm-configuration">LLM Configuration</a> for full reference.</p>
+<h2 id="third-party-sources"><a class="header" href="#third-party-sources">Third-party sources</a></h2>
+<p>Existing bar ecosystems already can provide large mount of useful information.
+<code>oatbar</code> by-design focuses on making it possible to adapt third-party data sources.</p>
+<h3 id="i3status"><a class="header" href="#i3status"><code>i3status</code></a></h3>
+<p><code>i3status</code> is a great cross-platform source of information about the system. It supports:</p>
+<ul>
+<li>CPU</li>
+<li>Memory</li>
+<li>Network</li>
+<li>Battery</li>
+<li>Volume</li>
+</ul>
+<p><code>i3status</code> is designed to be used by <code>i3bar</code>, but <code>oatbar</code> supports this format natively.
+Enable it in <code>~/.i3status.conf</code> or in <code>~/.config/i3status/config</code>:</p>
+<pre><code class="language-conf">general {
+        output_format = "i3bar"
+}
+</code></pre>
+<p>Add you plugin as described in the <a href="https://i3wm.org/docs/i3status.html"><code>i3status</code> documentation</a>.
+Prefer simple output format, as you can format it on the <code>oatbar</code> side. Example:</p>
+<pre><code>order += cpu_usage
+
+cpu_usage {
+   format = "%usage"
+}
+</code></pre>
+<p>If you run <code>i3status</code> you will now see</p>
+<pre><code class="language-json">❯ i3status
+{"version":1}
+[
+[{"name":"cpu_usage","markup":"none","full_text":"00%"}]
+,[{"name":"cpu_usage","markup":"none","full_text":"02%"}]
+</code></pre>
+<p>In <code>oatbar</code> config:</p>
+<pre><code class="language-toml">[[block]]
+name='cpu'
+type = 'number'
+value = "${i3status:cpu_usage.full_text}"
+number_type = "percent"
+output_format="&lt;b&gt;CPU:&lt;/b&gt;${value}"
+number_display="text"
+</code></pre>
+<p>If you prefer a progress bar:</p>
+<pre><code class="language-toml">number_display="progress_bar"
+</code></pre>
+<h3 id="conky"><a class="header" href="#conky"><code>conky</code></a></h3>
+<p>As <code>i3status</code>, <code>conky</code> can also be a great source of system data.</p>
+<p><code>conky</code> can print it’s <a href="https://conky.sourceforge.net/variables.html">variables</a> as plain text
+and <code>oatbar</code> can consume it as multi-line plain text. Example <code>~/.oatconkyrc</code>:</p>
+<pre><code class="language-lua">conky.config = {
+    out_to_console = true,
+    out_to_x = false,
+    update_interval = 1.0,
+}
+
+conky.text = [[
+$memperc%
+$cpu%
+]]
+</code></pre>
+<p>If you run <code>conky -c ~/.oatconkyrc</code> you will see repeating groups of numbers:</p>
+<pre><code>2%
+10%
+5%
+10%
+</code></pre>
+<p>In <code>oatbar</code> config:</p>
+<pre><code class="language-toml">[[command]]
+name="conky"
+command="conky -c ~/.oatconkyrc"
+line_names=["mem","cpu"]
+
+[[block]]
+name='cpu'
+type = 'number'
+value = "${conky:cpu}"
+number_type = "percent"
+
+[block.number_display]
+type="text"
+output_format="&lt;b&gt;CPU:&lt;/b&gt;${value}"
+
+[[block]]
+name='mem'
+type = 'number'
+value = "${conky:mem}"
+number_type = "percent"
+
+[block.number_display]
+type="text"
+output_format="&lt;b&gt;MEM:&lt;/b&gt;${value}"
+</code></pre>
+<h3 id="i3blocks"><a class="header" href="#i3blocks"><code>i3blocks</code></a></h3>
+<p><code>i3blocks</code> in a drop-in replacement for <code>i3status</code> to be used in
+<code>i3bar</code>. If you have existingi <code>i3blocks</code> configs, feel free to plug it
+directly into <code>oatbar</code>:</p>
+<pre><code class="language-toml">[[command]]
+name="i3blocks"
+command="i3blocks"
+</code></pre>
+<p>You can check which <code>oatbar</code> variables it makes available by running
+<code>i3blocks</code> in your console.</p>
+<p>The indirection between the script, <code>i3blocks</code> and <code>oatbar</code> is not required.
+You can connect any plugin from the <a href="https://github.com/vivien/i3blocks-contrib"><code>i3block-contrib</code></a>
+excellent collection directly into <code>oatbar</code>.</p>
+<p>For example:</p>
+<pre><code class="language-console">$ git clone https://github.com/vivien/i3blocks-contrib
+$ cd ./i3blocks-contrib/cpu_usage2
+$ make
+$ ./cpu_usage2 -l "cpu: "
+cpu: &lt;span&gt; 39.79%&lt;/span&gt;
+cpu: &lt;span&gt; 47.06%&lt;/span&gt;
+</code></pre>
+<p>As you can see, it inputs only one line of data each interval,
+so setting <code>line_names</code> is not necessary, however always check for it.</p>
+<pre><code class="language-toml">[[command]]
+name="cpu_usage2"
+command="/path/to/cpu_usage2 -l 'cpu: '"
+
+[[block]]
+name="cpu_usage2"
+type="text"
+value="${cpu_usage2:value}"
+</code></pre>
+<h3 id="http-apis"><a class="header" href="#http-apis">HTTP APIs</a></h3>
+<p>HTTP JSON APIs that do not require complicated login are extremely
+easy to integrate using <code>curl</code> and <code>jq</code>.</p>
+<p>Explore your JSON first</p>
+<pre><code class="language-console">$ curl 'https://api.ipify.org?format=json'
+{"ip":"1.2.3.4"}
+</code></pre>
+<p><code>jq -r</code> let’s you extract a value from a JSON object. Add the command
+to <code>oatbar</code> config, but make sure to set a sufficient <code>interval</code> not to get
+banned.</p>
+<pre><code class="language-toml">[[command]]
+name="ip"
+command="curl 'https://api.ipify.org?format=json | jq -r .ip"
+interval=1800
+
+[[block]]
+name="ip"
+type="text"
+value="my ip: ${ip:value}"
+</code></pre>
+<h3 id="file"><a class="header" href="#file">File</a></h3>
+<p>You can use file watching utils to output file contents on any file change.
+For example for Linux you can use <code>fswatch</code>.</p>
+<pre><code class="language-toml">[[command]]
+command="cat ./file; fswatch --event Updated ./file | xargs -I {} cat {}"
+</code></pre>
+<h3 id="socket"><a class="header" href="#socket">Socket</a></h3>
+<p>Use <code>socat</code> to read from sockets. TCP socket:</p>
+<pre><code class="language-toml">[[command]]
+command="socat TCP:localhost:7777 -"
+</code></pre>
+<p>SSL socket:</p>
+<pre><code class="language-toml">[[command]]
+command="socat OPENSSL:localhost:7777 -"
+</code></pre>
+<p>For Unix socket:</p>
+<pre><code class="language-toml">[[command]]
+command="socat UNIX-CONNECT:/path/to/socket -"
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="llm-1"><a class="header" href="#llm-1">LLM</a></h1>
+<p><code>oatbar</code> ships with <code>oatbar-llm</code>, a powerful utility that uses LLMs to process data and return it in <code>i3bar</code> format.
+It can summarize logs, explain errors, fetch news, or just generate cool content.</p>
+<ul>
+<li><a href="#how-it-works">How it works</a></li>
+<li><a href="#examples">Examples</a>
+<ul>
+<li><a href="#system-health-check">System Health Check</a></li>
+<li><a href="#git-repository-status">Git Repository Status</a></li>
+<li><a href="#security-monitor">Security Monitor</a></li>
+<li><a href="#weather--outfit-advisor">Weather &amp; Outfit Advisor</a></li>
+<li><a href="#standup-meeting-helper">Standup Meeting Helper</a></li>
+</ul>
+</li>
+<li><a href="#knowledge-base-examples">Knowledge Base Examples</a>
+<ul>
+<li><a href="#code-review-helper-style-guide-enforcer">Code Review Helper (Style Guide Enforcer)</a></li>
+<li><a href="#focus--schedule-assistant">Focus &amp; Schedule Assistant</a></li>
+<li><a href="#error-log-analyzer">Error Log Analyzer</a></li>
+<li><a href="#hacker-news-rss-summary">Hacker News RSS Summary</a></li>
+</ul>
+</li>
+<li><a href="#tips--best-practices">Tips &amp; Best Practices</a>
+<ul>
+<li><a href="#debugging-prompts">Debugging Prompts</a></li>
+<li><a href="#prompt-engineering">Prompt Engineering</a></li>
+<li><a href="#quota-management">Quota Management</a></li>
+<li><a href="#consolidating-queries">Consolidating Queries</a></li>
+</ul>
+</li>
+</ul>
+<h3 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h3>
+<p><code>oatbar-llm</code> runs the configured <code>[[command]]</code>s <strong>before</strong> invoking the LLM. The output of these commands is then fed into the LLM prompt as context.</p>
+<p>This means the LLM <strong>does not</strong> execute tools or commands itself. You have full control over what data is sent to the model for processing.</p>
+<p>See <a href="#llm-configuration">LLM Configuration</a> for full reference.</p>
+<h3 id="examples"><a class="header" href="#examples">Examples</a></h3>
+<div class="warning">
+<p>These examples are for illustrative purposes. Due to the non-deterministic nature of LLMs, you may need to tune the prompts (questions) to get the exact output format or content you desire for your specific model and use case.</p>
+</div>
+
+<h4 id="system-health-check"><a class="header" href="#system-health-check">System Health Check</a></h4>
+<p>Use <code>conky</code> to generate a detailed, one-shot system report and have the LLM analyze it for potential bottlenecks or issues.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/conky.conf</code></strong></p>
+<pre><code class="language-lua">conky.config = {
+    out_to_console = true,
+    out_to_x = false,
+    background = false,
+    update_interval = 1,
+    total_run_times = 1,
+    use_spacer = 'none',
+}
+
+conky.text = [[
+System Health Report
+--------------------
+Uptime: ${uptime}
+Load Avg: ${loadavg}
+Processes: ${running_processes} running of ${processes} total
+
+CPU: ${cpu}%
+RAM: ${memperc}% (${mem}/${memmax})
+Swap: ${swapperc}% (${swap}/${swapmax})
+
+Disk Usage:
+/      : ${fs_used /}/${fs_size /} (${fs_used_perc /}%)
+/home  : ${fs_used /home}/${fs_size /home} (${fs_used_perc /home}%)
+
+Network (eth0):
+Up: ${upspeed eth0} (Total: ${totalup eth0})
+Down: ${downspeed eth0} (Total: ${totaldown eth0})
+
+Top CPU:
+1. ${top name 1}: ${top cpu 1}%
+2. ${top name 2}: ${top cpu 2}%
+3. ${top name 3}: ${top cpu 3}%
+4. ${top name 4}: ${top cpu 4}%
+5. ${top name 5}: ${top cpu 5}%
+
+Top Mem:
+1. ${top_mem name 1}: ${top_mem mem 1}%
+2. ${top_mem name 2}: ${top_mem mem 2}%
+3. ${top_mem name 3}: ${top_mem mem 3}%
+4. ${top_mem name 4}: ${top_mem mem 4}%
+5. ${top_mem name 5}: ${top_mem mem 5}%
+]]
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name = "conky_report"
+command = "conky -c ~/.config/oatbar-llm/conky.conf"
+interval = 1800
+
+[[variable]]
+name = "health_check"
+type = "string"
+question = "Analyze this system report and summarize the health status. Highlight any resource hogs. Up to 5 words"
+
+[[variable]]
+name = "health_report"
+type = "string"
+question = "Generate a detailed bulleted report of the system health based on the data."
+write_to = "/tmp/health_report.md"
+</code></pre>
+<p><strong>3. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="conky_ai"
+command="oatbar-llm"
+interval=1800
+
+[[block]]
+name="health"
+type="text"
+value="${conky_ai:health_check.value}"
+on_mouse_left="xdg-open /tmp/health_report.md"
+</code></pre>
+<h4 id="git-repository-status"><a class="header" href="#git-repository-status">Git Repository Status</a></h4>
+<p>Summarize uncommitted changes in your current project to keep you focused.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="git_status"
+command="cd ~/Projects/my-project &amp;&amp; git status -s &amp;&amp; git diff --stat"
+
+[[variable]]
+name="git_summary"
+type="string"
+question="Summarize the uncommitted changes in 3-5 words. If clean, say 'Clean'."
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="git_ai"
+command="oatbar-llm"
+interval=600
+
+[[block]]
+name="git_status"
+type="text"
+value="Git: ${git_ai:git_summary.value}"
+</code></pre>
+<h4 id="security-monitor"><a class="header" href="#security-monitor">Security Monitor</a></h4>
+<p>Monitor open ports and recent authentication failures for a quick security overview.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="ports"
+command="ss -tuln"
+
+[[command]]
+name="auth_logs"
+command="journalctl -u sshd -n 20 --no-pager"
+
+[[variable]]
+name="security_alert"
+type="string"
+question="Analyze open ports and sshd logs. Is there any suspicious activity?"
+allowed_answers=["Safe", "Suspicious"]
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="security_ai"
+command="oatbar-llm"
+interval=3600
+
+[[block]]
+name="security"
+type="text"
+value="Sec: ${security_ai:security_alert.value}"
+</code></pre>
+<h4 id="weather--outfit-advisor"><a class="header" href="#weather--outfit-advisor">Weather &amp; Outfit Advisor</a></h4>
+<p>Get clothing suggestions based on the current weather.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="weather"
+command="curl -s 'https://api.open-meteo.com/v1/forecast?latitude=40.76&amp;longitude=-73.99&amp;current=temperature_2m,weather_code'"
+
+[[variable]]
+name="outfit"
+type="string"
+question="Based on this weather JSON (temperature in Celsius), suggest a simple outfit (e.g., 'T-shirt &amp; Shorts', 'Coat &amp; Scarf'). Keep it under 5 words."
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="outfit_ai"
+command="oatbar-llm"
+interval=7200
+
+[[block]]
+name="outfit"
+type="text"
+value="Wear: ${outfit_ai:outfit.value}"
+</code></pre>
+<h4 id="standup-meeting-helper"><a class="header" href="#standup-meeting-helper">Standup Meeting Helper</a></h4>
+<p>Summarize your work from the last 24 hours to prepare for your daily standup meeting.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="my_commits"
+command="cd ~/Projects/my-project &amp;&amp; git log --author='My Name' --since='24 hours ago' --oneline"
+
+[[variable]]
+name="standup_notes"
+type="string"
+question="Create a bulleted list of my completed tasks for a standup meeting."
+write_to="/tmp/standup_notes.md"
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="standup_ai"
+command="oatbar-llm"
+interval=3600
+
+[[block]]
+name="standup"
+type="text"
+value="Standup Prep"
+on_mouse_left="xdg-open /tmp/standup_notes.md"
+</code></pre>
+<h3 id="knowledge-base-examples"><a class="header" href="#knowledge-base-examples">Knowledge Base Examples</a></h3>
+<p>These examples demonstrate how to use the <code>knowledge_base</code> feature to provide static context to the LLM, allowing it to act as a specialized assistant.</p>
+<h4 id="code-review-helper-style-guide-enforcer"><a class="header" href="#code-review-helper-style-guide-enforcer">Code Review Helper (Style Guide Enforcer)</a></h4>
+<p>Check your code against your team’s style guide.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/style_guide.md</code></strong></p>
+<pre><code class="language-markdown"># Team Style Guide
+- Prefer `unwrap_or_else` over `unwrap`.
+- Use `tracing` for logging, not `println!`.
+- All public functions must have documentation.
+- Variable names should be descriptive (no `x`, `y`, `temp`).
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/style_guide.md"
+
+[[command]]
+name="git_diff"
+command="cd ~/Projects/my-project &amp;&amp; git diff --cached"
+
+[[variable]]
+name="style_review"
+type="string"
+question="Review the git diff against the style guide. Point out any violations concisely."
+</code></pre>
+<h4 id="focus--schedule-assistant"><a class="header" href="#focus--schedule-assistant">Focus &amp; Schedule Assistant</a></h4>
+<p>Get reminders based on your personal schedule and priorities.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/schedule.md</code></strong></p>
+<pre><code class="language-markdown"># My Schedule &amp; Priorities
+- **Mornings (8am-12pm):** Deep work (Coding, Writing). No meetings.
+- **Lunch:** 12pm-1pm.
+- **Afternoons (1pm-5pm):** Meetings, Emails, Code Reviews.
+- **Evenings:** Learning Rust, Gym.
+
+**Current Focus:** Shipping the LLM module for Oatbar.
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/schedule.md"
+
+[[command]]
+name="current_time"
+command="date +%H:%M"
+
+[[variable]]
+name="focus_tip"
+type="string"
+question="Based on the current time and my schedule, what should I be focusing on right now? Keep it short."
+</code></pre>
+<h4 id="error-log-analyzer"><a class="header" href="#error-log-analyzer">Error Log Analyzer</a></h4>
+<p>Suggest next steps when system errors occur, based on a runbook.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/runbook.md</code></strong></p>
+<pre><code class="language-markdown"># Incident Runbook
+- **High CPU:** Check `top`, identify process. If `cargo`, ignore. If unknown, kill.
+- **Disk Full:** Clean `/tmp` and `~/.cache`. Check `docker system df`.
+- **SSH Failures:** Check `auth.log` for repeated IPs. Ban with `fail2ban`.
+- **OOM:** Check kernel logs. Restart service.
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/runbook.md"
+
+[[command]]
+name="sys_errors"
+command="journalctl -p err -n 10 --no-pager"
+
+[[variable]]
+name="incident_action"
+type="string"
+question="Analyze the recent system errors. Based on the runbook, what is the recommended action?"
+</code></pre>
+<h4 id="hacker-news-rss-summary"><a class="header" href="#hacker-news-rss-summary">Hacker News RSS Summary</a></h4>
+<p>Fetch the latest news and get a concise summary on your bar.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/hn_preferences.md"
+</code></pre>
+<p>Create <code>~/.config/oatbar-llm/hn_preferences.md</code>:</p>
+<pre><code class="language-markdown">I am interested in:
+- Rust, Go, C++
+- System programming, Linux, Kernel
+- AI, LLMs, Machine Learning
+- Security, Cryptography
+
+I am NOT interested in:
+- Web frameworks (React, Vue, etc.)
+</code></pre>
+<pre><code class="language-toml">[[command]]
+name="hn_rss"
+command="curl -s https://news.ycombinator.com/rss"
+
+[[variable]]
+name="top_stories"
+type="string"
+question="Extract the top 3 most interesting headlines from this RSS feed and combine them into a single, short sentence separated by pipes."
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="news"
+command="oatbar-llm"
+interval=10800 # Every 3 hours
+
+[[block]]
+name="news_feed"
+type="text"
+value="HN: ${news:top_stories.value}"
+</code></pre>
+<h3 id="tips--best-practices"><a class="header" href="#tips--best-practices">Tips &amp; Best Practices</a></h3>
+<h4 id="debugging-prompts"><a class="header" href="#debugging-prompts">Debugging Prompts</a></h4>
+<p>Before connecting <code>oatbar-llm</code> to <code>oatbar</code>, run it manually in your terminal to verify the output. Use <code>oatbar-llm --mode=debug</code> to see the raw response from the LLM, which is helpful for troubleshooting prompts.</p>
+<h4 id="prompt-engineering"><a class="header" href="#prompt-engineering">Prompt Engineering</a></h4>
+<p>LLMs are sensitive to how you ask questions.</p>
+<ul>
+<li><strong>Be Specific</strong>: Instead of “What’s the status?”, ask “Summarize the system status in 3 words based on these logs.”</li>
+<li><strong>Define Output</strong>: Explicitly state the desired format (e.g., “Format: …”).</li>
+<li><strong>Iterate</strong>: Use the debug mode to tweak your prompt until you get consistent results.</li>
+</ul>
+<h4 id="quota-management"><a class="header" href="#quota-management">Quota Management</a></h4>
+<p>LLM API calls can be expensive or rate-limited.</p>
+<ul>
+<li><strong>Watch your usage</strong>: Monitor your provider’s dashboard.</li>
+<li><strong>Increase Intervals</strong>: For non-critical data (like weather or news), set the <code>interval</code> in <code>oatbar</code> to a higher value (e.g., <code>3600</code> for 1 hour, <code>10800</code> for 3 hours).</li>
+</ul>
+<h4 id="consolidating-queries"><a class="header" href="#consolidating-queries">Consolidating Queries</a></h4>
+<p>To save on API calls and context window usage, combine related tasks into a single <code>oatbar-llm</code> configuration.
+Instead of having one config for “CPU” and another for “Memory”, fetch both metrics in the <code>[[command]]</code> section and ask for a combined summary populating multiple <code>[[variable]]</code>s.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="appearance"><a class="header" href="#appearance">Appearance</a></h1>
+<p>This section focuses on recipes on how to display the data from your sources.</p>
+<ul>
+<li><a href="#separators">Separators</a>
+<ul>
+<li><a href="#simple-separator">Simple separator</a></li>
+<li><a href="#empty-space-around-bar">Empty space around bar</a></li>
+<li><a href="#border-lines">Border lines</a></li>
+<li><a href="#partial-bar">Partial bar</a></li>
+</ul>
+</li>
+<li><a href="#blocks">Blocks</a>
+<ul>
+<li><a href="#pango-markup">Pango markup</a></li>
+<li><a href="#icons">Icons</a></li>
+<li><a href="#visibility">Visibility</a></li>
+</ul>
+</li>
+<li><a href="#popup-bars">Popup bars</a>
+<ul>
+<li><a href="#popup-at-cursor">Popup at cursor</a></li>
+<li><a href="#temporary-popup-on-block-change">Temporary popup on block change</a></li>
+</ul>
+</li>
+</ul>
+<h2 id="separators"><a class="header" href="#separators">Separators</a></h2>
+<h3 id="simple-separator"><a class="header" href="#simple-separator">Simple separator</a></h3>
+<p><img src="configuration/cookbook/separator.png" alt="Separator"></p>
+<p>Separator is just a text block.</p>
+<pre><code class="language-toml">[[bar]]
+blocks_left=["foo", "S", "bar", "S", "baz"]
+
+[[block]]
+name="S"
+type = 'text'
+separator_type = 'gap'
+value = '|'
+foreground = "#53e2ae"
+</code></pre>
+<p>This approach offers maximum flexibility:</p>
+<ul>
+<li>Multiple separator types and styles</li>
+<li>Dynamically separators based on conditions</li>
+<li>Disappearing separators via <code>show_if_matches</code></li>
+</ul>
+<p>Specifying <code>separator_type = "gap"</code> is recommended. It gives <code>oatbar</code> a hint that the block is
+a separator. For example multiple separators in a row do not make sense and
+they will collapse if real blocks between them become hidden.</p>
+<h3 id="empty-space-around-bar"><a class="header" href="#empty-space-around-bar">Empty space around bar</a></h3>
+<p>By default <code>oatbar</code> looks more traditional.</p>
+<p><img src="configuration/cookbook/no-space.png" alt="No Space"></p>
+<p>You can apply margins and border-lines to achieve some empty space around your bar.</p>
+<p><img src="configuration/cookbook/empty-space.png" alt="Empty Space"></p>
+<pre><code class="language-toml">[[bar]]
+blocks_right=["L", "layout", "S", "clock", "R"]
+# `top` may need a value or must be zero depening on your WM.
+margin={left=8, right=8, top=0, bottom=8}
+# Alpha channels is zero, so the bar is transparent unless there is has a block.
+background="#00000000"
+
+[[default_block]]
+# The actual block color.
+background="#191919e6"
+
+[[block]]
+name='L'
+type = 'text'
+separator_type = 'left'
+separator_radius = 8.0
+
+[[block]]
+name='R'
+type = 'text'
+separator_type = 'right'
+separator_radius = 8.0
+</code></pre>
+<h3 id="border-lines"><a class="header" href="#border-lines">Border lines</a></h3>
+<p><img src="configuration/cookbook/border-lines.png" alt="Border Lines"></p>
+<pre><code class="language-toml"># Or per [[block]] separately.
+[[default_block]]
+edgeline_color = "#53e2ae"
+overline_color = "#53e2ae"
+underline_color = "#53e2ae"
+
+# edgeline applies to `left` and `right` blocks.
+[[block]]
+name='L'
+type = 'text'
+separator_type = 'left'
+separator_radius = 8.0
+
+[[block]]
+name='R'
+type = 'text'
+separator_type = 'right'
+separator_radius = 8.0
+</code></pre>
+<h3 id="partial-bar"><a class="header" href="#partial-bar">Partial bar</a></h3>
+<p>Bars of <code>oatbar</code> can be further separated to small partial bars. It is possible
+to by further use of <code>L</code> and <code>R</code> bars and addition of completely transparent <code>E</code> block.</p>
+<p><img src="configuration/cookbook/partial-bar.png" alt="Partial Bar"></p>
+<pre><code class="language-toml">[[bar]]
+blocks_left=["L", "workspace", "R", "E", "L", "active_window", "R"]
+
+[[block]]
+name="E"
+type = 'text'
+separator_type = 'gap'
+value = ' '
+background = "#00000000"
+# If you have set these in [[default_block]], reset them back.
+edgeline_color = ""
+overline_color = ""
+underline_color = ""
+</code></pre>
+<p>Setting <code>separator_type</code> correctly for all separators will make partial panel
+disappearing if all real blocks are hidden via <code>show_if_matches</code>.</p>
+<h2 id="blocks"><a class="header" href="#blocks">Blocks</a></h2>
+<h3 id="pango-markup"><a class="header" href="#pango-markup">Pango markup</a></h3>
+<p><code>oatbar</code> supports full <a href="https://docs.gtk.org/Pango/pango_markup.html">Pango Markup</a>
+as a main tool to format the block content. Command can emit Pango markup too, controlling
+the appearance of the blocks.</p>
+<p><img src="configuration/cookbook/pango.png" alt="Pango"></p>
+<pre><code class="language-toml">[[block]]
+name='pango'
+type = 'text'
+value = "&lt;span text_transform='capitalize' color='yellow'&gt;h&lt;i&gt;ell&lt;/i&gt;o&lt;/span&gt; &lt;span color='lawngreen'&gt;World&lt;/span&gt;"
+</code></pre>
+<p>Font names to be used in Pango can be looked up via the <code>fc-list</code> command.</p>
+<h3 id="icons"><a class="header" href="#icons">Icons</a></h3>
+<p>Use icon fonts such as <a href="https://fontawesome.com/">Font Awesome</a>,
+<a href="https://www.nerdfonts.com/">Nerd Fonts</a>, <a href="https://icomoon.io/">IcoMoon</a> or emojis.</p>
+<p><img src="configuration/cookbook/icon.png" alt="Icon"></p>
+<pre><code class="language-toml">[[block]]
+name='pango'
+type = 'text'
+value = "&lt;span ${green_icon}&gt;&lt;/span&gt;  Symbolico - I'm free"
+
+[[var]]
+name="green_icon"
+value="font='Font Awesome 6 Free 13' foreground='#53e2ae'"
+</code></pre>
+<p>Some icon fonts use ligatures instead of emojis, replacing words with icons like this:</p>
+<pre><code class="language-toml">value = "&lt;span ${green_icon}&gt;music&lt;/span&gt;  Symbolico - I'm free"
+</code></pre>
+<p>If your icon does not perfectly vertically align with your text, experiment with font size and <code>rise</code> Pango parameter.</p>
+<h3 id="visibility"><a class="header" href="#visibility">Visibility</a></h3>
+<p><code>show_if_matches</code> combined with a powerful tool to build dynamic bars.
+Here it is used to only show the block if the value is not empty.</p>
+<pre><code class="language-toml">[block]
+value = '${desktop:window_title.value}'
+show_if_matches = [['${desktop:window_title.value}', '.+']]
+</code></pre>
+<p>Custom variables, not only those coming from commands can be used. They can be
+set via <code>oatctl var set</code>, opening a huge number of possibilities. See some examples in
+the <a href="#advanced-examples">Advanced</a> chapter.</p>
+<p>If you are not an expert in regular expressions, here are some useful ones:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Regex</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>foo</code></td><td>Contains <code>foo</code></td></tr>
+<tr><td><code>^foo</code></td><td>Starts with <code>foo</code></td></tr>
+<tr><td><code>foo$</code></td><td>Ends with <code>foo</code></td></tr>
+<tr><td><code>^foo$</code></td><td>Exactly <code>foo</code></td></tr>
+<tr><td><code>^$</code></td><td>Empty string</td></tr>
+<tr><td><code>.+</code></td><td>Non empty string</td></tr>
+<tr><td><code>(foo|bar|baz)</code></td><td>Contains one of those words</td></tr>
+<tr><td><code>^(foo|bar|baz)$</code></td><td>Exactly one of those words</td></tr>
+</tbody>
+</table>
+</div>
+<p>In the examples above <code>foo</code> works because it only contains alpha-numeric characters,
+but be careful with including characters that have special meaning in regular expressions.
+For more info read <code>regex</code> crate <a href="https://docs.rs/regex/latest/regex/#syntax">documentation</a>.</p>
+<h2 id="popup-bars"><a class="header" href="#popup-bars">Popup bars</a></h2>
+<p>A bar can be hidden and appear when certain conditions are met.</p>
+<pre><code class="language-toml">[[bar]]
+popup=true
+</code></pre>
+<p>Popup bars appear on the top of the windows, unlike normal bars that
+allocate dedicated space on the screen.</p>
+<p><img src="configuration/cookbook/popup-edge.png" alt="Popup Edge"></p>
+<h3 id="popup-at-cursor"><a class="header" href="#popup-at-cursor">Popup at cursor</a></h3>
+<p>Popup bar can be shown when the cursor approaches the screen edge where the bar is located.</p>
+<pre><code class="language-toml">[[bar]]
+popup=true
+popup_at_edge=true  
+</code></pre>
+<h3 id="temporary-popup-on-block-change"><a class="header" href="#temporary-popup-on-block-change">Temporary popup on block change</a></h3>
+<p>When <em>any property</em> of the block changes you can make it appear. Depending on a <code>popup</code>
+value you can show enclosing partial or entire bar.</p>
+<pre><code class="language-toml">[[bar]]
+popup="bar"
+#popup="partial_bar"
+#popup="block"
+</code></pre>
+<p>If you won’t want to popup on any property change, you can limit it to one expression.</p>
+<pre><code class="language-toml">[[bar]]
+popup_value="${foo}"
+</code></pre>
+<p>Example layout switcher that appears in the middle of the screen when you change your layout.</p>
+<pre><code class="language-toml">[[bar]]
+blocks_center=["L", "layout_enum_center", "R"]
+background="#00000000"
+popup=true
+position="center"
+
+[[block]]
+name = 'layout_enum_center'
+type = 'enum'
+active = '${keyboard:layout.active}'
+variants = '${keyboard:layout.variants}'
+popup = "block"
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="advanced-examples"><a class="header" href="#advanced-examples">Advanced examples</a></h1>
+<p>Let’s build something complex with what <code>oatbar</code> has to offer.</p>
+<ul>
+<li><a href="#workspace-customizations">Workspace customizations</a>
+<ul>
+<li><a href="#appearance-1">Appearance</a></li>
+<li><a href="#visibility-1">Visibility</a></li>
+</ul>
+</li>
+<li><a href="#menu">Menu</a></li>
+<li><a href="#rotating-menu">Rotating menu</a></li>
+<li><a href="#dynamic-image-block">Dynamic image block</a></li>
+</ul>
+<p>Combination of variables, visibility control and programmatic access to variables via <code>oatctl var</code> provides
+tremendous power.</p>
+<p>In these examples <code>oatctl var</code> is often called from <code>on_mouse_left</code> handlers, but you
+can use it in your WM keybindings too.</p>
+<h2 id="workspace-customizations"><a class="header" href="#workspace-customizations">Workspace customizations</a></h2>
+<p>If you have enabled <code>oatbar-desktop</code> command, you should have access to the <code>${desktop:workspace.value}</code>
+variable.</p>
+<pre><code class="language-toml">[[command]]
+name="desktop"
+command="oatbar-desktop"
+</code></pre>
+<p>See which values it can have via <code>oatctl var ls | grep desktop</code> when running <code>oatbar</code>. You can use
+this to set any properties of your block, including appearance and visibility.</p>
+<h3 id="appearance-1"><a class="header" href="#appearance-1">Appearance</a></h3>
+<p>In this example, the bar on workspace <code>two</code> is a bit more red than usual.</p>
+<pre><code class="language-toml">[[var]]
+name="default_block_bg"
+value="${desktop:workspace.value}"
+replace_first_match=true
+replace=[
+  ["^two$","#301919e6"],
+  [".*", "#191919e6"],
+]
+
+[[default_block]]
+background="${default_block_bg}"
+</code></pre>
+<h3 id="visibility-1"><a class="header" href="#visibility-1">Visibility</a></h3>
+<p>This block shown only on workspace <code>three</code>.</p>
+<pre><code class="language-toml">[[block]]
+show_if_matches=[["${desktop:workspace.value}", "^three$"]]
+</code></pre>
+<h2 id="menu"><a class="header" href="#menu">Menu</a></h2>
+<p><code>oatbar</code> does not know anything about menus, but let’s build one.</p>
+<p><img src="configuration/cookbook/menu-closed.png" alt="Menu Closed"></p>
+<p><img src="configuration/cookbook/menu-open.png" alt="Menu Open"></p>
+<pre><code class="language-toml">[[bar]]
+blocks_left=["L", "menu", "launch_chrome", "launch_terminal", "R"]
+
+[[default_block]]
+background="#191919e6"
+
+[[default_block]]
+name="menu_child"
+background="#111111e6"
+line_width=3
+overline_color="#191919e6"
+underline_color="#191919e6"
+show_if_matches=[["${show_menu}","show"]]
+
+[[block]]
+name='menu'
+type = 'text'
+value = "${show_menu}"
+replace = [
+   ["^$", "circle-right"],
+   ["show", "circle-left"],
+   ["(.+)","&lt;span font='IcoMoon-Free 12' weight='bold' color='#53e2ae'&gt;$1&lt;/span&gt;"],
+]
+on_mouse_left = "oatctl var rotate show_menu right '' show"
+
+[[block]]
+name='launch_chrome'
+type = 'text'
+inherit="menu_child"
+value = "&lt;span font='IcoMoon-Free 12'&gt;&lt;/span&gt; "
+on_mouse_left = "oatctl var set show_menu ''; chrome"
+
+[[block]]
+name='launch_terminal'
+type = 'text'
+inherit="menu_child"
+value = "&lt;span font='IcoMoon-Free 12'&gt;&lt;/span&gt; "
+on_mouse_left = "oatctl var set show_menu ''; alacritty"
+</code></pre>
+<p>Let’s take a closer look:</p>
+<ol>
+<li>We create a <code>show_menu</code> variable that can be empty or set to <code>show</code></li>
+<li>In <code>menu</code> block all regexes apply in sequence.</li>
+<li>The first two replace it with icon names.</li>
+<li>The last one wraps the icon name into the final Pango markup.</li>
+<li>The <code>on_mouse_left</code> rotates the values of <code>show_menu</code> between empty and <code>show</code>, effectively toggling it.</li>
+<li>Blocks are only displayed if <code>show_menu</code> is set.</li>
+<li>Blocks clear <code>show_menu</code> before launching the app to hide the menu.</li>
+<li>A small cosmetic effect is achieved by inheriting a <code>default_block</code> with a different style.</li>
+</ol>
+<p>This example can be extended to build more layers of nesting by introducing additional variables.</p>
+<h2 id="rotating-menu"><a class="header" href="#rotating-menu">Rotating menu</a></h2>
+<p>It sometimes useful to always show the main panel, but have an occasional access to additional
+information. A great idea would be to build a rotating menu.</p>
+<p><img src="configuration/cookbook/panel_0.png" alt="Panel 0">  
+<img src="configuration/cookbook/panel_1.png" alt="Panel 1">  
+<img src="configuration/cookbook/panel_2.png" alt="Panel 2"></p>
+<pre><code class="language-toml">[[bar]]
+blocks_left=["L", "rotate_left", "panel_0", "panel_1", "panel_2", "rotate_right", "R"]
+
+[[block]]
+name='rotate_left'
+type = 'text'
+value = "&lt;span font='IcoMoon-Free 12' color='#53e2ae'&gt;circle-left&lt;/span&gt;"
+on_mouse_left = "oatctl var rotate rotation_idx left '' 1 2"
+
+[[block]]
+name='rotate_right'
+type = 'text'
+value = "&lt;span font='IcoMoon-Free 12' color='#53e2ae'&gt;circle-right&lt;/span&gt;"
+on_mouse_left = "oatctl var rotate rotation_idx right '' 1 2"
+
+[[block]]
+name='panel_0'
+type = 'text'
+value = "&lt;span color='yellow'&gt;Panel 0&lt;/span&gt;"
+show_if_matches=[["${rotation_idx}", "^$"]]
+
+[[block]]
+name='panel_1'
+type = 'text'
+value = "&lt;span color='lime'&gt;Panel 1&lt;/span&gt;"
+show_if_matches=[["${rotation_idx}", "1"]]
+
+[[block]]
+name='panel_2'
+type = 'text'
+value = "&lt;span color='deeppink'&gt;Panel 2&lt;/span&gt;"
+show_if_matches=[["${rotation_idx}", "2"]]
+</code></pre>
+<h2 id="dynamic-image-block"><a class="header" href="#dynamic-image-block">Dynamic image block</a></h2>
+<p><img src="configuration/cookbook/custom-clock.png" alt="Custom clock"></p>
+<p>This looks like a normal clock, but it is actually loaded from the PNG,
+that was generated by a custom command. You can display <strong>arbitrary graphics</strong>!</p>
+<p>A program to generate an image:</p>
+<pre><code class="language-python">import datetime
+import cairo
+import os
+import time
+import sys
+
+while True:
+    WIDTH, HEIGHT = 270, 28
+    sfc = cairo.ImageSurface(cairo.Format.ARGB32, WIDTH, HEIGHT)
+    ctx = cairo.Context(sfc)
+    ctx.set_font_size(16) 
+    ctx.select_font_face("Courier", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL) 
+    ctx.move_to(3, 20)
+    ctx.set_source_rgb(1.0, 1.0, 1.0)
+    time_str="%s" % datetime.datetime.now()
+    ctx.show_text(time_str)
+    ctx.fill()
+
+    output_filename = '/tmp/custom-clock.png'
+    sfc.write_to_png(output_filename)
+
+    print(output_filename)
+    print(time_str)
+    sys.stdout.flush()
+    time.sleep(1)
+
+</code></pre>
+<p>If run, it would write <code>/tmp/custom-clock.png</code> and print text like this</p>
+<pre><code class="language-shell">$ python3 ./book/src/configuration/cookbook/custom-clock.py
+/tmp/custom-clock.png
+2024-06-30 21:09:22.165792
+/tmp/custom-clock.png
+2024-06-30 21:09:23.185004
+/tmp/custom-clock.png
+2024-06-30 21:09:24.195003
+</code></pre>
+<pre><code class="language-toml">[[command]]
+name="img-clock"
+command="python3 /home/user/Project/oatbar/clock.py"
+line_names=["file_name", "ts"]
+
+[[block]]
+name = 'image'
+type = 'image'
+value = '${img-clock:file_name}'
+updater_value = '${img-clock:ts}'
+</code></pre>
+<p>The value of <code>img-clock:ts</code> is not important, but because it
+changes, the image is not cached. It get’s reloaded from
+the disk on each update.</p>
+<div class="warning">
+<p>This is not the most efficient way to build custom
+widgets.</p>
+<p>It involves writing/reading files from the
+disk on each update. Building animations is possible, but
+not efficient, which can matter for you if you are on
+laptop battery. You can use <code>tmpfs</code> to save on disk writes,
+but not so much on CPU cycles.</p>
+</div>
+
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="reference"><a class="header" href="#reference">Reference</a></h1>
+<p>This section contains detailed reference documentation for various <code>oatbar</code> modules.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="llm-configuration"><a class="header" href="#llm-configuration">LLM Configuration</a></h1>
+<p><code>oatbar-llm</code> is configured via <code>~/.config/oatbar-llm/config.toml</code>.</p>
+<h2 id="structure"><a class="header" href="#structure">Structure</a></h2>
+<p>The configuration file consists of three main sections:</p>
+<ol>
+<li><code>[llm]</code>: Global LLM provider settings.</li>
+<li><code>[[command]]</code>: External commands to gather context.</li>
+<li><code>[[variable]]</code>: Variables to extract or generate using the LLM.</li>
+</ol>
+<h2 id="llm-section"><a class="header" href="#llm-section"><code>[llm]</code> Section</a></h2>
+<p>Configures the LLM provider and global behavior.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>provider</code></td><td>string</td><td><strong>Required</strong></td><td>The LLM provider. Supported: <code>google</code>, <code>openai</code>, <code>anthropic</code>, <code>mistral</code>, <code>xai</code>, <code>ollama</code>.</td></tr>
+<tr><td><code>name</code></td><td>string</td><td><strong>Required</strong></td><td>The model name (e.g., <code>gemini-2.5-flash</code>, <code>gpt-4o</code>).</td></tr>
+<tr><td><code>role</code></td><td>string</td><td><em>Default system prompt</em></td><td>Custom system prompt to define the AI’s persona and goal.</td></tr>
+<tr><td><code>temperature</code></td><td>float</td><td><code>0.6</code></td><td>Controls randomness (0.0 = deterministic, 1.0 = creative).</td></tr>
+<tr><td><code>max_tokens</code></td><td>int</td><td><code>3000</code></td><td>Maximum number of tokens in the response.</td></tr>
+<tr><td><code>url</code></td><td>string</td><td><code>None</code></td><td>Custom API URL (useful for local LLMs or proxies).</td></tr>
+<tr><td><code>knowledge_base</code></td><td>path</td><td><code>None</code></td><td>Path to a text file containing static context/preferences to include in the prompt. <strong>Must be an absolute path (no <code>~</code>).</strong></td></tr>
+<tr><td><code>output_format_prompt</code></td><td>string</td><td><code>None</code></td><td>Custom instruction for output format (required if using <code>Custom</code> output mode).</td></tr>
+<tr><td><code>retries</code></td><td>int</td><td><code>5</code></td><td>Number of retries for failed API calls.</td></tr>
+<tr><td><code>back_off</code></td><td>duration</td><td><code>1s</code></td><td>Initial backoff duration for retries.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="command-section"><a class="header" href="#command-section"><code>[[command]]</code> Section</a></h2>
+<p>Defines shell commands to run. Their output is fed to the LLM as context.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>command</code></td><td>string</td><td><strong>Required</strong></td><td>The shell command to execute.</td></tr>
+<tr><td><code>name</code></td><td>string</td><td><code>command</code> string</td><td>A unique name to refer to this command’s output in the prompt context.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="variable-section"><a class="header" href="#variable-section"><code>[[variable]]</code> Section</a></h2>
+<p>Defines the questions to ask the LLM and how to handle the answers.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name</code></td><td>string</td><td><strong>Required</strong></td><td>The key for the variable in the output JSON.</td></tr>
+<tr><td><code>question</code></td><td>string</td><td><strong>Required</strong></td><td>The prompt/question for the LLM to answer to populate this variable.</td></tr>
+<tr><td><code>type</code></td><td>string</td><td><code>string</code></td><td>The expected data type: <code>string</code>, <code>number</code>, <code>boolean</code>.</td></tr>
+<tr><td><code>allowed_answers</code></td><td>list</td><td><code>None</code></td><td>A list of valid string values (enum) to restrict the output.</td></tr>
+<tr><td><code>max_length</code></td><td>int</td><td><code>None</code></td><td>Maximum length of the string response.</td></tr>
+<tr><td><code>write_to</code></td><td>path</td><td><code>None</code></td><td>If set, the variable’s value will be written to this file. <strong>Must be an absolute path (no <code>~</code>).</strong></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="output-modes"><a class="header" href="#output-modes">Output Modes</a></h2>
+<p><code>oatbar-llm</code> supports different output modes via the <code>--mode</code> CLI flag:</p>
+<ul>
+<li><code>json</code> (default): Outputs a JSON object suitable for <code>oatbar</code> (i3bar format).</li>
+<li><code>debug</code>: Prints the full prompt and raw response for debugging.</li>
+<li><code>custom</code>: Outputs raw text based on <code>output_format_prompt</code>. Useful for generating reports or files.</li>
+</ul>
+<h2 id="configuring-keys"><a class="header" href="#configuring-keys">Configuring Keys</a></h2>
+<p>API keys are <strong>not</strong> stored in the configuration file. Instead, <code>oatbar-llm</code> reads them from specific files in the configuration directory (<code>~/.config/oatbar-llm/</code>).</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Provider</th><th>Key File Path</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Google</strong></td><td><code>~/.config/oatbar-llm/google_api_key</code></td></tr>
+<tr><td><strong>OpenAI</strong></td><td><code>~/.config/oatbar-llm/openai_api_key</code></td></tr>
+<tr><td><strong>Anthropic</strong></td><td><code>~/.config/oatbar-llm/anthropic_api_key</code></td></tr>
+<tr><td><strong>Mistral</strong></td><td><code>~/.config/oatbar-llm/mistral_api_key</code></td></tr>
+<tr><td><strong>xAI</strong></td><td><code>~/.config/oatbar-llm/xai_api_key</code></td></tr>
+<tr><td><strong>Ollama</strong></td><td><em>Not required</em></td></tr>
+</tbody>
+</table>
+</div>
+<p>Ensure these files contain <strong>only</strong> the API key (no newlines or extra spaces preferred, though whitespace is trimmed).</p>
+<h3 id="ollama-configuration"><a class="header" href="#ollama-configuration">Ollama Configuration</a></h3>
+<p>Ollama does not require an API key. However, you may need to specify the URL if it’s not running on the default port.</p>
+<pre><code class="language-toml">[llm]
+provider="ollama"
+name="llama3"
+url="http://localhost:11434" # Optional, defaults to this value
+</code></pre>
+<h2 id="cli-options"><a class="header" href="#cli-options">CLI Options</a></h2>
+<ul>
+<li><code>--config &lt;FILE&gt;</code>: Path to a custom config file (default: <code>~/.config/oatbar-llm/config.toml</code>).</li>
+<li><code>--mode &lt;MODE&gt;</code>: Output mode (<code>json</code>, <code>debug</code>, <code>custom</code>).</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="links"><a class="header" href="#links">Links</a></h1>
+<ul>
+<li><a href="https://crates.io/crates/oatbar">Crates.io</a></li>
+<li><a href="https://github.com/igor-petruk/oatbar">Repository</a></li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>

@@ -1,0 +1,603 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>LLM - Oatbar</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../../css/general-2459343d.css">
+        <link rel="stylesheet" href="../../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../../searchindex-04455b86.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc-5ccd24b1.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Oatbar</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/igor-petruk/oatbar/tree/main" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/igor-petruk/oatbar/edit/main/book/src/configuration/cookbook/llm.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="llm"><a class="header" href="#llm">LLM</a></h1>
+<p><code>oatbar</code> ships with <code>oatbar-llm</code>, a powerful utility that uses LLMs to process data and return it in <code>i3bar</code> format.
+It can summarize logs, explain errors, fetch news, or just generate cool content.</p>
+<ul>
+<li><a href="#how-it-works">How it works</a></li>
+<li><a href="#examples">Examples</a>
+<ul>
+<li><a href="#system-health-check">System Health Check</a></li>
+<li><a href="#git-repository-status">Git Repository Status</a></li>
+<li><a href="#security-monitor">Security Monitor</a></li>
+<li><a href="#weather--outfit-advisor">Weather &amp; Outfit Advisor</a></li>
+<li><a href="#standup-meeting-helper">Standup Meeting Helper</a></li>
+</ul>
+</li>
+<li><a href="#knowledge-base-examples">Knowledge Base Examples</a>
+<ul>
+<li><a href="#code-review-helper-style-guide-enforcer">Code Review Helper (Style Guide Enforcer)</a></li>
+<li><a href="#focus--schedule-assistant">Focus &amp; Schedule Assistant</a></li>
+<li><a href="#error-log-analyzer">Error Log Analyzer</a></li>
+<li><a href="#hacker-news-rss-summary">Hacker News RSS Summary</a></li>
+</ul>
+</li>
+<li><a href="#tips--best-practices">Tips &amp; Best Practices</a>
+<ul>
+<li><a href="#debugging-prompts">Debugging Prompts</a></li>
+<li><a href="#prompt-engineering">Prompt Engineering</a></li>
+<li><a href="#quota-management">Quota Management</a></li>
+<li><a href="#consolidating-queries">Consolidating Queries</a></li>
+</ul>
+</li>
+</ul>
+<h3 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h3>
+<p><code>oatbar-llm</code> runs the configured <code>[[command]]</code>s <strong>before</strong> invoking the LLM. The output of these commands is then fed into the LLM prompt as context.</p>
+<p>This means the LLM <strong>does not</strong> execute tools or commands itself. You have full control over what data is sent to the model for processing.</p>
+<p>See <a href="../reference/llm.html">LLM Configuration</a> for full reference.</p>
+<h3 id="examples"><a class="header" href="#examples">Examples</a></h3>
+<div class="warning">
+<p>These examples are for illustrative purposes. Due to the non-deterministic nature of LLMs, you may need to tune the prompts (questions) to get the exact output format or content you desire for your specific model and use case.</p>
+</div>
+
+<h4 id="system-health-check"><a class="header" href="#system-health-check">System Health Check</a></h4>
+<p>Use <code>conky</code> to generate a detailed, one-shot system report and have the LLM analyze it for potential bottlenecks or issues.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/conky.conf</code></strong></p>
+<pre><code class="language-lua">conky.config = {
+    out_to_console = true,
+    out_to_x = false,
+    background = false,
+    update_interval = 1,
+    total_run_times = 1,
+    use_spacer = 'none',
+}
+
+conky.text = [[
+System Health Report
+--------------------
+Uptime: ${uptime}
+Load Avg: ${loadavg}
+Processes: ${running_processes} running of ${processes} total
+
+CPU: ${cpu}%
+RAM: ${memperc}% (${mem}/${memmax})
+Swap: ${swapperc}% (${swap}/${swapmax})
+
+Disk Usage:
+/      : ${fs_used /}/${fs_size /} (${fs_used_perc /}%)
+/home  : ${fs_used /home}/${fs_size /home} (${fs_used_perc /home}%)
+
+Network (eth0):
+Up: ${upspeed eth0} (Total: ${totalup eth0})
+Down: ${downspeed eth0} (Total: ${totaldown eth0})
+
+Top CPU:
+1. ${top name 1}: ${top cpu 1}%
+2. ${top name 2}: ${top cpu 2}%
+3. ${top name 3}: ${top cpu 3}%
+4. ${top name 4}: ${top cpu 4}%
+5. ${top name 5}: ${top cpu 5}%
+
+Top Mem:
+1. ${top_mem name 1}: ${top_mem mem 1}%
+2. ${top_mem name 2}: ${top_mem mem 2}%
+3. ${top_mem name 3}: ${top_mem mem 3}%
+4. ${top_mem name 4}: ${top_mem mem 4}%
+5. ${top_mem name 5}: ${top_mem mem 5}%
+]]
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name = "conky_report"
+command = "conky -c ~/.config/oatbar-llm/conky.conf"
+interval = 1800
+
+[[variable]]
+name = "health_check"
+type = "string"
+question = "Analyze this system report and summarize the health status. Highlight any resource hogs. Up to 5 words"
+
+[[variable]]
+name = "health_report"
+type = "string"
+question = "Generate a detailed bulleted report of the system health based on the data."
+write_to = "/tmp/health_report.md"
+</code></pre>
+<p><strong>3. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="conky_ai"
+command="oatbar-llm"
+interval=1800
+
+[[block]]
+name="health"
+type="text"
+value="${conky_ai:health_check.value}"
+on_mouse_left="xdg-open /tmp/health_report.md"
+</code></pre>
+<h4 id="git-repository-status"><a class="header" href="#git-repository-status">Git Repository Status</a></h4>
+<p>Summarize uncommitted changes in your current project to keep you focused.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="git_status"
+command="cd ~/Projects/my-project &amp;&amp; git status -s &amp;&amp; git diff --stat"
+
+[[variable]]
+name="git_summary"
+type="string"
+question="Summarize the uncommitted changes in 3-5 words. If clean, say 'Clean'."
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="git_ai"
+command="oatbar-llm"
+interval=600
+
+[[block]]
+name="git_status"
+type="text"
+value="Git: ${git_ai:git_summary.value}"
+</code></pre>
+<h4 id="security-monitor"><a class="header" href="#security-monitor">Security Monitor</a></h4>
+<p>Monitor open ports and recent authentication failures for a quick security overview.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="ports"
+command="ss -tuln"
+
+[[command]]
+name="auth_logs"
+command="journalctl -u sshd -n 20 --no-pager"
+
+[[variable]]
+name="security_alert"
+type="string"
+question="Analyze open ports and sshd logs. Is there any suspicious activity?"
+allowed_answers=["Safe", "Suspicious"]
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="security_ai"
+command="oatbar-llm"
+interval=3600
+
+[[block]]
+name="security"
+type="text"
+value="Sec: ${security_ai:security_alert.value}"
+</code></pre>
+<h4 id="weather--outfit-advisor"><a class="header" href="#weather--outfit-advisor">Weather &amp; Outfit Advisor</a></h4>
+<p>Get clothing suggestions based on the current weather.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="weather"
+command="curl -s 'https://api.open-meteo.com/v1/forecast?latitude=40.76&amp;longitude=-73.99&amp;current=temperature_2m,weather_code'"
+
+[[variable]]
+name="outfit"
+type="string"
+question="Based on this weather JSON (temperature in Celsius), suggest a simple outfit (e.g., 'T-shirt &amp; Shorts', 'Coat &amp; Scarf'). Keep it under 5 words."
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="outfit_ai"
+command="oatbar-llm"
+interval=7200
+
+[[block]]
+name="outfit"
+type="text"
+value="Wear: ${outfit_ai:outfit.value}"
+</code></pre>
+<h4 id="standup-meeting-helper"><a class="header" href="#standup-meeting-helper">Standup Meeting Helper</a></h4>
+<p>Summarize your work from the last 24 hours to prepare for your daily standup meeting.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+
+[[command]]
+name="my_commits"
+command="cd ~/Projects/my-project &amp;&amp; git log --author='My Name' --since='24 hours ago' --oneline"
+
+[[variable]]
+name="standup_notes"
+type="string"
+question="Create a bulleted list of my completed tasks for a standup meeting."
+write_to="/tmp/standup_notes.md"
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="standup_ai"
+command="oatbar-llm"
+interval=3600
+
+[[block]]
+name="standup"
+type="text"
+value="Standup Prep"
+on_mouse_left="xdg-open /tmp/standup_notes.md"
+</code></pre>
+<h3 id="knowledge-base-examples"><a class="header" href="#knowledge-base-examples">Knowledge Base Examples</a></h3>
+<p>These examples demonstrate how to use the <code>knowledge_base</code> feature to provide static context to the LLM, allowing it to act as a specialized assistant.</p>
+<h4 id="code-review-helper-style-guide-enforcer"><a class="header" href="#code-review-helper-style-guide-enforcer">Code Review Helper (Style Guide Enforcer)</a></h4>
+<p>Check your code against your team’s style guide.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/style_guide.md</code></strong></p>
+<pre><code class="language-markdown"># Team Style Guide
+- Prefer `unwrap_or_else` over `unwrap`.
+- Use `tracing` for logging, not `println!`.
+- All public functions must have documentation.
+- Variable names should be descriptive (no `x`, `y`, `temp`).
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/style_guide.md"
+
+[[command]]
+name="git_diff"
+command="cd ~/Projects/my-project &amp;&amp; git diff --cached"
+
+[[variable]]
+name="style_review"
+type="string"
+question="Review the git diff against the style guide. Point out any violations concisely."
+</code></pre>
+<h4 id="focus--schedule-assistant"><a class="header" href="#focus--schedule-assistant">Focus &amp; Schedule Assistant</a></h4>
+<p>Get reminders based on your personal schedule and priorities.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/schedule.md</code></strong></p>
+<pre><code class="language-markdown"># My Schedule &amp; Priorities
+- **Mornings (8am-12pm):** Deep work (Coding, Writing). No meetings.
+- **Lunch:** 12pm-1pm.
+- **Afternoons (1pm-5pm):** Meetings, Emails, Code Reviews.
+- **Evenings:** Learning Rust, Gym.
+
+**Current Focus:** Shipping the LLM module for Oatbar.
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/schedule.md"
+
+[[command]]
+name="current_time"
+command="date +%H:%M"
+
+[[variable]]
+name="focus_tip"
+type="string"
+question="Based on the current time and my schedule, what should I be focusing on right now? Keep it short."
+</code></pre>
+<h4 id="error-log-analyzer"><a class="header" href="#error-log-analyzer">Error Log Analyzer</a></h4>
+<p>Suggest next steps when system errors occur, based on a runbook.</p>
+<p><strong>1. Create <code>~/.config/oatbar-llm/runbook.md</code></strong></p>
+<pre><code class="language-markdown"># Incident Runbook
+- **High CPU:** Check `top`, identify process. If `cargo`, ignore. If unknown, kill.
+- **Disk Full:** Clean `/tmp` and `~/.cache`. Check `docker system df`.
+- **SSH Failures:** Check `auth.log` for repeated IPs. Ban with `fail2ban`.
+- **OOM:** Check kernel logs. Restart service.
+</code></pre>
+<p><strong>2. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/runbook.md"
+
+[[command]]
+name="sys_errors"
+command="journalctl -p err -n 10 --no-pager"
+
+[[variable]]
+name="incident_action"
+type="string"
+question="Analyze the recent system errors. Based on the runbook, what is the recommended action?"
+</code></pre>
+<h4 id="hacker-news-rss-summary"><a class="header" href="#hacker-news-rss-summary">Hacker News RSS Summary</a></h4>
+<p>Fetch the latest news and get a concise summary on your bar.</p>
+<p><strong>1. Configure <code>~/.config/oatbar-llm/config.toml</code></strong></p>
+<pre><code class="language-toml">[llm]
+provider="google"
+name="gemini-2.5-flash"
+knowledge_base="/home/user/.config/oatbar-llm/hn_preferences.md"
+</code></pre>
+<p>Create <code>~/.config/oatbar-llm/hn_preferences.md</code>:</p>
+<pre><code class="language-markdown">I am interested in:
+- Rust, Go, C++
+- System programming, Linux, Kernel
+- AI, LLMs, Machine Learning
+- Security, Cryptography
+
+I am NOT interested in:
+- Web frameworks (React, Vue, etc.)
+</code></pre>
+<pre><code class="language-toml">[[command]]
+name="hn_rss"
+command="curl -s https://news.ycombinator.com/rss"
+
+[[variable]]
+name="top_stories"
+type="string"
+question="Extract the top 3 most interesting headlines from this RSS feed and combine them into a single, short sentence separated by pipes."
+</code></pre>
+<p><strong>2. Configure <code>oatbar</code></strong></p>
+<pre><code class="language-toml">[[command]]
+name="news"
+command="oatbar-llm"
+interval=10800 # Every 3 hours
+
+[[block]]
+name="news_feed"
+type="text"
+value="HN: ${news:top_stories.value}"
+</code></pre>
+<h3 id="tips--best-practices"><a class="header" href="#tips--best-practices">Tips &amp; Best Practices</a></h3>
+<h4 id="debugging-prompts"><a class="header" href="#debugging-prompts">Debugging Prompts</a></h4>
+<p>Before connecting <code>oatbar-llm</code> to <code>oatbar</code>, run it manually in your terminal to verify the output. Use <code>oatbar-llm --mode=debug</code> to see the raw response from the LLM, which is helpful for troubleshooting prompts.</p>
+<h4 id="prompt-engineering"><a class="header" href="#prompt-engineering">Prompt Engineering</a></h4>
+<p>LLMs are sensitive to how you ask questions.</p>
+<ul>
+<li><strong>Be Specific</strong>: Instead of “What’s the status?”, ask “Summarize the system status in 3 words based on these logs.”</li>
+<li><strong>Define Output</strong>: Explicitly state the desired format (e.g., “Format: …”).</li>
+<li><strong>Iterate</strong>: Use the debug mode to tweak your prompt until you get consistent results.</li>
+</ul>
+<h4 id="quota-management"><a class="header" href="#quota-management">Quota Management</a></h4>
+<p>LLM API calls can be expensive or rate-limited.</p>
+<ul>
+<li><strong>Watch your usage</strong>: Monitor your provider’s dashboard.</li>
+<li><strong>Increase Intervals</strong>: For non-critical data (like weather or news), set the <code>interval</code> in <code>oatbar</code> to a higher value (e.g., <code>3600</code> for 1 hour, <code>10800</code> for 3 hours).</li>
+</ul>
+<h4 id="consolidating-queries"><a class="header" href="#consolidating-queries">Consolidating Queries</a></h4>
+<p>To save on API calls and context window usage, combine related tasks into a single <code>oatbar-llm</code> configuration.
+Instead of having one config for “CPU” and another for “Memory”, fetch both metrics in the <code>[[command]]</code> section and ask for a combined summary populating multiple <code>[[variable]]</code>s.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../configuration/cookbook/data.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../../configuration/cookbook/appearance.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../configuration/cookbook/data.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../../configuration/cookbook/appearance.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../../mark-09e88c2c.min.js"></script>
+        <script src="../../searcher-c2a407aa.js"></script>
+
+        <script src="../../clipboard-1626706a.min.js"></script>
+        <script src="../../highlight-abc7f01d.js"></script>
+        <script src="../../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

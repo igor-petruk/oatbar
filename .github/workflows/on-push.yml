@@ -1,0 +1,85 @@
+name: On Push
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+      #runs-on: ubuntu-latest
+      runs-on: ubuntu-24.04  # Temporary set this because it is newer than -latest
+      steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Ubuntu tools
+        run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libpango1.0-dev libx11-xcb-dev
+      
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: clippy
+      
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+      - name: Clippy check
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+  deploy-book:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # To push a branch 
+      pull-requests: write  # To create a PR from that branch
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install latest mdbook
+        run: |
+          tag=$(curl 'https://api.github.com/repos/rust-lang/mdbook/releases/latest' | jq -r '.tag_name')
+          url="https://github.com/rust-lang/mdbook/releases/download/${tag}/mdbook-${tag}-x86_64-unknown-linux-gnu.tar.gz"
+          mkdir mdbook
+          curl -sSL $url | tar -xz --directory=./mdbook
+          echo `pwd`/mdbook >> $GITHUB_PATH
+          tag=$(curl 'https://api.github.com/repos/badboy/mdbook-toc/releases/latest' | jq -r '.tag_name')
+          url="https://github.com/badboy/mdbook-toc/releases/download/${tag}/mdbook-toc-${tag}-x86_64-unknown-linux-gnu.tar.gz"
+          mkdir mdbook-toc
+          curl -sSL $url | tar -xz --directory=./mdbook-toc
+          echo `pwd`/mdbook-toc >> $GITHUB_PATH
+      - name: Build Book
+        run: |
+          # This assumes your book is in the root of your repository.
+          # Just add a `cd` here if you need to change to another directory.
+          cd book
+          mdbook build
+          git worktree add gh-pages
+          git config user.name "Deploy from CI"
+          git config user.email ""
+          cd gh-pages
+          # Delete the ref to avoid keeping history.
+          git update-ref -d refs/heads/gh-pages
+          rm -rf *
+          mv ../book/* .
+          echo oatbar.app > ./CNAME
+          git add .
+          git commit -m "Deploy $GITHUB_SHA to gh-pages"
+          git push --force --set-upstream origin gh-pages
