@@ -97,6 +97,7 @@ impl Window {
             config::BarPosition::Bottom => monitor.height as i16 - window_height as i16,
         };
         let x = monitor.x as i16;
+        let y = y + monitor.y as i16;
 
         info!(
             "Placing the bar at x: {}, y: {}, width: {}, height: {}",
