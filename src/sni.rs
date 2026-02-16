@@ -12,9 +12,104 @@ use tracing::*;
 
 mod sni_item;
 
+#[derive(Clone)]
+pub struct StatusNotifierItemProperties {
+    pub category: Option<String>,
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub status: Option<String>,
+    pub window_id: Option<i32>,
+    pub icon_name: Option<String>,
+    pub icon_pixmap: Option<Vec<(i32, i32, Vec<u8>)>>,
+    pub tool_tip: Option<(String, Vec<(i32, i32, Vec<u8>)>, String, String)>,
+    pub item_is_menu: Option<bool>,
+    pub menu: Option<zbus::zvariant::OwnedObjectPath>,
+    pub icon_theme_path: Option<String>,
+}
+
+impl Default for StatusNotifierItemProperties {
+    fn default() -> Self {
+        Self {
+            category: None,
+            id: None,
+            title: None,
+            status: None,
+            window_id: None,
+            icon_name: None,
+            icon_pixmap: None,
+            tool_tip: None,
+            item_is_menu: None,
+            menu: None,
+            icon_theme_path: None,
+        }
+    }
+}
+
+impl std::fmt::Debug for StatusNotifierItemProperties {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatusNotifierItemProperties")
+            .field("category", &self.category)
+            .field("id", &self.id)
+            .field("title", &self.title)
+            .field("status", &self.status)
+            .field("window_id", &self.window_id)
+            .field("icon_name", &self.icon_name)
+            .field(
+                "icon_pixmap",
+                &self.icon_pixmap.as_ref().map(|v| {
+                    v.iter()
+                        .map(|(w, h, d)| format!("{}x{} ({} bytes)", w, h, d.len()))
+                        .collect::<Vec<_>>()
+                }),
+            )
+            .field(
+                "tool_tip",
+                &self.tool_tip.as_ref().map(|(name, pixmaps, title, desc)| {
+                    (
+                        name,
+                        pixmaps
+                            .iter()
+                            .map(|(w, h, d)| format!("{}x{} ({} bytes)", w, h, d.len()))
+                            .collect::<Vec<_>>(),
+                        title,
+                        desc,
+                    )
+                }),
+            )
+            .field("item_is_menu", &self.item_is_menu)
+            .field("menu", &self.menu)
+            .field("icon_theme_path", &self.icon_theme_path)
+            .finish()
+    }
+}
+
+impl StatusNotifierItemProperties {
+    fn from_map(map: HashMap<String, zbus::zvariant::OwnedValue>) -> Self {
+        let mut props = Self::default();
+        for (k, v) in map {
+            match k.as_str() {
+                "Category" => props.category = v.try_into().ok(),
+                "Id" => props.id = v.try_into().ok(),
+                "Title" => props.title = v.try_into().ok(),
+                "Status" => props.status = v.try_into().ok(),
+                "WindowId" => props.window_id = v.try_into().ok(),
+                "IconName" => props.icon_name = v.try_into().ok(),
+                "IconPixmap" => props.icon_pixmap = v.try_into().ok(),
+                "ToolTip" => props.tool_tip = v.try_into().ok(),
+                "ItemIsMenu" => props.item_is_menu = v.try_into().ok(),
+                "Menu" => props.menu = v.try_into().ok(),
+                "IconThemePath" => props.icon_theme_path = v.try_into().ok(),
+                _ => {}
+            }
+        }
+        props
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItemInfo {
-    pub properties: HashMap<String, zbus::zvariant::OwnedValue>,
+    pub proxy: sni_item::StatusNotifierItemProxy<'static>,
+    pub properties: StatusNotifierItemProperties,
 }
 
 const SNI_HOST_NAME: &str = "org.kde.StatusNotifierHost";
@@ -68,7 +163,8 @@ impl StatusNotifierWatcher {
             items.insert(
                 bus_name.to_owned(),
                 StatusNotifierItemInfo {
-                    properties: HashMap::new(),
+                    proxy: proxy.clone(),
+                    properties: StatusNotifierItemProperties::default(),
                 },
             );
         }
@@ -90,7 +186,8 @@ impl StatusNotifierWatcher {
             .into_iter()
             .map(|(k, v)| (k, v.try_to_owned().unwrap()))
             .collect();
-        debug!("Properties: {:?}", props);
+        let item_props = StatusNotifierItemProperties::from_map(props);
+        debug!("Initial properties {}: {:?}", dest, item_props);
 
         {
             let mut items = items.lock().await;
@@ -98,7 +195,7 @@ impl StatusNotifierWatcher {
                 .unwrap()
                 .to_owned();
             if let Some(item) = items.get_mut(&bus_name_key) {
-                item.properties = props;
+                item.properties = item_props;
             }
         }
 
@@ -118,17 +215,17 @@ impl StatusNotifierWatcher {
                         .into_iter()
                         .map(|(k, v)| (k, v.try_to_owned().unwrap()))
                         .collect();
+                    let item_props = StatusNotifierItemProperties::from_map(props);
+                    debug!("Properties updated {}: {:?}", dest, item_props);
                     {
                         let mut items = items.lock().await;
                         let bus_name_key = zbus::names::BusName::try_from(dest.as_str())
                             .unwrap()
                             .to_owned();
                         if let Some(item) = items.get_mut(&bus_name_key) {
-                            item.properties = props.clone();
+                            item.properties = item_props.clone();
                         }
                     }
-                    debug!("Properties updated: {:?}", props.keys().len());
-                    debug!("IconName: {:?}", props.get("IconName"));
                 }
                 Some(owner_change) = owner_changes.next() => {
                     let args = owner_change.args()?;
@@ -144,7 +241,7 @@ impl StatusNotifierWatcher {
                 }
             }
         }
-        debug!("Service disconnected");
+        debug!("Service {} disconnected", dest);
         Ok(())
     }
 }
