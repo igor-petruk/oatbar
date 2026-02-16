@@ -187,7 +187,6 @@ async fn print_all_items(
 
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItemInfo {
-    pub proxy: sni_item::StatusNotifierItemProxy<'static>,
     pub properties: StatusNotifierItemProperties,
 }
 
@@ -242,7 +241,6 @@ impl StatusNotifierWatcher {
             items.insert(
                 bus_name.to_owned(),
                 StatusNotifierItemInfo {
-                    proxy: proxy.clone(),
                     properties: StatusNotifierItemProperties::default(),
                 },
             );
