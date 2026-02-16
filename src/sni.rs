@@ -10,7 +10,10 @@ use zbus::{interface, proxy};
 
 use tracing::*;
 
+mod protocol;
 mod sni_item;
+
+use protocol::i3bar;
 
 #[derive(Clone)]
 pub struct StatusNotifierItemProperties {
@@ -103,6 +106,82 @@ impl StatusNotifierItemProperties {
             }
         }
         props
+    }
+
+    fn to_block(&self) -> i3bar::Block {
+        let mut other: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+
+        if let Some(ref category) = self.category {
+            other.insert("category".into(), category.clone().into());
+        }
+        if let Some(ref title) = self.title {
+            other.insert("title".into(), title.clone().into());
+        }
+        if let Some(ref status) = self.status {
+            other.insert("status".into(), status.clone().into());
+        }
+        if let Some(window_id) = self.window_id {
+            other.insert("window_id".into(), window_id.into());
+        }
+        if let Some(ref icon_name) = self.icon_name {
+            other.insert("icon_name".into(), icon_name.clone().into());
+        }
+        if let Some(ref icon_theme_path) = self.icon_theme_path {
+            other.insert("icon_theme_path".into(), icon_theme_path.clone().into());
+        }
+
+        // Send only the largest pixmap.
+        if let Some(ref pixmaps) = self.icon_pixmap {
+            if let Some((w, h, data)) = pixmaps.iter().max_by_key(|(w, h, _)| w * h) {
+                other.insert("pixmap_width".into(), (*w).into());
+                other.insert("pixmap_height".into(), (*h).into());
+                let pixel_values: Vec<serde_json::Value> =
+                    data.iter().map(|b| (*b).into()).collect();
+                other.insert("pixmap".into(), pixel_values.into());
+            }
+        }
+
+        // Combine tooltip title and description into a single string.
+        if let Some(ref tool_tip) = self.tool_tip {
+            let (_, _, ref tip_title, ref tip_desc) = tool_tip;
+            let tooltip = match (tip_title.is_empty(), tip_desc.is_empty()) {
+                (false, false) => format!("{}: {}", tip_title, tip_desc),
+                (false, true) => tip_title.clone(),
+                (true, false) => tip_desc.clone(),
+                (true, true) => String::new(),
+            };
+            if !tooltip.is_empty() {
+                other.insert("tooltip".into(), tooltip.into());
+            }
+        }
+
+        let full_text = other
+            .get("tooltip")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| self.title.clone())
+            .or_else(|| self.id.clone())
+            .unwrap_or_default();
+
+        i3bar::Block {
+            name: Some("sni".into()),
+            instance: self.id.clone(),
+            full_text,
+            other,
+        }
+    }
+}
+
+async fn print_all_items(
+    items: &tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemInfo>>,
+) {
+    let items = items.lock().await;
+    let blocks: Vec<i3bar::Block> = items
+        .values()
+        .map(|info| info.properties.to_block())
+        .collect();
+    if let Ok(output) = serde_json::to_string(&blocks) {
+        println!("{},", output);
     }
 }
 
@@ -198,6 +277,7 @@ impl StatusNotifierWatcher {
                 item.properties = item_props;
             }
         }
+        print_all_items(&items).await;
 
         let inner_proxy = proxy.inner();
 
@@ -226,6 +306,7 @@ impl StatusNotifierWatcher {
                             item.properties = item_props.clone();
                         }
                     }
+                    print_all_items(&items).await;
                 }
                 Some(owner_change) = owner_changes.next() => {
                     let args = owner_change.args()?;
@@ -236,6 +317,7 @@ impl StatusNotifierWatcher {
                             items.remove(&name);
                             owned_emitter.status_notifier_item_unregistered(&name).await.unwrap();
                         }
+                        print_all_items(&items).await;
                         break;
                     }
                 }
@@ -369,6 +451,9 @@ async fn main() -> anyhow::Result<()> {
 
     let registry = tracing_subscriber::registry().with(stderr_layer.with_filter(filter));
     registry.init();
+
+    println!("{}", serde_json::to_string(&i3bar::Header::default())?);
+    println!("[");
 
     let done = Event::new();
     let listener = done.listen();
