@@ -43,12 +43,12 @@ impl StatusNotifierWatcher {
         items: std::sync::Arc<
             tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemInfo>>,
         >,
-        bus_name: String,
+        dest: String,
         path: String,
         service: String,
     ) -> anyhow::Result<()> {
         let proxy = sni_item::StatusNotifierItemProxy::builder(&session)
-            .destination(bus_name.clone())
+            .destination(dest.clone())
             .context(format!("Error setting destination for {}", service))?
             .path(path.clone())
             .context(format!("Error setting path for {}", service))?
@@ -60,8 +60,8 @@ impl StatusNotifierWatcher {
         {
             let mut items = items.lock().await;
 
-            let bus_name = zbus::names::BusName::try_from(bus_name.as_str())
-                .context(format!("Error converting service {} to BusName", bus_name))?;
+            let bus_name = zbus::names::BusName::try_from(dest.as_str())
+                .context(format!("Error converting service {} to BusName", dest))?;
 
             debug!("Successfully registered: {}", bus_name);
             debug!("Inserting item key: {:?}", bus_name);
@@ -78,27 +78,27 @@ impl StatusNotifierWatcher {
             .await
             .context(format!("Error emitting item registered for {}", service))?;
 
-        let props = zbus::fdo::PropertiesProxy::new(&session, bus_name.to_owned(), path.clone())
+        let props_proxy = zbus::fdo::PropertiesProxy::new(&session, dest.clone(), path.clone())
             .await
             .unwrap();
-        let properties = props
+        let raw_props = props_proxy
             .get_all(InterfaceName::try_from(SNI_ITEM_NAME).unwrap())
             .await
             .unwrap();
         // Convert to OwnedValue
-        let owned_props: HashMap<String, zbus::zvariant::OwnedValue> = properties
+        let props: HashMap<String, zbus::zvariant::OwnedValue> = raw_props
             .into_iter()
             .map(|(k, v)| (k, v.try_to_owned().unwrap()))
             .collect();
-        debug!("Properties: {:?}", owned_props);
+        debug!("Properties: {:?}", props);
 
         {
             let mut items = items.lock().await;
-            let bus_name_key = zbus::names::BusName::try_from(bus_name.as_str())
+            let bus_name_key = zbus::names::BusName::try_from(dest.as_str())
                 .unwrap()
                 .to_owned();
             if let Some(item) = items.get_mut(&bus_name_key) {
-                item.properties = owned_props;
+                item.properties = props;
             }
         }
 
@@ -110,29 +110,29 @@ impl StatusNotifierWatcher {
         loop {
             tokio::select! {
                 Some(_) = all_signals.next() => {
-                    let properties = props
+                    let raw_props = props_proxy
                         .get_all(InterfaceName::try_from(SNI_ITEM_NAME).unwrap())
                         .await
                         .unwrap();
-                    let owned_props: HashMap<String, zbus::zvariant::OwnedValue> = properties
+                    let props: HashMap<String, zbus::zvariant::OwnedValue> = raw_props
                         .into_iter()
                         .map(|(k, v)| (k, v.try_to_owned().unwrap()))
                         .collect();
                     {
                         let mut items = items.lock().await;
-                        let bus_name_key = zbus::names::BusName::try_from(bus_name.as_str())
+                        let bus_name_key = zbus::names::BusName::try_from(dest.as_str())
                             .unwrap()
                             .to_owned();
                         if let Some(item) = items.get_mut(&bus_name_key) {
-                            item.properties = owned_props.clone();
+                            item.properties = props.clone();
                         }
                     }
-                    debug!("Properties updated: {:?}", owned_props.keys().len());
-                    debug!("IconName: {:?}", owned_props.get("IconName"));
+                    debug!("Properties updated: {:?}", props.keys().len());
+                    debug!("IconName: {:?}", props.get("IconName"));
                 }
                 Some(owner_change) = owner_changes.next() => {
                     let args = owner_change.args()?;
-                    if args.name().as_str() == bus_name {
+                    if args.name().as_str() == dest {
                         {
                             let mut items = items.lock().await;
                             let name = args.name().to_owned();
@@ -170,7 +170,7 @@ impl StatusNotifierWatcher {
     ) -> zbus::fdo::Result<()> {
         debug!("Registering request for: {}", service);
 
-        let (bus_name, path) = if service.starts_with("/") {
+        let (dest, path) = if service.starts_with("/") {
             if let Some(sender) = header.sender() {
                 debug!("Sender: {}", sender);
                 (sender.to_string(), service.to_string())
@@ -188,7 +188,7 @@ impl StatusNotifierWatcher {
         let dbus_proxy = self.dbus_proxy.clone();
 
         debug!("Service/destination: {:?}", service);
-        debug!("Bus name: {}, Path: {}", bus_name, path);
+        debug!("Bus name: {}, Path: {}", dest, path);
 
         tokio::spawn(async move {
             if let Err(e) = Self::stream_updates(
@@ -196,7 +196,7 @@ impl StatusNotifierWatcher {
                 dbus_proxy,
                 owned_emitter,
                 items,
-                bus_name,
+                dest,
                 path.clone(),
                 service.clone(),
             )
