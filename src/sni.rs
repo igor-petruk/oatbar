@@ -1,7 +1,7 @@
 use anyhow::Context;
 use event_listener::{Event, Listener};
 use futures_util::stream::StreamExt;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 use zbus::names::InterfaceName;
@@ -11,6 +11,11 @@ use zbus::{interface, proxy};
 use tracing::*;
 
 mod sni_item;
+
+#[derive(Debug, Clone)]
+pub struct StatusNotifierItemInfo {
+    pub properties: HashMap<String, zbus::zvariant::OwnedValue>,
+}
 
 const SNI_HOST_NAME: &str = "org.kde.StatusNotifierHost";
 const SNI_ITEM_NAME: &str = "org.kde.StatusNotifierItem";
@@ -24,9 +29,7 @@ impl StatusNotifierHost {}
 struct StatusNotifierWatcher {
     host_name: Option<String>,
     items: std::sync::Arc<
-        tokio::sync::Mutex<
-            HashMap<zbus::names::BusName<'static>, sni_item::StatusNotifierItemProxy<'static>>,
-        >,
+        tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemInfo>>,
     >,
     session: zbus::Connection,
     dbus_proxy: zbus::fdo::DBusProxy<'static>,
@@ -38,9 +41,7 @@ impl StatusNotifierWatcher {
         dbus_proxy: zbus::fdo::DBusProxy<'static>,
         owned_emitter: SignalEmitter<'_>,
         items: std::sync::Arc<
-            tokio::sync::Mutex<
-                HashMap<zbus::names::BusName<'static>, sni_item::StatusNotifierItemProxy<'static>>,
-            >,
+            tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemInfo>>,
         >,
         bus_name: String,
         path: String,
@@ -64,7 +65,12 @@ impl StatusNotifierWatcher {
 
             debug!("Successfully registered: {}", bus_name);
             debug!("Inserting item key: {:?}", bus_name);
-            items.insert(bus_name.to_owned(), proxy.clone());
+            items.insert(
+                bus_name.to_owned(),
+                StatusNotifierItemInfo {
+                    properties: HashMap::new(),
+                },
+            );
         }
 
         owned_emitter
@@ -79,7 +85,22 @@ impl StatusNotifierWatcher {
             .get_all(InterfaceName::try_from(SNI_ITEM_NAME).unwrap())
             .await
             .unwrap();
-        debug!("Properties: {:?}", properties);
+        // Convert to OwnedValue
+        let owned_props: HashMap<String, zbus::zvariant::OwnedValue> = properties
+            .into_iter()
+            .map(|(k, v)| (k, v.try_to_owned().unwrap()))
+            .collect();
+        debug!("Properties: {:?}", owned_props);
+
+        {
+            let mut items = items.lock().await;
+            let bus_name_key = zbus::names::BusName::try_from(bus_name.as_str())
+                .unwrap()
+                .to_owned();
+            if let Some(item) = items.get_mut(&bus_name_key) {
+                item.properties = owned_props;
+            }
+        }
 
         let inner_proxy = proxy.inner();
 
@@ -93,8 +114,21 @@ impl StatusNotifierWatcher {
                         .get_all(InterfaceName::try_from(SNI_ITEM_NAME).unwrap())
                         .await
                         .unwrap();
-                    debug!("Properties: {:?}", properties.keys().len());
-                    debug!("IconName: {:?}", properties.get("IconName"));
+                    let owned_props: HashMap<String, zbus::zvariant::OwnedValue> = properties
+                        .into_iter()
+                        .map(|(k, v)| (k, v.try_to_owned().unwrap()))
+                        .collect();
+                    {
+                        let mut items = items.lock().await;
+                        let bus_name_key = zbus::names::BusName::try_from(bus_name.as_str())
+                            .unwrap()
+                            .to_owned();
+                        if let Some(item) = items.get_mut(&bus_name_key) {
+                            item.properties = owned_props.clone();
+                        }
+                    }
+                    debug!("Properties updated: {:?}", owned_props.keys().len());
+                    debug!("IconName: {:?}", owned_props.get("IconName"));
                 }
                 Some(owner_change) = owner_changes.next() => {
                     let args = owner_change.args()?;
@@ -259,7 +293,7 @@ async fn main() -> anyhow::Result<()> {
             StatusNotifierWatcher {
                 session,
                 dbus_proxy,
-                items: std::sync::Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+                items: std::sync::Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
                 host_name: None,
             },
         )?
