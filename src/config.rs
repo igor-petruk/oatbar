@@ -579,6 +579,16 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub input: Input<Dynamic>,
     #[serde(flatten)]
     pub event_handlers: EventHandlers<Dynamic>,
+    #[serde(default)]
+    pub pixmap: Dynamic,
+    #[serde(default)]
+    pub pixmap_width: Dynamic,
+    #[serde(default)]
+    pub pixmap_height: Dynamic,
+    #[serde(default)]
+    pub icon_name: Dynamic,
+    #[serde(default)]
+    pub icon_theme_path: Dynamic,
 }
 
 #[cfg(feature = "image")]
@@ -595,6 +605,11 @@ impl ImageBlock<Option<Placeholder>> {
             updater_value: self.updater_value.unwrap_or_default(),
             input: self.input.with_defaults(),
             event_handlers: self.event_handlers.with_default(),
+            pixmap: self.pixmap.unwrap_or_default(),
+            pixmap_width: self.pixmap_width.unwrap_or_default(),
+            pixmap_height: self.pixmap_height.unwrap_or_default(),
+            icon_name: self.icon_name.unwrap_or_default(),
+            icon_theme_path: self.icon_theme_path.unwrap_or_default(),
         }
     }
 }

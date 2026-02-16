@@ -161,6 +161,128 @@ impl ImageLoader {
         }
     }
 
+    /// Load an image from raw ARGB pixel data (as provided by SNI icon_pixmap).
+    /// SNI pixmaps are in network byte order: each pixel is [A, R, G, B].
+    /// Cairo on little-endian expects pre-multiplied native-endian ARGB32,
+    /// which is stored as [B, G, R, A] in memory.
+    pub fn load_from_argb_pixmap(
+        &mut self,
+        width: i32,
+        height: i32,
+        argb_data: &[u8],
+        fit_to_height: f64,
+    ) -> anyhow::Result<Image> {
+        let format = cairo::Format::ARgb32;
+        let mut image = cairo::ImageSurface::create(format, width, height)?;
+        {
+            let mut data = image.data()?;
+            for (dst, src) in data.chunks_mut(4).zip(argb_data.chunks(4)) {
+                if src.len() < 4 {
+                    break;
+                }
+                let a = src[0];
+                let r = src[1];
+                let g = src[2];
+                let b = src[3];
+                // Pre-multiply and store as BGRA (native LE for Cairo ARgb32).
+                dst[0] = (b as u16 * a as u16 / 255) as u8;
+                dst[1] = (g as u16 * a as u16 / 255) as u8;
+                dst[2] = (r as u16 * a as u16 / 255) as u8;
+                dst[3] = a;
+            }
+        }
+        // Scale down if needed (don't scale up).
+        let scale = (fit_to_height / height as f64).min(1.0);
+        if (scale - 1.0).abs() < 0.01 {
+            return Ok(image);
+        }
+        let new_w = (width as f64 * scale) as i32;
+        let new_h = (height as f64 * scale) as i32;
+        let scaled = cairo::ImageSurface::create(format, new_w, new_h)?;
+        let cr = cairo::Context::new(&scaled)?;
+        cr.scale(scale, scale);
+        cr.set_source_surface(&image, 0.0, 0.0)?;
+        cr.paint()?;
+        drop(cr);
+        Ok(scaled)
+    }
+
+    /// Load an icon by name using GTK4's IconTheme.
+    /// Renders the IconPaintable directly to a Cairo surface via GtkSnapshot.
+    /// Optionally accepts an icon_theme_path to add as a search directory.
+    #[cfg(feature = "gtk4_icons")]
+    pub fn load_from_icon_name(
+        &mut self,
+        icon_name: &str,
+        icon_theme_path: &str,
+        fit_to_height: f64,
+        cache: bool,
+    ) -> anyhow::Result<Image> {
+        use anyhow::Context;
+        use gtk4::prelude::*;
+
+        let key = ImageKey {
+            file_name: format!("icon:{}:{}", icon_name, icon_theme_path),
+            fit_to_height: fit_to_height as u32,
+        };
+        if cache {
+            if let Some(image) = self.cache.get(&key) {
+                return Ok(image.clone());
+            }
+        }
+        let display = gdk4::Display::default().unwrap();
+        let icon_theme = gtk4::IconTheme::for_display(&display);
+        if !icon_theme_path.is_empty() {
+            icon_theme.add_search_path(icon_theme_path);
+        }
+
+        let size = fit_to_height as i32;
+        let paintable = icon_theme.lookup_icon(
+            icon_name,
+            &[],
+            size,
+            1,
+            gtk4::TextDirection::Ltr,
+            gtk4::IconLookupFlags::FORCE_REGULAR,
+        );
+
+        // Render the paintable into a Cairo surface via GtkSnapshot → RenderNode.
+        let width = paintable.intrinsic_width().max(size);
+        let height = paintable.intrinsic_height().max(size);
+
+        let snapshot = gtk4::Snapshot::new();
+        paintable.snapshot(&snapshot, width as f64, height as f64);
+        let node = snapshot
+            .to_node()
+            .with_context(|| format!("Failed to render icon {:?} to node", icon_name))?;
+
+        let surface = cairo::ImageSurface::create(cairo::Format::ARgb32, width, height)?;
+        let cr = cairo::Context::new(&surface)?;
+        node.draw(&cr);
+        drop(cr);
+
+        // Scale down to fit_to_height if needed (don't scale up).
+        let scale = (fit_to_height / height as f64).min(1.0);
+        let result = if (scale - 1.0).abs() < 0.01 {
+            surface
+        } else {
+            let new_w = (width as f64 * scale) as i32;
+            let new_h = (height as f64 * scale) as i32;
+            let scaled = cairo::ImageSurface::create(cairo::Format::ARgb32, new_w, new_h)?;
+            let cr = cairo::Context::new(&scaled)?;
+            cr.scale(scale, scale);
+            cr.set_source_surface(&surface, 0.0, 0.0)?;
+            cr.paint()?;
+            drop(cr);
+            scaled
+        };
+
+        if cache {
+            self.cache.insert(key, result.clone());
+        }
+        Ok(result)
+    }
+
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),

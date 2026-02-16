@@ -62,6 +62,9 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
+    #[cfg(feature = "gtk4_icons")]
+    gtk4::init()?;
+
     #[cfg(feature = "profile")]
     let guard = pprof::ProfilerGuardBuilder::default()
         .frequency(100)

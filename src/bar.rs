@@ -1077,6 +1077,11 @@ impl Block for ImageBlock {
             self.config.event_handlers.update(vars)?,
             self.config.display.update(vars)?,
             self.config.input.update(vars)?,
+            self.config.pixmap.update(vars)?,
+            self.config.pixmap_width.update(vars)?,
+            self.config.pixmap_height.update(vars)?,
+            self.config.icon_name.update(vars)?,
+            self.config.icon_theme_path.update(vars)?,
             self.config
                 .display
                 .output_format
@@ -1087,11 +1092,68 @@ impl Block for ImageBlock {
         ]
         .any_updated();
         if any_updated {
+            let mut fit = fit_to_height;
+            if let Some(max_image_height) = self.config.image_options.max_image_height {
+                if (max_image_height as f64) < fit {
+                    fit = max_image_height as f64;
+                }
+            }
+            let cache_images = !updater_updated;
+
+            // Priority 1: Try loading from pixmap data.
+            let pixmap_data = &self.config.pixmap.value;
+            if !pixmap_data.is_empty() {
+                let width: i32 = self.config.pixmap_width.value.parse().unwrap_or_default();
+                let height: i32 = self.config.pixmap_height.value.parse().unwrap_or_default();
+                if width > 0 && height > 0 {
+                    let bytes: Result<Vec<u8>, _> = serde_json::from_str::<Vec<u8>>(pixmap_data);
+                    match bytes {
+                        Ok(argb_data) => {
+                            self.image_buf = Some(
+                                drawing_context
+                                    .image_loader
+                                    .load_from_argb_pixmap(width, height, &argb_data, fit)
+                                    .with_context(|| {
+                                        format!("Cannot load pixmap {}x{}", width, height)
+                                    })?,
+                            );
+                            return Ok(any_updated);
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to parse pixmap data: {:?}", e);
+                        }
+                    }
+                }
+            }
+
+            // Priority 2: Try loading by icon name via GTK4.
+            #[cfg(feature = "gtk4_icons")]
+            {
+                let icon_name = &self.config.icon_name.value;
+                if !icon_name.is_empty() {
+                    let icon_theme_path = &self.config.icon_theme_path.value;
+                    match drawing_context.image_loader.load_from_icon_name(
+                        icon_name,
+                        icon_theme_path,
+                        fit,
+                        cache_images,
+                    ) {
+                        Ok(image) => {
+                            self.image_buf = Some(image);
+                            return Ok(any_updated);
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to load icon {:?}: {:?}", icon_name, e);
+                        }
+                    }
+                }
+            }
+
+            // Priority 3: Fall back to file-based loading.
             let filename = &self.config.input.value.value;
             if filename.trim().is_empty() {
                 self.image_buf = None
             } else {
-                let cache_images = !updater_updated;
                 self.image_buf = Some(
                     self.load_image(drawing_context, filename, fit_to_height, cache_images)
                         .with_context(|| format!("Cannot load image from {:?}", filename))?,
