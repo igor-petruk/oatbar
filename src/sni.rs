@@ -87,6 +87,7 @@ impl From<(String, Vec<(i32, i32, Vec<u8>)>, String, String)> for Tooltip {
 
 #[derive(Clone, Default, Debug)]
 pub struct StatusNotifierItemProperties {
+    pub visible: bool,
     pub category: Option<String>,
     pub id: Option<String>,
     pub title: Option<String>,
@@ -102,7 +103,10 @@ pub struct StatusNotifierItemProperties {
 
 impl StatusNotifierItemProperties {
     fn from_map(map: HashMap<String, zbus::zvariant::OwnedValue>) -> Self {
-        let mut props = Self::default();
+        let mut props = Self {
+            visible: true,
+            ..Default::default()
+        };
         for (k, v) in map {
             match k.as_str() {
                 "Category" => props.category = v.try_into().ok(),
@@ -131,6 +135,9 @@ impl StatusNotifierItemProperties {
 
     fn to_block(&self) -> i3bar::Block {
         let mut other: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+
+        let visible_str = if self.visible { "1" } else { "" };
+        other.insert("visible".into(), visible_str.into());
 
         for (key, val) in [
             ("category", &self.category),
@@ -291,7 +298,14 @@ impl StatusNotifierWatcher {
                     if args.name().as_str() == dest {
                         {
                             let mut items = items.lock().await;
-                            items.remove(&bus_name);
+                            if let Some(item) = items.get_mut(&bus_name) {
+                                item.visible = false;
+                                // Clearing the pixmap so it does not clutter the output.
+                                item.icon_pixmap = None;
+                                if let Some(ref mut tooltip) = item.tool_tip {
+                                    tooltip.icon_pixmaps.clear();
+                                }
+                            }
                             owned_emitter
                                 .status_notifier_item_unregistered(&bus_name)
                                 .await?;
