@@ -15,7 +15,77 @@ mod sni_item;
 
 use protocol::i3bar;
 
+type ItemMap = std::sync::Arc<
+    tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemProperties>>,
+>;
+
 #[derive(Clone)]
+pub struct Pixmap {
+    pub width: i32,
+    pub height: i32,
+    pub data: Vec<u8>,
+}
+
+impl std::fmt::Debug for Pixmap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Pixmap({}x{}, {} bytes)",
+            self.width,
+            self.height,
+            self.data.len()
+        )
+    }
+}
+
+impl From<(i32, i32, Vec<u8>)> for Pixmap {
+    fn from((width, height, data): (i32, i32, Vec<u8>)) -> Self {
+        Self {
+            width,
+            height,
+            data,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Tooltip {
+    pub icon_name: String,
+    pub icon_pixmaps: Vec<Pixmap>,
+    pub title: String,
+    pub description: String,
+}
+
+impl Tooltip {
+    fn display_text(&self) -> Option<String> {
+        match (self.title.is_empty(), self.description.is_empty()) {
+            (false, false) => Some(format!("{}: {}", self.title, self.description)),
+            (false, true) => Some(self.title.clone()),
+            (true, false) => Some(self.description.clone()),
+            (true, true) => None,
+        }
+    }
+}
+
+impl From<(String, Vec<(i32, i32, Vec<u8>)>, String, String)> for Tooltip {
+    fn from(
+        (icon_name, pixmaps, title, description): (
+            String,
+            Vec<(i32, i32, Vec<u8>)>,
+            String,
+            String,
+        ),
+    ) -> Self {
+        Self {
+            icon_name,
+            icon_pixmaps: pixmaps.into_iter().map(Pixmap::from).collect(),
+            title,
+            description,
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug)]
 pub struct StatusNotifierItemProperties {
     pub category: Option<String>,
     pub id: Option<String>,
@@ -23,67 +93,11 @@ pub struct StatusNotifierItemProperties {
     pub status: Option<String>,
     pub window_id: Option<i32>,
     pub icon_name: Option<String>,
-    pub icon_pixmap: Option<Vec<(i32, i32, Vec<u8>)>>,
-    pub tool_tip: Option<(String, Vec<(i32, i32, Vec<u8>)>, String, String)>,
+    pub icon_pixmap: Option<Vec<Pixmap>>,
+    pub tool_tip: Option<Tooltip>,
     pub item_is_menu: Option<bool>,
     pub menu: Option<zbus::zvariant::OwnedObjectPath>,
     pub icon_theme_path: Option<String>,
-}
-
-impl Default for StatusNotifierItemProperties {
-    fn default() -> Self {
-        Self {
-            category: None,
-            id: None,
-            title: None,
-            status: None,
-            window_id: None,
-            icon_name: None,
-            icon_pixmap: None,
-            tool_tip: None,
-            item_is_menu: None,
-            menu: None,
-            icon_theme_path: None,
-        }
-    }
-}
-
-impl std::fmt::Debug for StatusNotifierItemProperties {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StatusNotifierItemProperties")
-            .field("category", &self.category)
-            .field("id", &self.id)
-            .field("title", &self.title)
-            .field("status", &self.status)
-            .field("window_id", &self.window_id)
-            .field("icon_name", &self.icon_name)
-            .field(
-                "icon_pixmap",
-                &self.icon_pixmap.as_ref().map(|v| {
-                    v.iter()
-                        .map(|(w, h, d)| format!("{}x{} ({} bytes)", w, h, d.len()))
-                        .collect::<Vec<_>>()
-                }),
-            )
-            .field(
-                "tool_tip",
-                &self.tool_tip.as_ref().map(|(name, pixmaps, title, desc)| {
-                    (
-                        name,
-                        pixmaps
-                            .iter()
-                            .map(|(w, h, d)| format!("{}x{} ({} bytes)", w, h, d.len()))
-                            .collect::<Vec<_>>(),
-                        title,
-                        desc,
-                    )
-                }),
-            )
-            .field("item_is_menu", &self.item_is_menu)
-            .field("menu", &self.menu)
-            .field("icon_theme_path", &self.icon_theme_path)
-            .finish()
-    }
 }
 
 impl StatusNotifierItemProperties {
@@ -97,8 +111,15 @@ impl StatusNotifierItemProperties {
                 "Status" => props.status = v.try_into().ok(),
                 "WindowId" => props.window_id = v.try_into().ok(),
                 "IconName" => props.icon_name = v.try_into().ok(),
-                "IconPixmap" => props.icon_pixmap = v.try_into().ok(),
-                "ToolTip" => props.tool_tip = v.try_into().ok(),
+                "IconPixmap" => {
+                    let raw: Option<Vec<(i32, i32, Vec<u8>)>> = v.try_into().ok();
+                    props.icon_pixmap = raw.map(|v| v.into_iter().map(Pixmap::from).collect());
+                }
+                "ToolTip" => {
+                    let raw: Option<(String, Vec<(i32, i32, Vec<u8>)>, String, String)> =
+                        v.try_into().ok();
+                    props.tool_tip = raw.map(Tooltip::from);
+                }
                 "ItemIsMenu" => props.item_is_menu = v.try_into().ok(),
                 "Menu" => props.menu = v.try_into().ok(),
                 "IconThemePath" => props.icon_theme_path = v.try_into().ok(),
@@ -111,47 +132,35 @@ impl StatusNotifierItemProperties {
     fn to_block(&self) -> i3bar::Block {
         let mut other: BTreeMap<String, serde_json::Value> = BTreeMap::new();
 
-        if let Some(ref category) = self.category {
-            other.insert("category".into(), category.clone().into());
+        for (key, val) in [
+            ("category", &self.category),
+            ("title", &self.title),
+            ("status", &self.status),
+            ("icon_name", &self.icon_name),
+            ("icon_theme_path", &self.icon_theme_path),
+        ] {
+            if let Some(v) = val {
+                other.insert(key.into(), v.clone().into());
+            }
         }
-        if let Some(ref title) = self.title {
-            other.insert("title".into(), title.clone().into());
-        }
-        if let Some(ref status) = self.status {
-            other.insert("status".into(), status.clone().into());
-        }
+
         if let Some(window_id) = self.window_id {
             other.insert("window_id".into(), window_id.into());
         }
-        if let Some(ref icon_name) = self.icon_name {
-            other.insert("icon_name".into(), icon_name.clone().into());
-        }
-        if let Some(ref icon_theme_path) = self.icon_theme_path {
-            other.insert("icon_theme_path".into(), icon_theme_path.clone().into());
-        }
 
-        // Send only the largest pixmap.
         if let Some(ref pixmaps) = self.icon_pixmap {
-            if let Some((w, h, data)) = pixmaps.iter().max_by_key(|(w, h, _)| w * h) {
-                other.insert("pixmap_width".into(), (*w).into());
-                other.insert("pixmap_height".into(), (*h).into());
+            if let Some(pixmap) = pixmaps.iter().max_by_key(|p| p.width * p.height) {
+                other.insert("pixmap_width".into(), pixmap.width.into());
+                other.insert("pixmap_height".into(), pixmap.height.into());
                 let pixel_values: Vec<serde_json::Value> =
-                    data.iter().map(|b| (*b).into()).collect();
+                    pixmap.data.iter().map(|b| (*b).into()).collect();
                 other.insert("pixmap".into(), pixel_values.into());
             }
         }
 
-        // Combine tooltip title and description into a single string.
-        if let Some(ref tool_tip) = self.tool_tip {
-            let (_, _, ref tip_title, ref tip_desc) = tool_tip;
-            let tooltip = match (tip_title.is_empty(), tip_desc.is_empty()) {
-                (false, false) => format!("{}: {}", tip_title, tip_desc),
-                (false, true) => tip_title.clone(),
-                (true, false) => tip_desc.clone(),
-                (true, true) => String::new(),
-            };
-            if !tooltip.is_empty() {
-                other.insert("tooltip".into(), tooltip.into());
+        if let Some(ref tooltip) = self.tool_tip {
+            if let Some(text) = tooltip.display_text() {
+                other.insert("tooltip".into(), text.into());
             }
         }
 
@@ -172,22 +181,12 @@ impl StatusNotifierItemProperties {
     }
 }
 
-async fn print_all_items(
-    items: &tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemInfo>>,
-) {
+async fn print_all_items(items: &ItemMap) {
     let items = items.lock().await;
-    let blocks: Vec<i3bar::Block> = items
-        .values()
-        .map(|info| info.properties.to_block())
-        .collect();
+    let blocks: Vec<i3bar::Block> = items.values().map(|props| props.to_block()).collect();
     if let Ok(output) = serde_json::to_string(&blocks) {
         println!("{},", output);
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct StatusNotifierItemInfo {
-    pub properties: StatusNotifierItemProperties,
 }
 
 const SNI_HOST_NAME: &str = "org.kde.StatusNotifierHost";
@@ -201,21 +200,31 @@ impl StatusNotifierHost {}
 
 struct StatusNotifierWatcher {
     host_name: Option<String>,
-    items: std::sync::Arc<
-        tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemInfo>>,
-    >,
+    items: ItemMap,
     session: zbus::Connection,
     dbus_proxy: zbus::fdo::DBusProxy<'static>,
 }
 
 impl StatusNotifierWatcher {
+    async fn fetch_properties(
+        props_proxy: &zbus::fdo::PropertiesProxy<'_>,
+    ) -> anyhow::Result<StatusNotifierItemProperties> {
+        let raw_props = props_proxy
+            .get_all(InterfaceName::try_from(SNI_ITEM_NAME).unwrap())
+            .await
+            .context("Failed to get properties")?;
+        let props: HashMap<String, zbus::zvariant::OwnedValue> = raw_props
+            .into_iter()
+            .filter_map(|(k, v)| v.try_to_owned().ok().map(|v| (k, v)))
+            .collect();
+        Ok(StatusNotifierItemProperties::from_map(props))
+    }
+
     async fn stream_updates(
         session: zbus::Connection,
         dbus_proxy: zbus::fdo::DBusProxy<'static>,
         owned_emitter: SignalEmitter<'_>,
-        items: std::sync::Arc<
-            tokio::sync::Mutex<BTreeMap<zbus::names::BusName<'static>, StatusNotifierItemInfo>>,
-        >,
+        items: ItemMap,
         dest: String,
         path: String,
         service: String,
@@ -230,20 +239,14 @@ impl StatusNotifierWatcher {
             .await
             .context(format!("Error building proxy for {}", service))?;
 
+        let bus_name = zbus::names::BusName::try_from(dest.as_str())
+            .context(format!("Invalid bus name: {}", dest))?
+            .to_owned();
+
         {
             let mut items = items.lock().await;
-
-            let bus_name = zbus::names::BusName::try_from(dest.as_str())
-                .context(format!("Error converting service {} to BusName", dest))?;
-
-            debug!("Successfully registered: {}", bus_name);
-            debug!("Inserting item key: {:?}", bus_name);
-            items.insert(
-                bus_name.to_owned(),
-                StatusNotifierItemInfo {
-                    properties: StatusNotifierItemProperties::default(),
-                },
-            );
+            debug!("Inserting item: {:?}", bus_name);
+            items.insert(bus_name.clone(), StatusNotifierItemProperties::default());
         }
 
         owned_emitter
@@ -253,55 +256,32 @@ impl StatusNotifierWatcher {
 
         let props_proxy = zbus::fdo::PropertiesProxy::new(&session, dest.clone(), path.clone())
             .await
-            .unwrap();
-        let raw_props = props_proxy
-            .get_all(InterfaceName::try_from(SNI_ITEM_NAME).unwrap())
-            .await
-            .unwrap();
-        // Convert to OwnedValue
-        let props: HashMap<String, zbus::zvariant::OwnedValue> = raw_props
-            .into_iter()
-            .map(|(k, v)| (k, v.try_to_owned().unwrap()))
-            .collect();
-        let item_props = StatusNotifierItemProperties::from_map(props);
+            .context("Failed to create properties proxy")?;
+
+        let item_props = Self::fetch_properties(&props_proxy).await?;
         debug!("Initial properties {}: {:?}", dest, item_props);
 
         {
             let mut items = items.lock().await;
-            let bus_name_key = zbus::names::BusName::try_from(dest.as_str())
-                .unwrap()
-                .to_owned();
-            if let Some(item) = items.get_mut(&bus_name_key) {
-                item.properties = item_props;
+            if let Some(item) = items.get_mut(&bus_name) {
+                *item = item_props;
             }
         }
         print_all_items(&items).await;
 
         let inner_proxy = proxy.inner();
-
-        let mut all_signals = inner_proxy.receive_all_signals().await.unwrap();
-        let mut owner_changes = dbus_proxy.receive_name_owner_changed().await.unwrap();
+        let mut all_signals = inner_proxy.receive_all_signals().await?;
+        let mut owner_changes = dbus_proxy.receive_name_owner_changed().await?;
 
         loop {
             tokio::select! {
                 Some(_) = all_signals.next() => {
-                    let raw_props = props_proxy
-                        .get_all(InterfaceName::try_from(SNI_ITEM_NAME).unwrap())
-                        .await
-                        .unwrap();
-                    let props: HashMap<String, zbus::zvariant::OwnedValue> = raw_props
-                        .into_iter()
-                        .map(|(k, v)| (k, v.try_to_owned().unwrap()))
-                        .collect();
-                    let item_props = StatusNotifierItemProperties::from_map(props);
+                    let item_props = Self::fetch_properties(&props_proxy).await?;
                     debug!("Properties updated {}: {:?}", dest, item_props);
                     {
                         let mut items = items.lock().await;
-                        let bus_name_key = zbus::names::BusName::try_from(dest.as_str())
-                            .unwrap()
-                            .to_owned();
-                        if let Some(item) = items.get_mut(&bus_name_key) {
-                            item.properties = item_props.clone();
+                        if let Some(item) = items.get_mut(&bus_name) {
+                            *item = item_props;
                         }
                     }
                     print_all_items(&items).await;
@@ -311,9 +291,10 @@ impl StatusNotifierWatcher {
                     if args.name().as_str() == dest {
                         {
                             let mut items = items.lock().await;
-                            let name = args.name().to_owned();
-                            items.remove(&name);
-                            owned_emitter.status_notifier_item_unregistered(&name).await.unwrap();
+                            items.remove(&bus_name);
+                            owned_emitter
+                                .status_notifier_item_unregistered(&bus_name)
+                                .await?;
                         }
                         print_all_items(&items).await;
                         break;
