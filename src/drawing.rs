@@ -161,10 +161,6 @@ impl ImageLoader {
         }
     }
 
-    /// Load an image from raw ARGB pixel data (as provided by SNI icon_pixmap).
-    /// SNI pixmaps are in network byte order: each pixel is [A, R, G, B].
-    /// Cairo on little-endian expects pre-multiplied native-endian ARGB32,
-    /// which is stored as [B, G, R, A] in memory.
     pub fn load_from_argb_pixmap(
         &mut self,
         width: i32,
@@ -246,7 +242,6 @@ impl ImageLoader {
             gtk4::IconLookupFlags::FORCE_REGULAR,
         );
 
-        // Render the paintable into a Cairo surface via GtkSnapshot → RenderNode.
         let width = paintable.intrinsic_width().max(size);
         let height = paintable.intrinsic_height().max(size);
 
@@ -256,31 +251,20 @@ impl ImageLoader {
             .to_node()
             .with_context(|| format!("Failed to render icon {:?} to node", icon_name))?;
 
-        let surface = cairo::ImageSurface::create(cairo::Format::ARgb32, width, height)?;
+        let scale = (fit_to_height / height as f64).min(1.0);
+        let target_w = (width as f64 * scale) as i32;
+        let target_h = (height as f64 * scale) as i32;
+
+        let surface = cairo::ImageSurface::create(cairo::Format::ARgb32, target_w, target_h)?;
         let cr = cairo::Context::new(&surface)?;
+        cr.scale(scale, scale);
         node.draw(&cr);
         drop(cr);
 
-        // Scale down to fit_to_height if needed (don't scale up).
-        let scale = (fit_to_height / height as f64).min(1.0);
-        let result = if (scale - 1.0).abs() < 0.01 {
-            surface
-        } else {
-            let new_w = (width as f64 * scale) as i32;
-            let new_h = (height as f64 * scale) as i32;
-            let scaled = cairo::ImageSurface::create(cairo::Format::ARgb32, new_w, new_h)?;
-            let cr = cairo::Context::new(&scaled)?;
-            cr.scale(scale, scale);
-            cr.set_source_surface(&surface, 0.0, 0.0)?;
-            cr.paint()?;
-            drop(cr);
-            scaled
-        };
-
         if cache {
-            self.cache.insert(key, result.clone());
+            self.cache.insert(key, surface.clone());
         }
-        Ok(result)
+        Ok(surface)
     }
 
     pub fn new() -> Self {
