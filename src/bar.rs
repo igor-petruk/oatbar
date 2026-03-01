@@ -59,8 +59,22 @@ pub enum Button {
     ScrollDown,
 }
 
+impl std::fmt::Display for Button {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Button::Left => write!(f, "left"),
+            Button::Right => write!(f, "right"),
+            Button::Middle => write!(f, "middle"),
+            Button::ScrollUp => write!(f, "scroll_up"),
+            Button::ScrollDown => write!(f, "scroll_down"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ButtonPress {
+    pub abs_x: f64,
+    pub abs_y: f64,
     pub x: f64,
     pub y: f64,
     pub button: Button,
@@ -127,6 +141,11 @@ fn handle_block_event(
                 let mut envs = extra_envs;
                 envs.push(("BLOCK_NAME".into(), name.into()));
                 envs.push(("BLOCK_VALUE".into(), value.into()));
+                envs.push(("ABS_X".into(), e.abs_x.to_string()));
+                envs.push(("ABS_Y".into(), e.abs_y.to_string()));
+                envs.push(("BLOCK_X".into(), e.x.to_string()));
+                envs.push(("BLOCK_Y".into(), e.y.to_string()));
+                envs.push(("BUTTON".into(), format!("{}", e.button)));
                 process::run_detached(command, envs)?;
             }
         }
@@ -1673,6 +1692,8 @@ impl Bar {
 
         if let Some((block_pos, block)) = block_pair {
             block.handle_event(&BlockEvent::ButtonPress(ButtonPress {
+                abs_x: x,
+                abs_y: y,
                 x: x - block_pos,
                 y,
                 button,

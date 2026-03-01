@@ -1,4 +1,5 @@
 use anyhow::Context;
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use event_listener::{Event, Listener};
 use futures_util::stream::StreamExt;
 use std::collections::{BTreeMap, HashMap};
@@ -87,6 +88,7 @@ impl From<(String, Vec<(i32, i32, Vec<u8>)>, String, String)> for Tooltip {
 
 #[derive(Clone, Default, Debug)]
 pub struct StatusNotifierItemProperties {
+    pub dbus_destination: String,
     pub visible: bool,
     pub category: Option<String>,
     pub id: Option<String>,
@@ -102,8 +104,12 @@ pub struct StatusNotifierItemProperties {
 }
 
 impl StatusNotifierItemProperties {
-    fn from_map(map: HashMap<String, zbus::zvariant::OwnedValue>) -> Self {
+    fn from_map(
+        dbus_destination: String,
+        map: HashMap<String, zbus::zvariant::OwnedValue>,
+    ) -> Self {
         let mut props = Self {
+            dbus_destination,
             visible: true,
             ..Default::default()
         };
@@ -138,6 +144,7 @@ impl StatusNotifierItemProperties {
 
         let visible_str = if self.visible { "1" } else { "" };
         other.insert("visible".into(), visible_str.into());
+        other.insert("dbus".into(), self.dbus_destination.clone().into());
 
         for (key, val) in [
             ("category", &self.category),
@@ -224,7 +231,10 @@ impl StatusNotifierWatcher {
             .into_iter()
             .filter_map(|(k, v)| v.try_to_owned().ok().map(|v| (k, v)))
             .collect();
-        Ok(StatusNotifierItemProperties::from_map(props))
+        Ok(StatusNotifierItemProperties::from_map(
+            props_proxy.inner().destination().to_string(),
+            props,
+        ))
     }
 
     async fn stream_updates(
@@ -429,8 +439,57 @@ trait StatusNotifierWatcher {
     fn register_status_notifier_host(&self, service: &str) -> zbus::Result<()>;
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+#[derive(Parser)]
+#[command(
+    author, version,
+    about = "Status Notifier Item util for oatbar",
+    long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(ValueEnum, Clone, Copy)]
+enum MouseButton {
+    Left,
+    Middle,
+    Right,
+}
+
+#[derive(Args)]
+struct ActivateArgs {
+    dbus: String,
+    button: MouseButton,
+    abs_x: i32,
+    abs_y: i32,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Activate(ActivateArgs),
+}
+
+async fn process_activate(args: ActivateArgs) -> anyhow::Result<()> {
+    let session = zbus::Connection::session().await?;
+    let proxy = sni_item::StatusNotifierItemProxy::builder(&session)
+        .destination(args.dbus.clone())
+        .context(format!("Error setting destination for {}", args.dbus))?
+        .path("/StatusNotifierItem")
+        .context(format!("Error setting path for {}", args.dbus))?
+        .cache_properties(proxy::CacheProperties::No)
+        .build()
+        .await
+        .context(format!("Error building proxy for {}", args.dbus))?;
+    match args.button {
+        MouseButton::Left => proxy.activate(args.abs_x, args.abs_y).await?,
+        MouseButton::Middle => proxy.secondary_activate(args.abs_x, args.abs_y).await?,
+        MouseButton::Right => proxy.context_menu(args.abs_x, args.abs_y).await?,
+    }
+    Ok(())
+}
+
+async fn process_streaming() -> anyhow::Result<()> {
     let stderr_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .with_thread_names(true)
@@ -481,5 +540,15 @@ async fn main() -> anyhow::Result<()> {
 
     listener.wait();
 
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    match cli.command {
+        Some(Commands::Activate(args)) => process_activate(args).await?,
+        None => process_streaming().await?,
+    }
     Ok(())
 }
