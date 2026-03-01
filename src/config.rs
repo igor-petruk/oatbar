@@ -71,6 +71,18 @@ impl Decorations<Placeholder> {
 }
 
 impl Decorations<Option<Placeholder>> {
+    /// Fills `None` fields from `other`, staying at the `Option` level.
+    pub fn or(self, other: Self) -> Self {
+        Decorations {
+            foreground: self.foreground.or(other.foreground),
+            background: self.background.or(other.background),
+            overline_color: self.overline_color.or(other.overline_color),
+            underline_color: self.underline_color.or(other.underline_color),
+            edgeline_color: self.edgeline_color.or(other.edgeline_color),
+            line_width: self.line_width.or(other.line_width),
+        }
+    }
+
     pub fn with_default(self, default: &Decorations<Placeholder>) -> Decorations<Placeholder> {
         Decorations {
             foreground: self
@@ -153,6 +165,9 @@ impl DisplayOptions<Option<Placeholder>> {
         self,
         default: &DisplayOptions<Placeholder>,
     ) -> DisplayOptions<Placeholder> {
+        let resolved_decorations = self.decorations.clone().with_default(&default.decorations);
+        // Hover fallback chain: block's hover → block's regular → default's hover → default's regular.
+        let merged_hover = self.hover_decorations.or(self.decorations);
         DisplayOptions {
             font: self.font.unwrap_or_else(|| default.font.clone()),
             output_format: self
@@ -163,10 +178,8 @@ impl DisplayOptions<Option<Placeholder>> {
                 .unwrap_or_else(|| default.popup_value.clone()),
             margin: self.margin.or(default.margin),
             padding: self.padding.or(default.padding),
-            decorations: self.decorations.clone().with_default(&default.decorations),
-            hover_decorations: self
-                .hover_decorations
-                .with_default(&default.hover_decorations),
+            hover_decorations: merged_hover.with_default(&default.hover_decorations),
+            decorations: resolved_decorations,
             show_if_matches: if self.show_if_matches.is_empty() {
                 default.show_if_matches.clone()
             } else {
@@ -1095,5 +1108,52 @@ mod tests {
             Some(10.0 * 1024.0),
             NumberType::Bytes.parse_str("  10 KiB  ").unwrap()
         );
+    }
+
+    #[test]
+    fn test_hover_decorations_inherit_from_decorations() {
+        let default = default_display();
+        // Override only `decorations.line_width`, leave hover unset.
+        let opts: DisplayOptions<Option<Placeholder>> = DisplayOptions {
+            decorations: Decorations {
+                line_width: Some(5.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let resolved = opts.with_default(&default);
+        // hover_line_width should inherit from the resolved decorations (5.0),
+        // not from the system default (1.1).
+        assert_eq!(resolved.hover_decorations.line_width, Some(5.0));
+        assert_eq!(resolved.decorations.line_width, Some(5.0));
+    }
+
+    #[test]
+    fn test_default_block_hover_preserved_for_blocks() {
+        // Simulate a default_block with explicit hover_foreground.
+        let mut default_display = default_display();
+        default_display.hover_decorations.foreground = Placeholder::infallable("#ff0000");
+        default_display.decorations.line_width = Some(2.0);
+        default_display.hover_decorations.line_width = Some(2.0);
+
+        // Block sets nothing — should inherit default's hover_foreground.
+        let block_opts: DisplayOptions<Option<Placeholder>> = DisplayOptions::default();
+        let resolved = block_opts.with_default(&default_display);
+        assert_eq!(resolved.hover_decorations.foreground.value, "#ff0000");
+        assert_eq!(resolved.hover_decorations.line_width, Some(2.0));
+
+        // Block overrides line_width but not hover — hover should pick up block's line_width.
+        let block_opts2: DisplayOptions<Option<Placeholder>> = DisplayOptions {
+            decorations: Decorations {
+                line_width: Some(7.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let resolved2 = block_opts2.with_default(&default_display);
+        assert_eq!(resolved2.decorations.line_width, Some(7.0));
+        assert_eq!(resolved2.hover_decorations.line_width, Some(7.0));
+        // default_block's hover_foreground still preserved.
+        assert_eq!(resolved2.hover_decorations.foreground.value, "#ff0000");
     }
 }
