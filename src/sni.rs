@@ -126,8 +126,13 @@ impl StatusNotifierItemProperties {
                     props.icon_pixmap = raw.map(|v| v.into_iter().map(Pixmap::from).collect());
                 }
                 "ToolTip" => {
-                    let raw: Option<(String, Vec<(i32, i32, Vec<u8>)>, String, String)> =
-                        v.try_into().ok();
+                    #[allow(clippy::type_complexity)]
+                    let raw: Option<(
+                        String,
+                        Vec<(i32, i32, Vec<u8>)>,
+                        String,
+                        String,
+                    )> = v.try_into().ok();
                     props.tool_tip = raw.map(Tooltip::from);
                 }
                 "ItemIsMenu" => props.item_is_menu = v.try_into().ok(),
@@ -422,11 +427,7 @@ impl StatusNotifierWatcher {
     #[zbus(property)]
     async fn registered_status_notifier_items(&self) -> Vec<String> {
         let items = self.items.lock().await;
-        items
-            .keys()
-            .cloned()
-            .map(|name| name.as_str().to_string())
-            .collect()
+        items.keys().map(|name| name.as_str().to_string()).collect()
     }
 }
 
