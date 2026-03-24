@@ -52,7 +52,7 @@ cargo install oatbar
 ```
 
 During the first launch the bar will create a default config at
-`~/.config/oatbar.toml` that should work on most machines. Run: 
+`~/.config/oatbar/config.toml` that should work on most machines. Run: 
 
 ```sh
 oatbar

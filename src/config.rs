@@ -71,6 +71,18 @@ impl Decorations<Placeholder> {
 }
 
 impl Decorations<Option<Placeholder>> {
+    /// Fills `None` fields from `other`, staying at the `Option` level.
+    pub fn or(self, other: Self) -> Self {
+        Decorations {
+            foreground: self.foreground.or(other.foreground),
+            background: self.background.or(other.background),
+            overline_color: self.overline_color.or(other.overline_color),
+            underline_color: self.underline_color.or(other.underline_color),
+            edgeline_color: self.edgeline_color.or(other.edgeline_color),
+            line_width: self.line_width.or(other.line_width),
+        }
+    }
+
     pub fn with_default(self, default: &Decorations<Placeholder>) -> Decorations<Placeholder> {
         Decorations {
             foreground: self
@@ -153,6 +165,9 @@ impl DisplayOptions<Option<Placeholder>> {
         self,
         default: &DisplayOptions<Placeholder>,
     ) -> DisplayOptions<Placeholder> {
+        let resolved_decorations = self.decorations.clone().with_default(&default.decorations);
+        // Hover fallback chain: block's hover → block's regular → default's hover → default's regular.
+        let merged_hover = self.hover_decorations.or(self.decorations);
         DisplayOptions {
             font: self.font.unwrap_or_else(|| default.font.clone()),
             output_format: self
@@ -163,10 +178,8 @@ impl DisplayOptions<Option<Placeholder>> {
                 .unwrap_or_else(|| default.popup_value.clone()),
             margin: self.margin.or(default.margin),
             padding: self.padding.or(default.padding),
-            decorations: self.decorations.clone().with_default(&default.decorations),
-            hover_decorations: self
-                .hover_decorations
-                .with_default(&default.hover_decorations),
+            hover_decorations: merged_hover.with_default(&default.hover_decorations),
+            decorations: resolved_decorations,
             show_if_matches: if self.show_if_matches.is_empty() {
                 default.show_if_matches.clone()
             } else {
@@ -579,6 +592,16 @@ pub struct ImageBlock<Dynamic: Clone + Default + Debug> {
     pub input: Input<Dynamic>,
     #[serde(flatten)]
     pub event_handlers: EventHandlers<Dynamic>,
+    #[serde(default)]
+    pub pixmap: Dynamic,
+    #[serde(default)]
+    pub pixmap_width: Dynamic,
+    #[serde(default)]
+    pub pixmap_height: Dynamic,
+    #[serde(default)]
+    pub icon_name: Dynamic,
+    #[serde(default)]
+    pub icon_theme_path: Dynamic,
 }
 
 #[cfg(feature = "image")]
@@ -595,6 +618,11 @@ impl ImageBlock<Option<Placeholder>> {
             updater_value: self.updater_value.unwrap_or_default(),
             input: self.input.with_defaults(),
             event_handlers: self.event_handlers.with_default(),
+            pixmap: self.pixmap.unwrap_or_default(),
+            pixmap_width: self.pixmap_width.unwrap_or_default(),
+            pixmap_height: self.pixmap_height.unwrap_or_default(),
+            icon_name: self.icon_name.unwrap_or_default(),
+            icon_theme_path: self.icon_theme_path.unwrap_or_default(),
         }
     }
 }
@@ -1003,13 +1031,27 @@ pub fn write_default_config(config_path: &Path) -> anyhow::Result<()> {
 }
 
 pub fn load() -> anyhow::Result<Config<Placeholder>> {
-    let mut path = dirs::config_dir().context("Missing config dir")?;
-    path.push("oatbar.toml");
-    if !path.exists() {
+    let config_dir = dirs::config_dir().context("Missing config dir")?;
+    
+    let mut path = config_dir.clone();
+    path.push("oatbar");
+    path.push("config.toml");
+    
+    let mut legacy_path = config_dir.clone();
+    legacy_path.push("oatbar.toml");
+
+    let final_path = if path.exists() {
+        path
+    } else if legacy_path.exists() {
+        warn!("Using legacy config path {:?}. Consider moving it to {:?}", legacy_path, path);
+        legacy_path
+    } else {
         warn!("Config at {:?} is missing. Writing default config...", path);
         write_default_config(&path)?;
-    }
-    let mut file = std::fs::File::open(&path).context(format!("unable to open {:?}", &path))?;
+        path
+    };
+
+    let mut file = std::fs::File::open(&final_path).context(format!("unable to open {:?}", &final_path))?;
     let mut data = String::new();
     file.read_to_string(&mut data)?;
 

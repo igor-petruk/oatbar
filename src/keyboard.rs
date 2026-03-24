@@ -467,9 +467,8 @@ mod hyprland_impl {
         let devices: serde_json::Value = serde_json::from_slice(&output.stdout)
             .context("Failed to parse hyprctl JSON output")?;
 
-        let keyboards: Vec<HyprlandKeyboard> =
-            serde_json::from_value(devices["keyboards"].clone())
-                .context("Failed to parse keyboards from hyprctl output")?;
+        let keyboards: Vec<HyprlandKeyboard> = serde_json::from_value(devices["keyboards"].clone())
+            .context("Failed to parse keyboards from hyprctl output")?;
 
         keyboards
             .into_iter()

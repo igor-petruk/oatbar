@@ -1,6 +1,6 @@
 # LLM Configuration
 
-`oatbar-llm` is configured via `~/.config/oatbar-llm/config.toml`.
+`oatbar-llm` is configured via `~/.config/oatbar/llm.toml`.
 
 ## Structure
 
@@ -58,15 +58,15 @@ Defines the questions to ask the LLM and how to handle the answers.
 
 ## Configuring Keys
 
-API keys are **not** stored in the configuration file. Instead, `oatbar-llm` reads them from specific files in the configuration directory (`~/.config/oatbar-llm/`).
+API keys are **not** stored in the configuration file. Instead, `oatbar-llm` reads them from specific files in the configuration directory (`~/.config/oatbar/`).
 
 | Provider | Key File Path |
 |---|---|
-| **Google** | `~/.config/oatbar-llm/google_api_key` |
-| **OpenAI** | `~/.config/oatbar-llm/openai_api_key` |
-| **Anthropic** | `~/.config/oatbar-llm/anthropic_api_key` |
-| **Mistral** | `~/.config/oatbar-llm/mistral_api_key` |
-| **xAI** | `~/.config/oatbar-llm/xai_api_key` |
+| **Google** | `~/.config/oatbar/google_api_key` |
+| **OpenAI** | `~/.config/oatbar/openai_api_key` |
+| **Anthropic** | `~/.config/oatbar/anthropic_api_key` |
+| **Mistral** | `~/.config/oatbar/mistral_api_key` |
+| **xAI** | `~/.config/oatbar/xai_api_key` |
 | **Ollama** | *Not required* |
 
 Ensure these files contain **only** the API key (no newlines or extra spaces preferred, though whitespace is trimmed).
@@ -84,6 +84,6 @@ url="http://localhost:11434" # Optional, defaults to this value
 
 ## CLI Options
 
--   `--config <FILE>`: Path to a custom config file (default: `~/.config/oatbar-llm/config.toml`).
+-   `--config <FILE>`: Path to a custom config file (default: `~/.config/oatbar/llm.toml`).
 -   `--mode <MODE>`: Output mode (`json`, `debug`, `custom`).
 

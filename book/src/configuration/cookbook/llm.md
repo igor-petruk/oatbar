@@ -26,7 +26,7 @@ These examples are for illustrative purposes. Due to the non-deterministic natur
 
 Use `conky` to generate a detailed, one-shot system report and have the LLM analyze it for potential bottlenecks or issues.
 
-**1. Create `~/.config/oatbar-llm/conky.conf`**
+**1. Create `~/.config/oatbar/conky.conf`**
 
 ```lua
 conky.config = {
@@ -73,12 +73,12 @@ Top Mem:
 ]]
 ```
 
-**2. Configure `~/.config/oatbar-llm/config.toml`**
+**2. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [[command]]
 name = "conky_report"
-command = "conky -c ~/.config/oatbar-llm/conky.conf"
+command = "conky -c ~/.config/oatbar/conky.conf"
 interval = 1800
 
 [[variable]]
@@ -112,7 +112,7 @@ on_mouse_left="xdg-open /tmp/health_report.md"
 
 Summarize uncommitted changes in your current project to keep you focused.
 
-**1. Configure `~/.config/oatbar-llm/config.toml`**
+**1. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
@@ -147,7 +147,7 @@ value="Git: ${git_ai:git_summary.value}"
 
 Monitor open ports and recent authentication failures for a quick security overview.
 
-**1. Configure `~/.config/oatbar-llm/config.toml`**
+**1. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
@@ -187,7 +187,7 @@ value="Sec: ${security_ai:security_alert.value}"
 
 Get clothing suggestions based on the current weather.
 
-**1. Configure `~/.config/oatbar-llm/config.toml`**
+**1. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
@@ -222,7 +222,7 @@ value="Wear: ${outfit_ai:outfit.value}"
 
 Summarize your work from the last 24 hours to prepare for your daily standup meeting.
 
-**1. Configure `~/.config/oatbar-llm/config.toml`**
+**1. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
@@ -263,7 +263,7 @@ These examples demonstrate how to use the `knowledge_base` feature to provide st
 
 Check your code against your team's style guide.
 
-**1. Create `~/.config/oatbar-llm/style_guide.md`**
+**1. Create `~/.config/oatbar/style_guide.md`**
 
 ```markdown
 # Team Style Guide
@@ -273,13 +273,13 @@ Check your code against your team's style guide.
 - Variable names should be descriptive (no `x`, `y`, `temp`).
 ```
 
-**2. Configure `~/.config/oatbar-llm/config.toml`**
+**2. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
 provider="google"
 name="gemini-2.5-flash"
-knowledge_base="/home/user/.config/oatbar-llm/style_guide.md"
+knowledge_base="/home/user/.config/oatbar/style_guide.md"
 
 [[command]]
 name="git_diff"
@@ -295,7 +295,7 @@ question="Review the git diff against the style guide. Point out any violations 
 
 Get reminders based on your personal schedule and priorities.
 
-**1. Create `~/.config/oatbar-llm/schedule.md`**
+**1. Create `~/.config/oatbar/schedule.md`**
 
 ```markdown
 # My Schedule & Priorities
@@ -307,13 +307,13 @@ Get reminders based on your personal schedule and priorities.
 **Current Focus:** Shipping the LLM module for Oatbar.
 ```
 
-**2. Configure `~/.config/oatbar-llm/config.toml`**
+**2. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
 provider="google"
 name="gemini-2.5-flash"
-knowledge_base="/home/user/.config/oatbar-llm/schedule.md"
+knowledge_base="/home/user/.config/oatbar/schedule.md"
 
 [[command]]
 name="current_time"
@@ -329,7 +329,7 @@ question="Based on the current time and my schedule, what should I be focusing o
 
 Suggest next steps when system errors occur, based on a runbook.
 
-**1. Create `~/.config/oatbar-llm/runbook.md`**
+**1. Create `~/.config/oatbar/runbook.md`**
 
 ```markdown
 # Incident Runbook
@@ -339,13 +339,13 @@ Suggest next steps when system errors occur, based on a runbook.
 - **OOM:** Check kernel logs. Restart service.
 ```
 
-**2. Configure `~/.config/oatbar-llm/config.toml`**
+**2. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
 provider="google"
 name="gemini-2.5-flash"
-knowledge_base="/home/user/.config/oatbar-llm/runbook.md"
+knowledge_base="/home/user/.config/oatbar/runbook.md"
 
 [[command]]
 name="sys_errors"
@@ -361,16 +361,16 @@ question="Analyze the recent system errors. Based on the runbook, what is the re
 
 Fetch the latest news and get a concise summary on your bar.
 
-**1. Configure `~/.config/oatbar-llm/config.toml`**
+**1. Configure `~/.config/oatbar/llm.toml`**
 
 ```toml
 [llm]
 provider="google"
 name="gemini-2.5-flash"
-knowledge_base="/home/user/.config/oatbar-llm/hn_preferences.md"
+knowledge_base="/home/user/.config/oatbar/hn_preferences.md"
 ```
 
-Create `~/.config/oatbar-llm/hn_preferences.md`:
+Create `~/.config/oatbar/hn_preferences.md`:
 
 ```markdown
 I am interested in:

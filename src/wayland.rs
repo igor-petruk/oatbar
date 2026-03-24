@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use anyhow::Context;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
@@ -358,6 +359,7 @@ pub struct WaylandEngine {
     popup_manager: std::sync::Arc<std::sync::Mutex<PopupManager>>,
     // Set during run().
     loop_handle: Option<calloop::LoopHandle<'static, WaylandEngine>>,
+    output_infos: HashMap<String, sct::output::OutputInfo>,
 }
 
 impl sct::seat::pointer::PointerHandler for WaylandEngine {
@@ -572,6 +574,7 @@ impl WaylandEngine {
             last_pointer_pos: (0.0, 0.0),
             popup_manager,
             loop_handle: None,
+            output_infos: HashMap::new(),
         })
     }
 }
@@ -704,24 +707,39 @@ impl sct::output::OutputHandler for WaylandEngine {
         &mut self,
         _conn: &smithay_client::Connection,
         _qh: &smithay_client::QueueHandle<Self>,
-        _output: smithay_client::protocol::wl_output::WlOutput,
+        output: smithay_client::protocol::wl_output::WlOutput,
     ) {
+        if let Some(info) = self.output_state.info(&output) {
+            if let Some(ref name) = info.name {
+                self.output_infos.insert(name.clone(), info.clone());
+            }
+        }
     }
 
     fn update_output(
         &mut self,
         _conn: &smithay_client::Connection,
         _qh: &smithay_client::QueueHandle<Self>,
-        _output: smithay_client::protocol::wl_output::WlOutput,
+        output: smithay_client::protocol::wl_output::WlOutput,
     ) {
+        if let Some(info) = self.output_state.info(&output) {
+            if let Some(ref name) = info.name {
+                self.output_infos.insert(name.clone(), info.clone());
+            }
+        }
     }
 
     fn output_destroyed(
         &mut self,
         _conn: &smithay_client::Connection,
         _qh: &smithay_client::QueueHandle<Self>,
-        _output: smithay_client::protocol::wl_output::WlOutput,
+        output: smithay_client::protocol::wl_output::WlOutput,
     ) {
+        if let Some(info) = self.output_state.info(&output) {
+            if let Some(ref name) = info.name {
+                self.output_infos.remove(name);
+            }
+        }
     }
 }
 

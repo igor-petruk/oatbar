@@ -46,6 +46,10 @@ required-features = ["llm"]
 name="oatctl"
 path="src/cli.rs"
 
+[[bin]]
+name="oatbar-sni"
+path="src/sni.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
@@ -68,6 +72,7 @@ llm-xai = ["llm", "llm/xai"]
 llm-ollama = ["llm", "llm/ollama"]
 x11 = ["dep:xcb", "cairo-rs/xcb"]
 wayland = ["dep:smithay-client-toolkit", "dep:wayland-client", "dep:calloop", "dep:calloop-wayland-source", "dep:swayipc", "dep:wayland-protocols-wlr", "dep:wayland-protocols", "dep:hyprland"]
+gtk4_icons = ["dep:gtk4", "dep:gdk4"]
 
 [dependencies]
 pprof = { version = "0.15", features = ["flamegraph"], optional = true }
@@ -111,5 +116,10 @@ swayipc = { version = "4.0.0", optional = true }
 hyprland = { version = "0.4.0-beta.3", optional = true }
 wayland-protocols-wlr = { version = "0.3", features = ["client"], optional = true }
 wayland-protocols = { version = "0.32", features = ["client"], optional = true }
+zbus = { version = "5", default-features = false, features = ["tokio"] } 
+event-listener = "5.4.1"
+futures-util = "0.3.31"
+gtk4 = { version = "0.10", optional = true }
+gdk4 = { version = "0.10", optional = true }
 
 

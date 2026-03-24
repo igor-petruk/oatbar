@@ -202,7 +202,8 @@ pub fn load(config_path: &Option<PathBuf>) -> anyhow::Result<Config> {
         config_path.clone()
     } else {
         let mut path = dirs::config_dir().context("Missing config dir")?;
-        path.push("oatbar-llm/config.toml");
+        path.push("oatbar");
+        path.push("llm.toml");
         path
     };
     if !path.exists() {
@@ -479,7 +480,7 @@ async fn main() -> anyhow::Result<()> {
         builder = builder.base_url(&url).api_key("");
     } else {
         let mut key_path = dirs::config_dir().context("Missing config dir")?;
-        key_path.push("oatbar-llm");
+        key_path.push("oatbar");
         key_path.push(format!("{}_api_key", config.llm.provider));
 
         let api_key = std::fs::read_to_string(&key_path)

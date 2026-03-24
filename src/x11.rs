@@ -464,11 +464,9 @@ impl Window {
                 self.visible = true;
                 xutils::send(&self.conn, &x::MapWindow { window: self.id })?;
             }
-        } else {
-            if self.visible {
-                self.visible = false;
-                xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
-            }
+        } else if self.visible {
+            self.visible = false;
+            xutils::send(&self.conn, &x::UnmapWindow { window: self.id })?;
         }
 
         Ok(())
