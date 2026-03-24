@@ -53,7 +53,7 @@ path="src/sni.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default=["bmp", "ico", "image", "jpeg", "png", "webp", "svg", "raster", "llm", "llm-google", "llm-openai", "llm-anthropic", "llm-mistral", "llm-xai", "llm-ollama", "x11", "wayland", "gtk4_icons"]
+default=["bmp", "ico", "image", "jpeg", "png", "webp", "svg", "raster", "llm", "llm-google", "llm-openai", "llm-anthropic", "llm-mistral", "llm-xai", "llm-ollama", "x11", "wayland"]
 image=[]
 raster=["dep:image"]
 bmp=["image", "raster", "image/bmp"]

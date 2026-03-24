@@ -15,8 +15,8 @@ When an application registers a tray item on DBus, `oatbar-sni` exports the foll
 | `sni.AppID.pixmap` | Base64-encoded pixel data for the tray icon. Bind to the block's `pixmap` field. |
 | `sni.AppID.pixmap_width` | Pixel width of the pixmap. |
 | `sni.AppID.pixmap_height` | Pixel height of the pixmap. |
-| `sni.AppID.icon_name` | Named icon from the system icon theme (alternative to pixmap). |
-| `sni.AppID.icon_theme_path` | Additional icon theme search path for resolving `icon_name`. |
+| `sni.AppID.icon_name` | Named icon from the system icon theme (alternative to pixmap). *Requires `gtk4_icons` feature (disabled by default).* |
+| `sni.AppID.icon_theme_path` | Additional icon theme search path for resolving `icon_name`. *Requires `gtk4_icons` feature (disabled by default).* |
 
 ## Mouse Event Handling
 
