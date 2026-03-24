@@ -11,6 +11,8 @@ use zbus::{interface, proxy};
 
 use tracing::*;
 
+#[allow(non_snake_case, dead_code)]
+mod dbusmenu;
 mod protocol;
 mod sni_item;
 
@@ -466,27 +468,413 @@ struct ActivateArgs {
     abs_y: i32,
 }
 
+#[derive(Args)]
+struct DbusmenuArgs {
+    #[command(subcommand)]
+    command: DbusmenuCommands,
+}
+
+#[derive(Subcommand)]
+enum DbusmenuCommands {
+    Print {
+        dbus_address: String,
+    },
+    ItemClick {
+        dbus_address: String,
+        #[arg(long, conflicts_with = "regex")]
+        id: Option<i32>,
+        #[arg(long, conflicts_with = "id")]
+        regex: Option<String>,
+    },
+}
+
 #[derive(Subcommand)]
 enum Commands {
     Activate(ActivateArgs),
+    Dbusmenu(DbusmenuArgs),
+}
+
+struct DBusMenuNode {
+    visible: bool,
+    enabled: bool,
+    item_type: String,
+    label: String,
+    toggle_type: String,
+    toggle_state: i32,
+    children_display: String,
+}
+
+impl DBusMenuNode {
+    fn parse_string(v: &zbus::zvariant::OwnedValue) -> Option<String> {
+        String::try_from(v.clone()).ok()
+    }
+
+    fn new(props: &std::collections::HashMap<String, zbus::zvariant::OwnedValue>) -> Self {
+        let visible = match props.get("visible") {
+            Some(v) => bool::try_from(v.clone()).unwrap_or(false),
+            None => true,
+        };
+
+        let enabled = match props.get("enabled") {
+            Some(v) => bool::try_from(v.clone()).unwrap_or(true),
+            None => true,
+        };
+
+        let item_type = props
+            .get("type")
+            .and_then(Self::parse_string)
+            .unwrap_or_else(|| "standard".into());
+        let raw_label = props
+            .get("label")
+            .and_then(Self::parse_string)
+            .unwrap_or_default();
+        let label = raw_label
+            .replace("__", "\x00")
+            .replace('_', "")
+            .replace('\x00', "_");
+        let toggle_type = props
+            .get("toggle-type")
+            .and_then(Self::parse_string)
+            .unwrap_or_default();
+        let toggle_state = props
+            .get("toggle-state")
+            .and_then(|v| i32::try_from(v.clone()).ok())
+            .unwrap_or(-1);
+        let children_display = props
+            .get("children-display")
+            .and_then(Self::parse_string)
+            .unwrap_or_default();
+
+        Self {
+            visible,
+            enabled,
+            item_type,
+            label,
+            toggle_type,
+            toggle_state,
+            children_display,
+        }
+    }
+}
+
+fn recurse_dbusmenu_layout(
+    out: &mut Vec<String>,
+    depth: usize,
+    layout: &(
+        i32,
+        std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+        Vec<zbus::zvariant::OwnedValue>,
+    ),
+) {
+    let (id, props, children) = layout;
+    let node = DBusMenuNode::new(props);
+
+    if !node.visible || !node.enabled {
+        return;
+    }
+
+    let hide_item = node.item_type != "separator" && node.label.trim().is_empty();
+    let indent = "  ".repeat(depth);
+
+    if !hide_item {
+        let label = if node.item_type == "separator" {
+            "---".to_string()
+        } else {
+            let toggle_val = match node.toggle_state {
+                0 => " ",
+                1 => "X",
+                _ => "~",
+            };
+            let toggle_str = match node.toggle_type.as_str() {
+                "checkmark" => format!("[{}] ", toggle_val),
+                "radio" => format!("({}) ", toggle_val),
+                _ => String::new(),
+            };
+            let submenu_suffix = if node.children_display == "submenu" {
+                ":"
+            } else {
+                ""
+            };
+            format!("{}{}{}", toggle_str, node.label, submenu_suffix)
+        };
+
+        out.push(format!("{:<4}{}{}", id, indent, label));
+    }
+
+    for child_val in children {
+        type NodeType = (
+            i32,
+            std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+            Vec<zbus::zvariant::OwnedValue>,
+        );
+        if let Ok(child_layout) = NodeType::try_from(child_val.clone()) {
+            recurse_dbusmenu_layout(out, depth + 1, &child_layout);
+        } else {
+            continue;
+        }
+    }
+}
+
+fn recurse_dbusmenu_items(
+    out: &mut Vec<(i32, String)>,
+    layout: &(
+        i32,
+        std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+        Vec<zbus::zvariant::OwnedValue>,
+    ),
+) {
+    let (id, props, children) = layout;
+    let node = DBusMenuNode::new(props);
+
+    if node.visible
+        && node.enabled
+        && node.item_type != "separator"
+        && !node.label.trim().is_empty()
+    {
+        out.push((*id, node.label));
+    }
+
+    for child_val in children {
+        type NodeType = (
+            i32,
+            std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+            Vec<zbus::zvariant::OwnedValue>,
+        );
+        if let Ok(child_layout) = NodeType::try_from(child_val.clone()) {
+            recurse_dbusmenu_items(out, &child_layout);
+        } else {
+            continue;
+        }
+    }
+}
+
+async fn dump_sni_menu(
+    dbusmenu_proxy: &dbusmenu::dbusmenuProxy<'_>,
+) -> anyhow::Result<Vec<String>> {
+    let layout = dbusmenu_proxy.get_layout(0, -1, &[]).await?;
+    let mut out = Vec::new();
+    recurse_dbusmenu_layout(&mut out, 0, &layout.1);
+
+    let mut deduped_out = Vec::new();
+    let mut last_was_separator = false;
+    for line in out {
+        let is_separator = line.ends_with("---");
+        if is_separator && last_was_separator {
+            continue;
+        }
+        deduped_out.push(line);
+        last_was_separator = is_separator;
+    }
+
+    Ok(deduped_out)
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct SniConfig {
+    dbusmenu_display_cmd: Option<String>,
+}
+
+impl SniConfig {
+    fn load() -> anyhow::Result<Self> {
+        let mut path = dirs::config_dir().context("Missing config dir")?;
+        path.push("oatbar");
+        path.push("sni.toml");
+        if path.exists() {
+            let data = std::fs::read_to_string(&path)?;
+            Ok(toml::from_str(&data)?)
+        } else {
+            Ok(Self::default())
+        }
+    }
+}
+
+fn run_rofi(lines: &[String]) -> anyhow::Result<Option<i32>> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let config = SniConfig::load().unwrap_or_default();
+    let display_cmd = config.dbusmenu_display_cmd.unwrap_or_else(|| {
+        "rofi -dmenu -i -no-sort -hover-select -me-select-entry '' -me-accept-entry MousePrimary".to_string()
+    });
+
+    let mut child = Command::new("sh")
+        .arg("-c")
+        .arg(&display_cmd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .context("Failed to spawn dbusmenu display command")?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        let input = lines.join("\n");
+        stdin
+            .write_all(input.as_bytes())
+            .context("Failed to write to rofi stdin")?;
+    }
+
+    let output = child.wait_with_output().context("Failed to wait on rofi")?;
+
+    if output.status.success() {
+        let selected = String::from_utf8_lossy(&output.stdout);
+        println!("{}", selected.trim());
+        if let Some(id_str) = selected.split_whitespace().next() {
+            if let Ok(id) = id_str.parse::<i32>() {
+                return Ok(Some(id));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+async fn get_sni_proxy<'a>(
+    session: &'a zbus::Connection,
+    dbus_address: &str,
+) -> anyhow::Result<sni_item::StatusNotifierItemProxy<'a>> {
+    sni_item::StatusNotifierItemProxy::builder(session)
+        .destination(dbus_address.to_string())
+        .context(format!("Error setting destination for {}", dbus_address))?
+        .path("/StatusNotifierItem")
+        .context(format!("Error setting path for {}", dbus_address))?
+        .cache_properties(proxy::CacheProperties::No)
+        .build()
+        .await
+        .context(format!("Error building proxy for {}", dbus_address))
+}
+
+async fn get_dbusmenu_proxy<'a>(
+    session: &'a zbus::Connection,
+    dbus_address: &str,
+    proxy: &sni_item::StatusNotifierItemProxy<'_>,
+) -> anyhow::Result<Option<dbusmenu::dbusmenuProxy<'a>>> {
+    let menu = proxy.menu().await.context("Error getting menu")?;
+    if menu.is_empty() {
+        return Ok(None);
+    }
+    let dbus_proxy = zbus::fdo::DBusProxy::new(session).await?;
+    let unique_name = dbus_proxy
+        .get_name_owner(dbus_address.try_into()?)
+        .await
+        .context("Failed to get name owner")?;
+    let dbusmenu_proxy = dbusmenu::dbusmenuProxy::builder(session)
+        .destination(unique_name.clone())
+        .context(format!("Error setting destination for {}", unique_name))?
+        .path(menu.clone())
+        .context(format!("Error setting path for {}", menu))?
+        .build()
+        .await
+        .context("Error building proxy for menu")?;
+    Ok(Some(dbusmenu_proxy))
+}
+
+async fn pop_context_menu(
+    session: &zbus::Connection,
+    dbus_name: &str,
+    proxy: &sni_item::StatusNotifierItemProxy<'_>,
+    x: i32,
+    y: i32,
+) -> anyhow::Result<()> {
+    if let Some(dbusmenu_proxy) = get_dbusmenu_proxy(session, dbus_name, proxy).await? {
+        let lines = dump_sni_menu(&dbusmenu_proxy).await?;
+        if let Some(id) = run_rofi(&lines)? {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32;
+            let val = zbus::zvariant::Value::from("");
+            dbusmenu_proxy.event(id, "clicked", &val, now).await?;
+        }
+    } else {
+        proxy.context_menu(x, y).await?;
+    }
+    Ok(())
 }
 
 async fn process_activate(args: ActivateArgs) -> anyhow::Result<()> {
     let session = zbus::Connection::session().await?;
-    let proxy = sni_item::StatusNotifierItemProxy::builder(&session)
-        .destination(args.dbus.clone())
-        .context(format!("Error setting destination for {}", args.dbus))?
-        .path("/StatusNotifierItem")
-        .context(format!("Error setting path for {}", args.dbus))?
-        .cache_properties(proxy::CacheProperties::No)
-        .build()
-        .await
-        .context(format!("Error building proxy for {}", args.dbus))?;
-    match args.button {
-        MouseButton::Left => proxy.activate(args.abs_x, args.abs_y).await?,
-        MouseButton::Middle => proxy.secondary_activate(args.abs_x, args.abs_y).await?,
-        MouseButton::Right => proxy.context_menu(args.abs_x, args.abs_y).await?,
+    let proxy = get_sni_proxy(&session, &args.dbus).await?;
+
+    let is_menu = proxy.item_is_menu().await?;
+    match (is_menu, args.button) {
+        (_, MouseButton::Middle) => proxy.secondary_activate(args.abs_x, args.abs_y).await?,
+        (false, MouseButton::Left) => proxy.activate(args.abs_x, args.abs_y).await?,
+        (false, MouseButton::Right) => {
+            pop_context_menu(&session, &args.dbus, &proxy, args.abs_x, args.abs_y).await?
+        }
+        (true, _) => pop_context_menu(&session, &args.dbus, &proxy, args.abs_x, args.abs_y).await?,
     }
+    Ok(())
+}
+
+async fn process_dbusmenu_print(dbus_address: String) -> anyhow::Result<()> {
+    let session = zbus::Connection::session().await?;
+    let proxy = get_sni_proxy(&session, &dbus_address).await?;
+
+    if let Some(dbusmenu_proxy) = get_dbusmenu_proxy(&session, &dbus_address, &proxy).await? {
+        let lines = dump_sni_menu(&dbusmenu_proxy).await?;
+        for line in lines {
+            println!("{}", line);
+        }
+    } else {
+        println!("No DBus menu published by this item.");
+    }
+
+    Ok(())
+}
+
+async fn process_dbusmenu_item_click(
+    dbus_address: String,
+    id: Option<i32>,
+    regex: Option<String>,
+) -> anyhow::Result<()> {
+    if id.is_none() && regex.is_none() {
+        anyhow::bail!("Either --id or --regex must be provided");
+    }
+
+    let session = zbus::Connection::session().await?;
+    let proxy = get_sni_proxy(&session, &dbus_address).await?;
+
+    let dbusmenu_proxy = get_dbusmenu_proxy(&session, &dbus_address, &proxy)
+        .await?
+        .context("No DBus menu published by this item.")?;
+
+    let target_id = if let Some(target_id) = id {
+        target_id
+    } else if let Some(pattern) = regex {
+        let re = regex::Regex::new(&pattern).context("Invalid regex pattern")?;
+        let layout = dbusmenu_proxy.get_layout(0, -1, &[]).await?;
+
+        let mut items = Vec::new();
+        recurse_dbusmenu_items(&mut items, &layout.1);
+
+        let matches: Vec<(i32, String)> = items
+            .into_iter()
+            .filter(|(_, label)| re.is_match(label))
+            .collect();
+        if matches.is_empty() {
+            anyhow::bail!("No item matching regex '{}' found", pattern);
+        } else if matches.len() > 1 {
+            anyhow::bail!(
+                "Multiple items ({}) matching regex '{}' found",
+                matches.len(),
+                pattern
+            );
+        } else {
+            matches[0].0
+        }
+    } else {
+        unreachable!()
+    };
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
+    let val = zbus::zvariant::Value::from("");
+    dbusmenu_proxy
+        .event(target_id, "clicked", &val, now)
+        .await?;
+
     Ok(())
 }
 
@@ -549,6 +937,16 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Some(Commands::Activate(args)) => process_activate(args).await?,
+        Some(Commands::Dbusmenu(args)) => match args.command {
+            DbusmenuCommands::Print { dbus_address } => {
+                process_dbusmenu_print(dbus_address).await?
+            }
+            DbusmenuCommands::ItemClick {
+                dbus_address,
+                id,
+                regex,
+            } => process_dbusmenu_item_click(dbus_address, id, regex).await?,
+        },
         None => process_streaming().await?,
     }
     Ok(())

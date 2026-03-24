@@ -1,6 +1,6 @@
 # Overview
 
-The configuration for the `oatbar` is located at `~/.config/oatbar.toml`. If you do
+The configuration for the `oatbar` is located at `~/.config/oatbar/config.toml`. If you do
 not have this file, it would be generated with reasonable defaults.
 
 ![New setup](../new-setup.png)

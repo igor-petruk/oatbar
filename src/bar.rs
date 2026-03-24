@@ -218,7 +218,14 @@ impl Block for BaseBlock {
         let inner_dim = self.inner_block.get_dimensions();
         // TODO: figure out correct handling of padding.
         let radius = if self.separator_type.is_some() {
-            self.separator_radius.unwrap_or_default()
+            let line_width = self
+                .display_options
+                .decorations
+                .line_width
+                .unwrap_or_default();
+            self.separator_radius
+                .map(|x| x + line_width * 0.5)
+                .unwrap_or_default()
         } else {
             0.0
         };
@@ -301,9 +308,9 @@ impl Block for BaseBlock {
                 }
                 None | Some(config::SeparatorType::Gap) => {
                     context.rectangle(
-                        self.margin - 0.5,
+                        self.margin - line_width + 1.0,
                         0.0,
-                        inner_dim.width + 2.0 * self.padding + 1.0,
+                        inner_dim.width + 2.0 * self.padding + 2.0 * line_width,
                         self.height,
                     );
                 }

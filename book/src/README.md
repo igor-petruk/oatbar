@@ -34,6 +34,7 @@ any significant coding effort. It also ships with first-class support for LLMs (
 | [Unix-way input via pipes means customization programming language is not forced upon you](configuration/command) | **✅** | **✅** | **✅** | - |
 | [Consume data from *other* ecosystems like community scripts for `polybar`, `i3blocks`, `i3status`, `conky`](configuration/cookbook/data.md#third-party-sources) | **✅**[^other_eco] | - | - | **✅** |
 | [**NEW:** LLM Integration (Gemini, ChatGPT, Ollama, etc.)](configuration/cookbook/llm.md) | **✅** | - | - | **✅** |
+| [**NEW:** System Tray support (SNI protocol)](configuration/cookbook/tray.md) | **✅** | - | **✅** | **✅** |
 
 [^x11_wayland]: Most bars are X11-only or Wayland-only.
 [^other_eco]: Partial; e.g. no `polybar` formatting, but many scripts work.
