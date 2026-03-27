@@ -798,10 +798,13 @@ async fn pop_context_menu(
 
 async fn process_activate(args: ActivateArgs) -> anyhow::Result<()> {
     let session = zbus::Connection::session().await?;
-    let (dest, path) = args.dbus.rsplit_once(':').unwrap_or((&args.dbus, "/StatusNotifierItem"));
+    let (dest, path) = args
+        .dbus
+        .rsplit_once(':')
+        .unwrap_or((&args.dbus, "/StatusNotifierItem"));
     let proxy = get_sni_proxy(&session, dest, path).await?;
 
-    let is_menu = proxy.item_is_menu().await?;
+    let is_menu = proxy.item_is_menu().await.unwrap_or(true);
     match (is_menu, args.button) {
         (_, MouseButton::Middle) => proxy.secondary_activate(args.abs_x, args.abs_y).await?,
         (false, MouseButton::Left) => proxy.activate(args.abs_x, args.abs_y).await?,
@@ -815,7 +818,9 @@ async fn process_activate(args: ActivateArgs) -> anyhow::Result<()> {
 
 async fn process_dbusmenu_print(dbus_address: String) -> anyhow::Result<()> {
     let session = zbus::Connection::session().await?;
-    let (dest, path) = dbus_address.rsplit_once(':').unwrap_or((&dbus_address, "/StatusNotifierItem"));
+    let (dest, path) = dbus_address
+        .rsplit_once(':')
+        .unwrap_or((&dbus_address, "/StatusNotifierItem"));
     let proxy = get_sni_proxy(&session, dest, path).await?;
 
     if let Some(dbusmenu_proxy) = get_dbusmenu_proxy(&session, dest, &proxy).await? {
@@ -840,7 +845,9 @@ async fn process_dbusmenu_item_click(
     }
 
     let session = zbus::Connection::session().await?;
-    let (dest, path) = dbus_address.rsplit_once(':').unwrap_or((&dbus_address, "/StatusNotifierItem"));
+    let (dest, path) = dbus_address
+        .rsplit_once(':')
+        .unwrap_or((&dbus_address, "/StatusNotifierItem"));
     let proxy = get_sni_proxy(&session, dest, path).await?;
 
     let dbusmenu_proxy = get_dbusmenu_proxy(&session, dest, &proxy)
