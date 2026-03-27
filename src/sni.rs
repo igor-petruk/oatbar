@@ -91,6 +91,7 @@ impl From<(String, Vec<(i32, i32, Vec<u8>)>, String, String)> for Tooltip {
 #[derive(Clone, Default, Debug)]
 pub struct StatusNotifierItemProperties {
     pub dbus_destination: String,
+    pub dbus_path: String,
     pub visible: bool,
     pub category: Option<String>,
     pub id: Option<String>,
@@ -108,10 +109,12 @@ pub struct StatusNotifierItemProperties {
 impl StatusNotifierItemProperties {
     fn from_map(
         dbus_destination: String,
+        dbus_path: String,
         map: HashMap<String, zbus::zvariant::OwnedValue>,
     ) -> Self {
         let mut props = Self {
             dbus_destination,
+            dbus_path,
             visible: true,
             ..Default::default()
         };
@@ -151,7 +154,8 @@ impl StatusNotifierItemProperties {
 
         let visible_str = if self.visible { "1" } else { "" };
         other.insert("visible".into(), visible_str.into());
-        other.insert("dbus".into(), self.dbus_destination.clone().into());
+        let dbus_encoded = format!("{}:{}", self.dbus_destination, self.dbus_path);
+        other.insert("dbus".into(), dbus_encoded.into());
 
         for (key, val) in [
             ("category", &self.category),
@@ -240,6 +244,7 @@ impl StatusNotifierWatcher {
             .collect();
         Ok(StatusNotifierItemProperties::from_map(
             props_proxy.inner().destination().to_string(),
+            props_proxy.inner().path().to_string(),
             props,
         ))
     }
@@ -729,17 +734,18 @@ fn run_rofi(lines: &[String]) -> anyhow::Result<Option<i32>> {
 
 async fn get_sni_proxy<'a>(
     session: &'a zbus::Connection,
-    dbus_address: &str,
+    dest: &str,
+    path: &str,
 ) -> anyhow::Result<sni_item::StatusNotifierItemProxy<'a>> {
     sni_item::StatusNotifierItemProxy::builder(session)
-        .destination(dbus_address.to_string())
-        .context(format!("Error setting destination for {}", dbus_address))?
-        .path("/StatusNotifierItem")
-        .context(format!("Error setting path for {}", dbus_address))?
+        .destination(dest.to_string())
+        .context(format!("Error setting destination for {}", dest))?
+        .path(path.to_string())
+        .context(format!("Error setting path for {}", path))?
         .cache_properties(proxy::CacheProperties::No)
         .build()
         .await
-        .context(format!("Error building proxy for {}", dbus_address))
+        .context(format!("Error building proxy for {}:{}", dest, path))
 }
 
 async fn get_dbusmenu_proxy<'a>(
@@ -792,25 +798,27 @@ async fn pop_context_menu(
 
 async fn process_activate(args: ActivateArgs) -> anyhow::Result<()> {
     let session = zbus::Connection::session().await?;
-    let proxy = get_sni_proxy(&session, &args.dbus).await?;
+    let (dest, path) = args.dbus.rsplit_once(':').unwrap_or((&args.dbus, "/StatusNotifierItem"));
+    let proxy = get_sni_proxy(&session, dest, path).await?;
 
     let is_menu = proxy.item_is_menu().await?;
     match (is_menu, args.button) {
         (_, MouseButton::Middle) => proxy.secondary_activate(args.abs_x, args.abs_y).await?,
         (false, MouseButton::Left) => proxy.activate(args.abs_x, args.abs_y).await?,
         (false, MouseButton::Right) => {
-            pop_context_menu(&session, &args.dbus, &proxy, args.abs_x, args.abs_y).await?
+            pop_context_menu(&session, dest, &proxy, args.abs_x, args.abs_y).await?
         }
-        (true, _) => pop_context_menu(&session, &args.dbus, &proxy, args.abs_x, args.abs_y).await?,
+        (true, _) => pop_context_menu(&session, dest, &proxy, args.abs_x, args.abs_y).await?,
     }
     Ok(())
 }
 
 async fn process_dbusmenu_print(dbus_address: String) -> anyhow::Result<()> {
     let session = zbus::Connection::session().await?;
-    let proxy = get_sni_proxy(&session, &dbus_address).await?;
+    let (dest, path) = dbus_address.rsplit_once(':').unwrap_or((&dbus_address, "/StatusNotifierItem"));
+    let proxy = get_sni_proxy(&session, dest, path).await?;
 
-    if let Some(dbusmenu_proxy) = get_dbusmenu_proxy(&session, &dbus_address, &proxy).await? {
+    if let Some(dbusmenu_proxy) = get_dbusmenu_proxy(&session, dest, &proxy).await? {
         let lines = dump_sni_menu(&dbusmenu_proxy).await?;
         for line in lines {
             println!("{}", line);
@@ -832,9 +840,10 @@ async fn process_dbusmenu_item_click(
     }
 
     let session = zbus::Connection::session().await?;
-    let proxy = get_sni_proxy(&session, &dbus_address).await?;
+    let (dest, path) = dbus_address.rsplit_once(':').unwrap_or((&dbus_address, "/StatusNotifierItem"));
+    let proxy = get_sni_proxy(&session, dest, path).await?;
 
-    let dbusmenu_proxy = get_dbusmenu_proxy(&session, &dbus_address, &proxy)
+    let dbusmenu_proxy = get_dbusmenu_proxy(&session, dest, &proxy)
         .await?
         .context("No DBus menu published by this item.")?;
 
