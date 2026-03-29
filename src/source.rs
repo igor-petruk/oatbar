@@ -317,7 +317,7 @@ impl Command {
                 if let Err(e) = result {
                     tx.send(state::Update::VarUpdate(state::VarUpdate {
                         command_name: Some(command_name.clone()),
-                        error: Some(format!("Command failed: {:?}", e)),
+                        error: Some(format!("Command {} failed: {:?}", command_name, e)),
                         ..Default::default()
                     }))?;
                 }
