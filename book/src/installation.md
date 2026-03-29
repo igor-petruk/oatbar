@@ -30,10 +30,10 @@ pacman -Sy pango cairo pkgconf
 ```sh
 # For both X11 and Wayland (default)
 apt-get install -y build-essential pkg-config \ 
-  libxkbcommon-dev libcairo2-dev libpango1.0-dev libx11-xcb-dev
+  libssl-dev libxkbcommon-dev libcairo2-dev libpango1.0-dev libx11-xcb-dev
 
 # For Wayland only (build with --no-default-features -F wayland)
-apt-get install -y build-essential pkg-config libxkbcommon-dev \ 
+apt-get install -y build-essential pkg-config libssl-dev libxkbcommon-dev \ 
   libcairo2-dev libpango1.0-dev
 ```
 
@@ -41,6 +41,8 @@ apt-get install -y build-essential pkg-config libxkbcommon-dev \
 
 Install the development packages for the following libraries:
 
+* SSL
+* libxkbcommon
 * Cairo
 * Pango
 * x11-xcb (only required for X11 support)
