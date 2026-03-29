@@ -140,7 +140,9 @@ format:
   * Running status
   * Address
   * Download and upload rates
-
+* Battery
+  * Charge percentage
+  * State (Charging, Discharging, Full, Empty, Unknown)
 There is a lot of data you can display on your `blocks`. Enable `oatbar-stats`
 like this:
 
@@ -187,6 +189,18 @@ if you do not need more fine grained customizations.
 name="ethernet"
 type="text"
 value="${stats:net.igc0.full_text}"
+```
+
+### Battery
+
+To display battery status, you can use the `instance` index (usually `0` for the primary battery) along with the variables exported by `oatbar-stats`.
+
+```toml
+[[block]]
+name="battery"
+type="text"
+value="<b>batt:</b> ${stats:battery.0.charge}%"
+show_if_matches=[["${stats:battery.0.charge}", ".+"]]
 ```
 
 ### Disk space
