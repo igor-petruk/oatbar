@@ -165,7 +165,7 @@ impl ImageLoader {
         &mut self,
         width: i32,
         height: i32,
-        argb_data: &[u8],
+        argb_data: &[u64],
         fit_to_height: f64,
     ) -> anyhow::Result<Image> {
         let format = cairo::Format::ARgb32;
@@ -184,7 +184,7 @@ impl ImageLoader {
                 dst[0] = (b as u16 * a as u16 / 255) as u8;
                 dst[1] = (g as u16 * a as u16 / 255) as u8;
                 dst[2] = (r as u16 * a as u16 / 255) as u8;
-                dst[3] = a;
+                dst[3] = a as u8;
             }
         }
         // Scale down if needed (don't scale up).

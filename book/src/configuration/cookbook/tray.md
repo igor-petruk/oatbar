@@ -58,8 +58,6 @@ Create an Image block binding to the app's variables. Hook all `on_mouse_*` even
 name="tray_vlc"
 type="image"
 pixmap="${sni:sni.vlc.pixmap}"
-pixmap_width="${sni:sni.vlc.pixmap_width}"
-pixmap_height="${sni:sni.vlc.pixmap_height}"
 show_if_matches=[['${sni:sni.vlc.visible}', '1']]
 max_image_height=20
 on_mouse_left="oatbar-sni activate ${sni:sni.vlc.dbus} left $ABS_X $ABS_Y"

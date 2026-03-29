@@ -12,9 +12,7 @@ When an application registers a tray item on DBus, `oatbar-sni` exports the foll
 |---|---|
 | `sni.AppID.visible` | `1` if the tray item is active, empty string if disconnected. Use with `show_if_matches`. |
 | `sni.AppID.dbus` | The DBus name required by `oatbar-sni activate` to route mouse interactions. |
-| `sni.AppID.pixmap` | Base64-encoded pixel data for the tray icon. Bind to the block's `pixmap` field. |
-| `sni.AppID.pixmap_width` | Pixel width of the pixmap. |
-| `sni.AppID.pixmap_height` | Pixel height of the pixmap. |
+| `sni.AppID.pixmap` | JSON array of pixel data: `[width, height, byte0, byte1, ...]` in ARGB format. Bind to the block's `pixmap` field. |
 | `sni.AppID.icon_name` | Named icon from the system icon theme (alternative to pixmap). *Requires `gtk4_icons` feature (disabled by default).* |
 | `sni.AppID.icon_theme_path` | Additional icon theme search path for resolving `icon_name`. *Requires `gtk4_icons` feature (disabled by default).* |
 

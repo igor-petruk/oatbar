@@ -175,10 +175,11 @@ impl StatusNotifierItemProperties {
 
         if let Some(ref pixmaps) = self.icon_pixmap {
             if let Some(pixmap) = pixmaps.iter().max_by_key(|p| p.width * p.height) {
-                other.insert("pixmap_width".into(), pixmap.width.into());
-                other.insert("pixmap_height".into(), pixmap.height.into());
-                let pixel_values: Vec<serde_json::Value> =
-                    pixmap.data.iter().map(|b| (*b).into()).collect();
+                let mut pixel_values: Vec<serde_json::Value> =
+                    Vec::with_capacity(pixmap.data.len() + 2);
+                pixel_values.push(pixmap.width.into());
+                pixel_values.push(pixmap.height.into());
+                pixel_values.extend(pixmap.data.iter().map(|b| serde_json::Value::from(*b)));
                 other.insert("pixmap".into(), pixel_values.into());
             }
         }

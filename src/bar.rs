@@ -1104,8 +1104,6 @@ impl Block for ImageBlock {
             self.config.display.update(vars)?,
             self.config.input.update(vars)?,
             self.config.pixmap.update(vars)?,
-            self.config.pixmap_width.update(vars)?,
-            self.config.pixmap_height.update(vars)?,
             self.config.icon_name.update(vars)?,
             self.config.icon_theme_path.update(vars)?,
             self.config
@@ -1127,27 +1125,33 @@ impl Block for ImageBlock {
             let cache_images = !updater_updated;
 
             // Priority 1: Try loading from pixmap data.
+            // Format: JSON array [width, height, byte0, byte1, ...]
             let pixmap_data = &self.config.pixmap.value;
             if !pixmap_data.is_empty() {
-                let width: i32 = self.config.pixmap_width.value.parse().unwrap_or_default();
-                let height: i32 = self.config.pixmap_height.value.parse().unwrap_or_default();
-                if width > 0 && height > 0 {
-                    let bytes: Result<Vec<u8>, _> = serde_json::from_str::<Vec<u8>>(pixmap_data);
-                    match bytes {
-                        Ok(argb_data) => {
+                let parsed: Result<Vec<u64>, _> = serde_json::from_str(pixmap_data);
+                match parsed {
+                    Ok(values) if values.len() > 2 => {
+                        let width = values[0] as i32;
+                        let height = values[1] as i32;
+                        if width > 0 && height > 0 {
                             self.image_buf = Some(
                                 drawing_context
                                     .image_loader
-                                    .load_from_argb_pixmap(width, height, &argb_data, fit)
+                                    .load_from_argb_pixmap(width, height, &values[2..], fit)
                                     .with_context(|| {
                                         format!("Cannot load pixmap {}x{}", width, height)
                                     })?,
                             );
                             return Ok(any_updated);
                         }
-                        Err(e) => {
-                            tracing::warn!("Failed to parse pixmap data: {:?}", e);
-                        }
+                    }
+                    Ok(_) => {
+                        tracing::warn!(
+                            "Pixmap data too short (need at least width, height + data)"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to parse pixmap data: {:?}", e);
                     }
                 }
             }
