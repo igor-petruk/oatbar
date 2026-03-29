@@ -229,7 +229,8 @@ impl ImageLoader {
         let display = gdk4::Display::default().unwrap();
         let icon_theme = gtk4::IconTheme::for_display(&display);
         if !icon_theme_path.is_empty() {
-            icon_theme.add_search_path(icon_theme_path);
+            let icon_theme_path = PathBuf::from(icon_theme_path);
+            icon_theme.set_search_path(&[&icon_theme_path]);
         }
 
         let size = fit_to_height as i32;
