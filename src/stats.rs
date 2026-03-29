@@ -228,7 +228,7 @@ fn battery_state(manager: &battery::Manager) -> anyhow::Result<Vec<i3bar::Block>
         blocks.push(i3bar::Block {
             name: Some("battery".into()),
             instance: Some(index.to_string()),
-            full_text: format!("batt{}: {:?} {:?}", index, charge, state),
+            full_text: format!("batt{}: {:?}% {:?}", index, charge, state),
             other,
         });
     }
