@@ -119,6 +119,8 @@ enum LayoutSubcommand {
         /// Layout index as returned by oatbar-keyboard stream.
         layout: usize,
     },
+    /// Switch to the next keyboard layout.
+    Next,
 }
 
 #[derive(Subcommand)]
@@ -288,6 +290,19 @@ mod x11_impl {
             match command {
                 Commands::Layout { layout_cmd } => match layout_cmd {
                     LayoutSubcommand::Set { layout } => handle_set_layout(&conn, layout)?,
+                    LayoutSubcommand::Next => {
+                        let reply = xutils::query(
+                            &conn,
+                            &xkb::GetState {
+                                device_spec: xkb::Id::UseCoreKbd as xkb::DeviceSpec,
+                            },
+                        )?;
+                        let state = get_current_state(&conn, reply.group())?;
+                        if state.variants.len() > 1 {
+                            let next = (state.current + 1) % state.variants.len();
+                            handle_set_layout(&conn, next)?;
+                        }
+                    }
                 },
             }
             return Ok(());
@@ -366,6 +381,17 @@ mod sway_impl {
                                 conn.run_command(format!(
                                     "input {} xkb_switch_layout {}",
                                     input.identifier, layout
+                                ))?;
+                            }
+                        }
+                    }
+                    LayoutSubcommand::Next => {
+                        let inputs = conn.get_inputs()?;
+                        for input in inputs {
+                            if input.input_type == "keyboard" {
+                                conn.run_command(format!(
+                                    "input {} xkb_switch_layout next",
+                                    input.identifier
                                 ))?;
                             }
                         }
@@ -498,6 +524,17 @@ mod hyprland_impl {
                             &keyboard.name,
                             switch_xkb_layout::SwitchXKBLayoutCmdTypes::Id(layout as u8),
                         )?;
+                    }
+                    LayoutSubcommand::Next => {
+                        let state = get_state()?;
+                        if state.variants.len() > 1 {
+                            let next = (state.current + 1) % state.variants.len();
+                            let keyboard = get_keyboard()?;
+                            switch_xkb_layout::call(
+                                &keyboard.name,
+                                switch_xkb_layout::SwitchXKBLayoutCmdTypes::Id(next as u8),
+                            )?;
+                        }
                     }
                 },
             }

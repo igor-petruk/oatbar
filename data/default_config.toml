@@ -1,7 +1,7 @@
 [[bar]]
 height=32
 blocks_left=[ "launcher", "workspace", "active_window"]
-blocks_right=["layout_enum", "sep", "disk_free", "sep", "clock"]
+blocks_right=["layout", "sep", "disk_free", "sep", "clock"]
 background="#191919dd"
 
 [[var]]
@@ -50,11 +50,10 @@ variants = '${desktop:workspace.variants}'
 on_mouse_left = "oatbar-desktop $BLOCK_INDEX"
 
 [[block]]
-name = 'layout_enum'
-type = 'enum'
-active = '${keyboard:layout.active}'
-variants = '${keyboard:layout.variants}'
-on_mouse_left = "oatbar-keyboard layout set $BLOCK_INDEX"
+name = 'layout'
+type = 'text'
+value = '${keyboard:layout.value}'
+on_mouse_left = "oatbar-keyboard layout next"
 
 [[block]]
 name='disk_free'
