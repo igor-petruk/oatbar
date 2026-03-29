@@ -211,11 +211,35 @@ fn network<P: systemstat::Platform>(
     }])
 }
 
+fn battery_state(manager: &battery::Manager) -> anyhow::Result<Vec<i3bar::Block>> {
+    let mut blocks = vec![];
+    for (index, battery) in manager.batteries()?.enumerate() {
+        if battery.is_err() {
+            continue;
+        }
+        let battery = battery?;
+        let state = battery.state();
+        let charge = battery
+            .state_of_charge()
+            .get::<battery::units::ratio::percent>();
+        let mut other = BTreeMap::new();
+        other.insert("state".to_string(), state.to_string().into());
+        other.insert("charge".to_string(), charge.to_string().into());
+        blocks.push(i3bar::Block {
+            name: Some("battery".into()),
+            instance: Some(index.to_string()),
+            full_text: format!("batt{}: {:?} {:?}", index, charge, state),
+            other,
+        });
+    }
+    Ok(blocks)
+}
+
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let system = systemstat::System::new();
     let mut network_stats = HashMap::new();
-
+    let battery_manager = battery::Manager::new()?;
     println!("{}", serde_json::to_string(&i3bar::Header::default())?);
     println!("[");
 
@@ -225,6 +249,10 @@ fn main() -> anyhow::Result<()> {
         let mut blocks = vec![];
         try_extend(&mut blocks, memory(&system).context("memory"));
         try_extend(&mut blocks, cpu(&system, cpu_load).context("cpu"));
+        try_extend(
+            &mut blocks,
+            battery_state(&battery_manager).context("battery"),
+        );
         let interfaces = get_interfaces()?;
         for (name, interface) in interfaces {
             try_extend(
