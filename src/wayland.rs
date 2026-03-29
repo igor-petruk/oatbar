@@ -352,7 +352,10 @@ pub struct WaylandEngine {
     event_queue: Option<smithay_client::EventQueue<WaylandEngine>>,
     pub update_tx: crossbeam_channel::Sender<state::Update>,
     update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
-    windows: Vec<WaylandWindow>,
+    windows: std::collections::HashMap<usize, WaylandWindow>,
+    window_outputs: std::collections::HashMap<usize, smithay_client::protocol::wl_output::WlOutput>,
+    config: config::Config<parse::Placeholder>,
+    notifier: notify::Notifier,
     qh: smithay_client::QueueHandle<WaylandEngine>,
     pointer_surface: Option<wayland_client::protocol::wl_surface::WlSurface>,
     last_pointer_pos: (f64, f64),
@@ -375,7 +378,7 @@ impl sct::seat::pointer::PointerHandler for WaylandEngine {
                 PointerEventKind::Enter { .. } => {
                     self.pointer_surface = Some(event.surface.clone());
                     self.last_pointer_pos = event.position;
-                    for window in &mut self.windows {
+                    for window in self.windows.values_mut() {
                         if window.wl_surface() == &event.surface {
                             if let Err(e) = window.handle_motion(event.position.0, event.position.1)
                             {
@@ -388,7 +391,7 @@ impl sct::seat::pointer::PointerHandler for WaylandEngine {
                 PointerEventKind::Leave { .. } => {
                     if self.pointer_surface.as_ref() == Some(&event.surface) {
                         self.pointer_surface = None;
-                        for window in &mut self.windows {
+                        for window in self.windows.values_mut() {
                             if window.wl_surface() == &event.surface {
                                 if let Err(e) = window.handle_motion_leave() {
                                     tracing::error!("handle_motion_leave error: {}", e);
@@ -401,7 +404,7 @@ impl sct::seat::pointer::PointerHandler for WaylandEngine {
                 PointerEventKind::Motion { .. } => {
                     self.last_pointer_pos = event.position;
                     if let Some(surface) = &self.pointer_surface {
-                        for window in &mut self.windows {
+                        for window in self.windows.values_mut() {
                             if window.wl_surface() == surface {
                                 if let Err(e) =
                                     window.handle_motion(event.position.0, event.position.1)
@@ -421,7 +424,7 @@ impl sct::seat::pointer::PointerHandler for WaylandEngine {
                         _ => return,
                     };
                     if let Some(surface) = &self.pointer_surface {
-                        for window in &mut self.windows {
+                        for window in self.windows.values_mut() {
                             if window.wl_surface() == surface {
                                 if let Err(e) = window.handle_button_press(
                                     self.last_pointer_pos.0,
@@ -452,7 +455,7 @@ impl sct::seat::pointer::PointerHandler for WaylandEngine {
                             bar::Button::ScrollUp
                         };
                         if let Some(surface) = &self.pointer_surface {
-                            for window in &mut self.windows {
+                            for window in self.windows.values_mut() {
                                 if window.wl_surface() == surface {
                                     if let Err(e) = window.handle_button_press(
                                         self.last_pointer_pos.0,
@@ -505,58 +508,7 @@ impl WaylandEngine {
             .context("Unable to create layer shell state")?;
         let popup_manager = Arc::new(Mutex::new(PopupManager::new()));
 
-        let mut windows = Vec::with_capacity(config.bar.len());
-
-        for (index, bar) in config.bar.iter().enumerate() {
-            let output = bar.monitor.as_ref().and_then(|name| {
-                output_state.outputs().find(|output| {
-                    if let Some(info) = output_state.info(output) {
-                        if let Some(output_name) = info.name {
-                            if output_name == *name {
-                                return true;
-                            }
-                        }
-                    }
-                    false
-                })
-            });
-
-            let output = output.or_else(|| output_state.outputs().next());
-
-            if let Some(name) = &bar.monitor {
-                tracing::info!(
-                    "Creating wayland window for bar {} on monitor {:?}: output {:?}",
-                    index,
-                    bar.monitor,
-                    output
-                );
-
-                if output.is_none() {
-                    return Err(anyhow::anyhow!(
-                        "Monitor {:?} not found, but specified for the bar",
-                        name
-                    ));
-                }
-            }
-
-            let wayland_window = WaylandWindow::create_and_show(
-                format!("oatbar-bar-{}", index),
-                &config,
-                bar.clone(),
-                state.clone(),
-                update_tx.clone(),
-                notifier.clone(),
-                &qh,
-                &compositor_state,
-                &layer_shell,
-                output.as_ref(),
-                popup_manager.clone(),
-            )
-            .context("Unable to create wayland window")?;
-            windows.push(wayland_window);
-        }
-
-        Ok(Self {
+        let mut engine = Self {
             state,
             conn,
             update_tx,
@@ -568,14 +520,102 @@ impl WaylandEngine {
             output_state,
             compositor_state,
             event_queue: Some(event_queue),
-            windows,
+            windows: std::collections::HashMap::new(),
+            window_outputs: std::collections::HashMap::new(),
             qh,
             pointer_surface: None,
             last_pointer_pos: (0.0, 0.0),
             popup_manager,
             loop_handle: None,
             output_infos: HashMap::new(),
-        })
+            config,
+            notifier,
+        };
+        engine.reassess_windows();
+        Ok(engine)
+    }
+
+    fn reassess_windows(&mut self) {
+        // Remove windows whose output no longer exists.
+        let indices_to_check: Vec<usize> = self.window_outputs.keys().copied().collect();
+        for index in indices_to_check {
+            if let Some(existing_output) = self.window_outputs.get(&index) {
+                let still_exists = self
+                    .output_state
+                    .outputs()
+                    .any(|o| &o == existing_output);
+                if !still_exists {
+                    tracing::info!("Output for bar {} no longer exists, removing window", index);
+                    if let Some(removed) = self.windows.remove(&index) {
+                        // Clear stale pointer_surface if it was on this window.
+                        if self.pointer_surface.as_ref() == Some(removed.wl_surface()) {
+                            self.pointer_surface = None;
+                        }
+                    }
+                    self.window_outputs.remove(&index);
+                }
+            }
+        }
+
+        // Create or recreate windows for configured bars.
+        for (index, bar) in self.config.bar.iter().enumerate() {
+            let output = bar.monitor.as_ref().and_then(|name| {
+                self.output_state.outputs().find(|output| {
+                    if let Some(info) = self.output_state.info(output) {
+                        if let Some(output_name) = &info.name {
+                            if output_name == name {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                })
+            });
+
+            let output = output.or_else(|| self.output_state.outputs().next());
+
+            let mut need_recreate = false;
+            if let Some(existing_output) = self.window_outputs.get(&index) {
+                if Some(existing_output) != output.as_ref() {
+                    need_recreate = true;
+                }
+            } else if output.is_some() {
+                need_recreate = true;
+            }
+
+            if need_recreate {
+                if let Some(removed) = self.windows.remove(&index) {
+                    if self.pointer_surface.as_ref() == Some(removed.wl_surface()) {
+                        self.pointer_surface = None;
+                    }
+                }
+                self.window_outputs.remove(&index);
+                if let Some(out) = output {
+                    if let Some(name) = &bar.monitor {
+                        tracing::info!("Creating wayland window for bar {} on monitor {:?}: output {:?}", index, name, out);
+                    }
+                    match WaylandWindow::create_and_show(
+                        format!("oatbar-bar-{}", index),
+                        &self.config,
+                        bar.clone(),
+                        self.state.clone(),
+                        self.update_tx.clone(),
+                        self.notifier.clone(),
+                        &self.qh,
+                        &self.compositor_state,
+                        &self.layer_shell,
+                        Some(&out),
+                        self.popup_manager.clone(),
+                    ) {
+                        Ok(wayland_window) => {
+                            self.windows.insert(index, wayland_window);
+                            self.window_outputs.insert(index, out.clone());
+                        }
+                        Err(e) => tracing::error!("Unable to create wayland window: {}", e),
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -616,7 +656,7 @@ impl Engine for WaylandEngine {
                         let mut state = engine.state.write().unwrap();
                         state.handle_state_update(state_update);
                     }
-                    for window in engine.windows.iter_mut() {
+                    for window in engine.windows.values_mut() {
                         if let Err(err) = window.draw(
                             &engine.qh,
                             &engine.shm,
@@ -714,6 +754,7 @@ impl sct::output::OutputHandler for WaylandEngine {
                 self.output_infos.insert(name.clone(), info.clone());
             }
         }
+        self.reassess_windows();
     }
 
     fn update_output(
@@ -727,6 +768,7 @@ impl sct::output::OutputHandler for WaylandEngine {
                 self.output_infos.insert(name.clone(), info.clone());
             }
         }
+        self.reassess_windows();
     }
 
     fn output_destroyed(
@@ -740,6 +782,7 @@ impl sct::output::OutputHandler for WaylandEngine {
                 self.output_infos.remove(name);
             }
         }
+        self.reassess_windows();
     }
 }
 
@@ -807,7 +850,7 @@ impl sct::shell::wlr_layer::LayerShellHandler for WaylandEngine {
         configure: sct::shell::wlr_layer::LayerSurfaceConfigure,
         _serial: u32,
     ) {
-        for window in &mut self.windows {
+        for window in self.windows.values_mut() {
             if window.layer_surface == *layer {
                 if configure.new_size.0 > 0 {
                     window.width = configure.new_size.0;
