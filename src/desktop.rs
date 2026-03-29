@@ -573,19 +573,19 @@ mod sway_impl {
 
             match event {
                 Event::Window(window_event) => {
-                    if window_event.change == swayipc::WindowChange::Focus {
-                        if let Some(container) = window_event.container.name {
-                            state.active_window_title = container;
+                    match window_event.change {
+                        swayipc::WindowChange::Focus
+                        | swayipc::WindowChange::Title
+                        | swayipc::WindowChange::Close => {
+                            refresh_state(&mut command_conn, &mut state)?;
                             print_update(&state)?;
                         }
+                        _ => {}
                     }
                 }
-                Event::Workspace(workspace_event) => {
-                    if workspace_event.change == swayipc::WorkspaceChange::Focus {
-                        // Reuse the command connection for refreshing state
-                        refresh_state(&mut command_conn, &mut state)?;
-                        print_update(&state)?;
-                    }
+                Event::Workspace(_) => {
+                    refresh_state(&mut command_conn, &mut state)?;
+                    print_update(&state)?;
                 }
                 _ => {}
             }
