@@ -3,6 +3,7 @@ height=32
 blocks_left=[ "launcher", "workspace", "active_window"]
 blocks_right=["layout", "sep", "disk_free", "sep", "clock"]
 background="#191919dd"
+position="top"
 
 [[var]]
 name="theme_color"
@@ -79,4 +80,5 @@ type = 'text'
 value = '|'
 padding = 0.0
 foreground = "#777777"
+separator_type = 'gap'
 
