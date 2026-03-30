@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use anyhow::Context;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
@@ -352,8 +352,10 @@ pub struct WaylandEngine {
     event_queue: Option<smithay_client::EventQueue<WaylandEngine>>,
     pub update_tx: crossbeam_channel::Sender<state::Update>,
     update_rx: Option<crossbeam_channel::Receiver<state::Update>>,
-    windows: std::collections::HashMap<usize, WaylandWindow>,
-    window_outputs: std::collections::HashMap<usize, smithay_client::protocol::wl_output::WlOutput>,
+    windows: std::collections::HashMap<
+        (usize, smithay_client::protocol::wl_output::WlOutput),
+        WaylandWindow,
+    >,
     config: config::Config<parse::Placeholder>,
     notifier: notify::Notifier,
     qh: smithay_client::QueueHandle<WaylandEngine>,
@@ -521,7 +523,6 @@ impl WaylandEngine {
             compositor_state,
             event_queue: Some(event_queue),
             windows: std::collections::HashMap::new(),
-            window_outputs: std::collections::HashMap::new(),
             qh,
             pointer_surface: None,
             last_pointer_pos: (0.0, 0.0),
@@ -536,31 +537,12 @@ impl WaylandEngine {
     }
 
     fn reassess_windows(&mut self) {
-        // Remove windows whose output no longer exists.
-        let indices_to_check: Vec<usize> = self.window_outputs.keys().copied().collect();
-        for index in indices_to_check {
-            if let Some(existing_output) = self.window_outputs.get(&index) {
-                let still_exists = self
-                    .output_state
-                    .outputs()
-                    .any(|o| &o == existing_output);
-                if !still_exists {
-                    tracing::info!("Output for bar {} no longer exists, removing window", index);
-                    if let Some(removed) = self.windows.remove(&index) {
-                        // Clear stale pointer_surface if it was on this window.
-                        if self.pointer_surface.as_ref() == Some(removed.wl_surface()) {
-                            self.pointer_surface = None;
-                        }
-                    }
-                    self.window_outputs.remove(&index);
-                }
-            }
-        }
+        let mut windows_to_keep =
+            HashSet::<(usize, smithay_client::protocol::wl_output::WlOutput)>::new();
 
-        // Create or recreate windows for configured bars.
         for (index, bar) in self.config.bar.iter().enumerate() {
-            let output = bar.monitor.as_ref().and_then(|name| {
-                self.output_state.outputs().find(|output| {
+            if let Some(name) = &bar.monitor {
+                let output = self.output_state.outputs().find(|output| {
                     if let Some(info) = self.output_state.info(output) {
                         if let Some(output_name) = &info.name {
                             if output_name == name {
@@ -569,50 +551,66 @@ impl WaylandEngine {
                         }
                     }
                     false
-                })
-            });
-
-            let output = output.or_else(|| self.output_state.outputs().next());
-
-            let mut need_recreate = false;
-            if let Some(existing_output) = self.window_outputs.get(&index) {
-                if Some(existing_output) != output.as_ref() {
-                    need_recreate = true;
+                });
+                if let Some(output) = output {
+                    windows_to_keep.insert((index, output));
                 }
-            } else if output.is_some() {
-                need_recreate = true;
+            } else {
+                for output in self.output_state.outputs() {
+                    windows_to_keep.insert((index, output));
+                }
             }
+        }
 
-            if need_recreate {
-                if let Some(removed) = self.windows.remove(&index) {
-                    if self.pointer_surface.as_ref() == Some(removed.wl_surface()) {
-                        self.pointer_surface = None;
-                    }
+        let keys_to_remove: Vec<_> = self
+            .windows
+            .keys()
+            .filter(|k| !windows_to_keep.contains(k))
+            .cloned()
+            .collect();
+
+        for key in keys_to_remove {
+            if let Some(removed) = self.windows.remove(&key) {
+                if self.pointer_surface.as_ref() == Some(removed.wl_surface()) {
+                    self.pointer_surface = None;
                 }
-                self.window_outputs.remove(&index);
-                if let Some(out) = output {
-                    if let Some(name) = &bar.monitor {
-                        tracing::info!("Creating wayland window for bar {} on monitor {:?}: output {:?}", index, name, out);
+            }
+        }
+
+        for (index, output) in windows_to_keep {
+            if !self.windows.contains_key(&(index, output.clone())) {
+                let bar = &self.config.bar[index];
+                if let Some(name) = &bar.monitor {
+                    tracing::info!(
+                        "Creating wayland window for bar {} on monitor {:?}: output {:?}",
+                        index,
+                        name,
+                        output
+                    );
+                } else {
+                    tracing::info!(
+                        "Creating wayland window for bar {} on output {:?}",
+                        index,
+                        output
+                    );
+                }
+                match WaylandWindow::create_and_show(
+                    format!("oatbar-bar-{}", index),
+                    &self.config,
+                    bar.clone(),
+                    self.state.clone(),
+                    self.update_tx.clone(),
+                    self.notifier.clone(),
+                    &self.qh,
+                    &self.compositor_state,
+                    &self.layer_shell,
+                    Some(&output),
+                    self.popup_manager.clone(),
+                ) {
+                    Ok(wayland_window) => {
+                        self.windows.insert((index, output), wayland_window);
                     }
-                    match WaylandWindow::create_and_show(
-                        format!("oatbar-bar-{}", index),
-                        &self.config,
-                        bar.clone(),
-                        self.state.clone(),
-                        self.update_tx.clone(),
-                        self.notifier.clone(),
-                        &self.qh,
-                        &self.compositor_state,
-                        &self.layer_shell,
-                        Some(&out),
-                        self.popup_manager.clone(),
-                    ) {
-                        Ok(wayland_window) => {
-                            self.windows.insert(index, wayland_window);
-                            self.window_outputs.insert(index, out.clone());
-                        }
-                        Err(e) => tracing::error!("Unable to create wayland window: {}", e),
-                    }
+                    Err(e) => tracing::error!("Unable to create wayland window: {}", e),
                 }
             }
         }
