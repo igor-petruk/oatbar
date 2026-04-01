@@ -37,6 +37,7 @@ pub struct WaylandWindow {
     update_tx: crossbeam_channel::Sender<state::Update>,
     width: u32,
     height: u32,
+    scale_factor: i32,
     visible: bool,
     bar_config: config::Bar<parse::Placeholder>,
 }
@@ -120,6 +121,7 @@ impl WaylandWindow {
 
             width: 0,
             height: 0,
+            scale_factor: 1,
             update_tx,
             popup_manager_mutex,
             visible,
@@ -136,6 +138,7 @@ impl WaylandWindow {
     ) -> anyhow::Result<()> {
         let width = self.width;
         let height = self.height;
+        let scale = self.scale_factor;
 
         // Don't draw if we haven't received configure event yet
         if width == 0 || height == 0 {
@@ -147,13 +150,19 @@ impl WaylandWindow {
             return Ok(());
         }
 
-        let stride = width as i32 * 4;
-        let size = (width * height * 4) as usize;
+        // Buffer dimensions are in device pixels (logical × scale)
+        let buf_width = width * scale as u32;
+        let buf_height = height * scale as u32;
+        let stride = buf_width as i32 * 4;
+        let size = (buf_width * buf_height * 4) as usize;
         tracing::trace!(
-            "Drawing window {}, width: {}, height: {}",
+            "Drawing window {}, logical: {}x{}, device: {}x{}, scale: {}",
             self.name,
             width,
-            height
+            height,
+            buf_width,
+            buf_height,
+            scale
         );
         let pool = self.pool.get_or_insert_with(|| {
             sct::shm::slot::SlotPool::new(size * 2, shm).expect("Failed to create pool")
@@ -165,8 +174,8 @@ impl WaylandWindow {
 
         let (buffer, canvas) = pool
             .create_buffer(
-                self.width as i32,
-                self.height as i32,
+                buf_width as i32,
+                buf_height as i32,
                 stride,
                 smithay_client::protocol::wl_shm::Format::Argb8888,
             )
@@ -175,12 +184,15 @@ impl WaylandWindow {
             cairo::ImageSurface::create_for_data_unsafe(
                 canvas.as_mut_ptr(),
                 cairo::Format::ARgb32,
-                width as i32,
-                height as i32,
+                buf_width as i32,
+                buf_height as i32,
                 stride,
             )
             .unwrap()
         };
+        // Set device scale so Cairo maps logical coordinates to device pixels.
+        // All drawing code continues to work in logical coordinates.
+        surface.set_device_scale(scale as f64, scale as f64);
         let cr = cairo::Context::new(&surface).unwrap();
         let mut context = drawing::Context::new(
             cr,
@@ -255,14 +267,19 @@ impl WaylandWindow {
                 .context("Failed to render bar")?;
         }
 
+        // Inform compositor about buffer scale
+        self.layer_surface.wl_surface().set_buffer_scale(scale);
+
         buffer
             .attach_to(self.layer_surface.wl_surface())
             .context("Failed to attach buffer")?;
+        // Damage coordinates are in surface-local (logical) coordinates
         self.layer_surface
             .wl_surface()
             .damage(0, 0, width as i32, height as i32);
 
         // Set input region to only accept clicks on blocks
+        // Input region coordinates are in surface-local (logical) coordinates
         if self.bar_config.popup_at_edge {
             if !self.visible {
                 if let Ok(region) = sct::compositor::Region::new(compositor_state) {
@@ -788,10 +805,35 @@ impl sct::compositor::CompositorHandler for WaylandEngine {
     fn scale_factor_changed(
         &mut self,
         _conn: &smithay_client::Connection,
-        _qh: &smithay_client::QueueHandle<Self>,
-        _surface: &wayland_client::protocol::wl_surface::WlSurface,
-        _new_factor: i32,
+        qh: &smithay_client::QueueHandle<Self>,
+        surface: &wayland_client::protocol::wl_surface::WlSurface,
+        new_factor: i32,
     ) {
+        tracing::info!(
+            "Scale factor changed to {} for surface {:?}",
+            new_factor,
+            surface
+        );
+        for window in self.windows.values_mut() {
+            if window.wl_surface() == surface {
+                if window.scale_factor != new_factor {
+                    tracing::info!(
+                        "Scale factor changed from {} to {}",
+                        window.scale_factor,
+                        new_factor
+                    );
+                    window.scale_factor = new_factor;
+                    // Invalidate pool so it gets recreated at the new size
+                    window.pool = None;
+                    if let Err(e) =
+                        window.draw(qh, &self.shm, &self.compositor_state, &mut self.loop_handle)
+                    {
+                        tracing::error!("Failed to redraw after scale change: {}", e);
+                    }
+                }
+                break;
+            }
+        }
     }
 
     fn frame(
@@ -806,10 +848,32 @@ impl sct::compositor::CompositorHandler for WaylandEngine {
     fn surface_enter(
         &mut self,
         _conn: &smithay_client::Connection,
-        _qh: &smithay_client::QueueHandle<Self>,
-        _surface: &wayland_client::protocol::wl_surface::WlSurface,
-        _output: &wayland_client::protocol::wl_output::WlOutput,
+        qh: &smithay_client::QueueHandle<Self>,
+        surface: &wayland_client::protocol::wl_surface::WlSurface,
+        output: &wayland_client::protocol::wl_output::WlOutput,
     ) {
+        // When a surface enters an output, pick up the output's scale factor
+        if let Some(info) = self.output_state.info(output) {
+            let new_factor = info.scale_factor;
+            tracing::info!(
+                "Surface {:?} entered output {:?} (scale_factor={})",
+                surface,
+                info.name,
+                new_factor
+            );
+            for window in self.windows.values_mut() {
+                if window.wl_surface() == surface && window.scale_factor != new_factor {
+                    window.scale_factor = new_factor;
+                    window.pool = None;
+                    if let Err(e) =
+                        window.draw(qh, &self.shm, &self.compositor_state, &mut self.loop_handle)
+                    {
+                        tracing::error!("Failed to redraw after output enter: {}", e);
+                    }
+                    break;
+                }
+            }
+        }
     }
 
     fn surface_leave(
