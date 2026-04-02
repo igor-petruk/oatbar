@@ -572,17 +572,15 @@ mod sway_impl {
             };
 
             match event {
-                Event::Window(window_event) => {
-                    match window_event.change {
-                        swayipc::WindowChange::Focus
-                        | swayipc::WindowChange::Title
-                        | swayipc::WindowChange::Close => {
-                            refresh_state(&mut command_conn, &mut state)?;
-                            print_update(&state)?;
-                        }
-                        _ => {}
+                Event::Window(window_event) => match window_event.change {
+                    swayipc::WindowChange::Focus
+                    | swayipc::WindowChange::Title
+                    | swayipc::WindowChange::Close => {
+                        refresh_state(&mut command_conn, &mut state)?;
+                        print_update(&state)?;
                     }
-                }
+                    _ => {}
+                },
                 Event::Workspace(_) => {
                     refresh_state(&mut command_conn, &mut state)?;
                     print_update(&state)?;

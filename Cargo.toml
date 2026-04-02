@@ -54,10 +54,16 @@ path="src/sni.rs"
 name="oatbar-mpris"
 path="src/mpris.rs"
 
+[[bin]]
+name="oatbar-mcp"
+path="src/mcp.rs"
+required-features = ["mcp"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default=["bmp", "ico", "image", "jpeg", "png", "webp", "svg", "raster", "llm", "llm-google", "llm-openai", "llm-anthropic", "llm-mistral", "llm-xai", "llm-ollama", "x11", "wayland"]
+default=["bmp", "ico", "image", "jpeg", "png", "webp", "svg", "raster", "llm", "llm-google", "llm-openai", "llm-anthropic", "llm-mistral", "llm-xai", "llm-ollama", "x11", "wayland", "mcp"]
+mcp=["dep:rmcp", "dep:schemars", "dep:tokio"]
 image=[]
 raster=["dep:image"]
 bmp=["image", "raster", "image/bmp"]
@@ -126,5 +132,5 @@ futures-util = "0.3.31"
 gtk4 = { version = "0.11", optional = true }
 gdk4 = { version = "0.11", optional = true }
 battery = "0.7.8"
-
-
+rmcp = { version = "1.3.0", features = ["macros", "server", "transport-io"], optional = true }
+schemars = { version = "0.8", optional = true }

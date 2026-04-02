@@ -63,9 +63,7 @@ enum Commands {
 // ---------------------------------------------------------------------------
 
 /// Find MPRIS bus names and return the "best" one (prefer Playing, then Paused).
-async fn find_active_player(
-    session: &zbus::Connection,
-) -> anyhow::Result<Option<String>> {
+async fn find_active_player(session: &zbus::Connection) -> anyhow::Result<Option<String>> {
     let dbus = zbus::fdo::DBusProxy::new(session).await?;
     let names = dbus.list_names().await?;
 
@@ -94,10 +92,7 @@ async fn find_active_player(
     Ok(scored.into_iter().next().map(|(n, _)| n))
 }
 
-async fn get_playback_status(
-    session: &zbus::Connection,
-    bus_name: &str,
-) -> anyhow::Result<String> {
+async fn get_playback_status(session: &zbus::Connection, bus_name: &str) -> anyhow::Result<String> {
     let player = build_player_proxy(session, bus_name).await?;
     Ok(player.playback_status().await?)
 }
@@ -217,7 +212,10 @@ fn build_block(
     let mut other = BTreeMap::new();
     other.insert("playback_status".into(), playback_status.into());
     other.insert("player_name".into(), identity.into());
-    other.insert("volume".into(), serde_json::Value::from((volume * 100.0) as i64));
+    other.insert(
+        "volume".into(),
+        serde_json::Value::from((volume * 100.0) as i64),
+    );
     other.insert("track".into(), track_text.into());
 
     // Position in seconds.
@@ -277,7 +275,9 @@ fn stamp_and_emit(blocks: &mut [i3bar::Block]) {
         .unwrap_or_default()
         .as_secs();
     for block in blocks.iter_mut() {
-        block.other.insert("position_ts".into(), serde_json::Value::from(now_ts));
+        block
+            .other
+            .insert("position_ts".into(), serde_json::Value::from(now_ts));
     }
     emit_blocks(blocks);
 }
@@ -308,17 +308,25 @@ async fn fetch_block(
     let volume = player.volume().await.unwrap_or(0.0);
     let position_us = player.position().await.unwrap_or(0);
     let rate = player.rate().await.unwrap_or(1.0);
-    build_block(bus_name, identity, &status, &metadata, volume, position_us, rate)
+    build_block(
+        bus_name,
+        identity,
+        &status,
+        &metadata,
+        volume,
+        position_us,
+        rate,
+    )
 }
 
-async fn stream_player(
-    session: &zbus::Connection,
-    bus_name: &str,
-) -> anyhow::Result<()> {
+async fn stream_player(session: &zbus::Connection, bus_name: &str) -> anyhow::Result<()> {
     let player = build_player_proxy(session, bus_name).await?;
     let mp2 = build_mp2_proxy(session, bus_name).await?;
 
-    let identity = mp2.identity().await.unwrap_or_else(|_| short_name(bus_name));
+    let identity = mp2
+        .identity()
+        .await
+        .unwrap_or_else(|_| short_name(bus_name));
 
     // Emit initial state.
     let mut last_block = fetch_block(&player, bus_name, &identity).await;
@@ -457,15 +465,12 @@ async fn process_command(cmd: Commands) -> anyhow::Result<()> {
                 anyhow::bail!("Percentage must be between 0 and 100, got {}", percent);
             }
             let metadata = player.metadata().await?;
-            let length_us = extract_i64(&metadata, "mpris:length")
-                .context("Track has no length metadata")?;
-            let track_id = extract_track_id(&metadata)
-                .context("Track has no trackid metadata")?;
+            let length_us =
+                extract_i64(&metadata, "mpris:length").context("Track has no length metadata")?;
+            let track_id = extract_track_id(&metadata).context("Track has no trackid metadata")?;
 
             let target_us = (length_us as f64 * percent / 100.0) as i64;
-            player
-                .set_position(&track_id.into(), target_us)
-                .await?;
+            player.set_position(&track_id.into(), target_us).await?;
         }
     }
     Ok(())

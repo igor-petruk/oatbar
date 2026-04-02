@@ -3,6 +3,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[allow(unused)]
 mod ipc;
+#[allow(unused)]
+mod process;
+#[allow(unused)]
+mod restart;
 
 #[derive(Parser)]
 #[command(
@@ -70,6 +74,11 @@ enum Commands {
         #[clap(subcommand)]
         var: VarSubcommand,
     },
+    /// Terminate the oatbar background process securely using IPC.
+    Terminate {},
+    /// Restart oatbar by querying its launch command, terminating it securely via IPC,
+    /// and respawning it strictly detached.
+    Restart {},
 }
 
 fn var_rotate(
@@ -128,6 +137,12 @@ fn main() -> anyhow::Result<()> {
             } => var_rotate(&client, name, direction, values),
             VarSubcommand::List {} => client.send_command(ipc::Command::ListVars {}),
         },
+        Commands::Terminate {} => client.send_command(ipc::Command::Terminate {}),
+        Commands::Restart {} => {
+            crate::restart::restart_oatbar(&cli.instance_name)?;
+            println!("oatbar restarted cleanly!");
+            Ok(Default::default())
+        }
     }?;
     if let Some(error) = response.error {
         return Err(anyhow!("{}", error));
@@ -139,6 +154,10 @@ fn main() -> anyhow::Result<()> {
                 for (k, v) in vars {
                     println!("{}={}", k, v);
                 }
+            }
+            ipc::ResponseData::ProcessInfo { pid, command_line } => {
+                println!("PID: {}", pid);
+                println!("Command: {}", command_line.join(" "));
             }
         }
     }

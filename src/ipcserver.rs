@@ -61,6 +61,24 @@ impl Server {
         })
     }
 
+    fn handle_get_process_info(&self) -> anyhow::Result<ipc::Response> {
+        Ok(ipc::Response {
+            data: Some(ipc::ResponseData::ProcessInfo {
+                pid: std::process::id(),
+                command_line: std::env::args().collect(),
+            }),
+            ..Default::default()
+        })
+    }
+
+    fn handle_terminate(&self) -> anyhow::Result<ipc::Response> {
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            std::process::exit(0);
+        });
+        Ok(Default::default())
+    }
+
     fn handle_client(&self, mut stream: UnixStream) -> anyhow::Result<()> {
         let mut vec = Vec::with_capacity(10 * 1024);
         if stream.read_to_end(&mut vec).is_ok() {
@@ -74,6 +92,8 @@ impl Server {
                 ipc::Command::SetVar { name, value } => self.handle_set_var(name, value),
                 ipc::Command::GetVar { name } => self.handle_get_var(&name),
                 ipc::Command::ListVars {} => self.handle_list_vars(),
+                ipc::Command::GetProcessInfo {} => self.handle_get_process_info(),
+                ipc::Command::Terminate {} => self.handle_terminate(),
             }?;
             serde_json::to_writer(stream, &response)?;
         }
