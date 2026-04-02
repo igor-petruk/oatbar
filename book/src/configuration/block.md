@@ -214,8 +214,9 @@ functionality.
 [[block]]
 type="number"
 name="cpu"
+number_type="percent"
 ...
-number_display="progress_bar"
+number_display="text"
 ```
 
 ### Progress bar
@@ -224,6 +225,7 @@ number_display="progress_bar"
 [[block]]
 type="number"
 name="cpu"
+number_type="percent"
 ...
 number_display="progress_bar"
 # How many characters to use for the progress bar.

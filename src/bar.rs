@@ -698,6 +698,8 @@ impl Block for NumberBlock {
     ) -> anyhow::Result<bool> {
         let ramp = self.number.ramp.clone();
         self.number.input.update(vars)?;
+        self.number.min_value.update(vars)?;
+        self.number.max_value.update(vars)?;
         let value = &self.number.input.value.value;
         let value = self.number.number_type.parse_str(value).context("value")?;
 
