@@ -17,11 +17,13 @@
   - [Appearance](./configuration/cookbook/appearance.md)
   - [Tray](./configuration/cookbook/tray.md)
   - [Media](./configuration/cookbook/media.md)
+  - [MCP](./configuration/cookbook/mcp.md)
   - [Advanced](./configuration/cookbook/advanced.md)
 - [Reference](./configuration/reference/README.md)
   - [LLM](./configuration/reference/llm.md)
   - [Tray](./configuration/reference/tray.md)
   - [MPRIS](./configuration/reference/mpris.md)
+  - [MCP](./configuration/reference/mcp.md)
 
 # Other 
 

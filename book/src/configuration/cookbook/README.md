@@ -9,3 +9,4 @@ external data sources, tools or modules from ecosystems of other bars.
 1. Learn where to get [**data**](./data.md) to show it on the bar.
 2. If you have the data, proceed learning how to [**display**](./appearance.md) it.
 3. If you know the basic, see some [**advanced applications**](./advanced.md) of `oatbar` concepts.
+4. Let AI assistants read and write your bar live with [**MCP**](./mcp.md).

@@ -12,6 +12,8 @@ pub enum Command {
     SetVar { name: String, value: String },
     GetVar { name: String },
     ListVars {},
+    GetProcessInfo {},
+    Terminate {},
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -19,6 +21,7 @@ pub enum Command {
 pub enum ResponseData {
     Value(String),
     Vars(BTreeMap<String, String>),
+    ProcessInfo { pid: u32, command_line: Vec<String> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -209,13 +209,23 @@ impl Command {
         command_name: &str,
         tx: &crossbeam_channel::Sender<state::Update>,
     ) -> anyhow::Result<()> {
-        let mut child = std::process::Command::new("sh")
+        use std::os::unix::process::CommandExt;
+        let mut child = std::process::Command::new("sh");
+        child
             .arg("-c")
             .arg(format!("exec {}", &self.config.command))
             .stderr(std::process::Stdio::inherit())
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .context("Failed spawning")?;
+            .stdout(std::process::Stdio::piped());
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            child.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                Ok(())
+            });
+        }
+
+        let mut child = child.spawn().context("Failed spawning")?;
         if let Err(e) = self.process_child_output(command_name, &mut child, tx.clone()) {
             return Err(anyhow::anyhow!("Error running command: {:?}", e));
         }

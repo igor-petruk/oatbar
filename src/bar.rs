@@ -146,7 +146,7 @@ fn handle_block_event(
                 envs.push(("BLOCK_X".into(), e.x.to_string()));
                 envs.push(("BLOCK_Y".into(), e.y.to_string()));
                 envs.push(("BUTTON".into(), format!("{}", e.button)));
-                process::run_detached(command, envs)?;
+                process::run_detached(command, envs, false)?;
             }
         }
     }

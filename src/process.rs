@@ -1,4 +1,8 @@
-pub fn run_detached(command: &str, envs: Vec<(String, String)>) -> anyhow::Result<()> {
+pub fn run_detached(
+    command: &str,
+    envs: Vec<(String, String)>,
+    null_io: bool,
+) -> anyhow::Result<()> {
     match fork::fork() {
         Err(e) => {
             tracing::error!("Failed to spawn {:?}: {:?}", command, e);
@@ -21,11 +25,14 @@ pub fn run_detached(command: &str, envs: Vec<(String, String)>) -> anyhow::Resul
                 }
                 Ok(fork::Fork::Child) => {
                     use std::os::unix::process::CommandExt;
-                    let _ = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(command)
-                        .envs(envs)
-                        .exec();
+                    let mut bcmd = std::process::Command::new("sh");
+                    bcmd.arg("-c").arg(command).envs(envs);
+                    if null_io {
+                        bcmd.stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null());
+                    }
+                    let _ = bcmd.exec();
                 }
             }
         }
