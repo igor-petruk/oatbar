@@ -201,22 +201,30 @@ fn build_block(
     let album = extract_string(metadata, "xesam:album");
     let length_us = extract_i64(metadata, "mpris:length");
 
-    let full_text = match (artist.is_empty(), title.is_empty()) {
+    let track_text = match (artist.is_empty(), title.is_empty()) {
         (false, false) => format!("{} - {}", artist, title),
         (true, false) => title.clone(),
         (false, true) => artist.clone(),
         (true, true) => String::new(),
     };
 
+    let full_text = if track_text.is_empty() {
+        String::new()
+    } else {
+        format!("music: {}", track_text)
+    };
+
     let mut other = BTreeMap::new();
     other.insert("playback_status".into(), playback_status.into());
     other.insert("player_name".into(), identity.into());
     other.insert("volume".into(), serde_json::Value::from((volume * 100.0) as i64));
-    other.insert("track".into(), full_text.clone().into());
+    other.insert("track".into(), track_text.into());
 
     // Position in seconds.
     // Consumer can interpolate: current_pos = position + (now - position_ts) * rate
-    other.insert("position".into(), serde_json::Value::from(position_us / 1_000_000));
+    let position_sec = position_us / 1_000_000;
+    other.insert("position".into(), serde_json::Value::from(position_sec));
+    other.insert("position_str".into(), format_duration(position_sec).into());
     other.insert("rate".into(), serde_json::json!(rate));
 
     if !title.is_empty() {
@@ -229,8 +237,10 @@ fn build_block(
         other.insert("album".into(), album.into());
     }
     if let Some(len) = length_us {
+        let len_sec = len / 1_000_000;
         // Export as seconds.
-        other.insert("length".into(), serde_json::Value::from(len / 1_000_000));
+        other.insert("length".into(), serde_json::Value::from(len_sec));
+        other.insert("length_str".into(), format_duration(len_sec).into());
     }
 
     other.insert("player".into(), short_name(bus_name).into());
@@ -270,6 +280,18 @@ fn stamp_and_emit(blocks: &mut [i3bar::Block]) {
         block.other.insert("position_ts".into(), serde_json::Value::from(now_ts));
     }
     emit_blocks(blocks);
+}
+
+fn format_duration(seconds: i64) -> String {
+    let seconds = seconds.max(0);
+    let hours = seconds / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let seconds = seconds % 60;
+    if hours > 0 {
+        format!("{}:{:02}:{:02}", hours, minutes, seconds)
+    } else {
+        format!("{:02}:{:02}", minutes, seconds)
+    }
 }
 
 // ---------------------------------------------------------------------------

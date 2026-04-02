@@ -8,8 +8,8 @@ The `oatbar-mpris` daemon continuously outputs the state of the active MPRIS med
 
 | Variable | Description |
 |---|---|
-| `mpris.mpris.full_text` | A formatted string combining artist and title (e.g. `Artist - Title`). |
-| `mpris.mpris.track` | Identical to `full_text` but exposed as a standalone variable for convenience. |
+| `mpris.mpris.full_text` | A formatted string combining artist and title with a `music: ` prefix (e.g. `music: Artist - Title`). |
+| `mpris.mpris.track` | Identical to the formatting of `full_text` but without the `music: ` prefix. |
 | `mpris.mpris.title` | The track title. |
 | `mpris.mpris.artist` | The track artist. |
 | `mpris.mpris.album` | The album name. |
@@ -17,7 +17,9 @@ The `oatbar-mpris` daemon continuously outputs the state of the active MPRIS med
 | `mpris.mpris.player` | Short name of the active player (e.g. `spotify`, `vlc`). |
 | `mpris.mpris.volume` | Player volume level (0-100). |
 | `mpris.mpris.length` | Track duration in seconds. |
+| `mpris.mpris.length_str` | Track duration formatted as `MM:SS` or `HH:MM:SS`. |
 | `mpris.mpris.position` | Current playback position in seconds. |
+| `mpris.mpris.position_str` | Current playback position formatted as `MM:SS` or `HH:MM:SS`. |
 | `mpris.mpris.position_ts` | The Unix timestamp (in seconds) of the last position sample. Useful for manual interpolation. |
 | `mpris.mpris.rate` | Current playback rate (multiplier, typically 1.0). |
 

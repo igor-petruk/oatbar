@@ -1,10 +1,10 @@
 # Media (MPRIS)
 
-`oatbar` supports controlling and displaying track information from any media player that implements the MPRIS D-Bus interface (e.g., Spotify, VLC, mpv, Firefox).
+`oatbar` supports controlling and displaying track information from any media player that implements the MPRIS D-Bus interface (e.g., Spotify, VLC, mpv, Firefox). To control `mpd`, which lacks native MPRIS support, we recommend using the [mpdris](https://github.com/jasger9000/mpdris) daemon bridge.
 
-The `oatbar-mpris` command provides both a continuous stream of media variables and subcommands for controlling playback.
+The `oatbar-mpris` command provides both a continuous stream of media variables and subcommands for controlling playback. For a full list of variables and commands, see the [MPRIS Reference](../reference/mpris.md).
 
-### Enabling the Block
+### Enabling the command
 
 Add the `oatbar-mpris` command to your `~/.config/oatbar/config.toml`:
 
@@ -43,5 +43,6 @@ min_value="0"
 max_value="${mpris:mpris.length}"
 number_display="progress_bar"
 progress_bar_size=20
+output_format="${mpris:mpris.position_str} ${value} ${mpris:mpris.length_str}"
 show_if_matches=[['${mpris:mpris.playback_status}', 'Playing']]
 ```
