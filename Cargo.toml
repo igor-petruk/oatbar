@@ -50,6 +50,10 @@ path="src/cli.rs"
 name="oatbar-sni"
 path="src/sni.rs"
 
+[[bin]]
+name="oatbar-mpris"
+path="src/mpris.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]

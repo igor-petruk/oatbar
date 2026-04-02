@@ -452,7 +452,7 @@ fn default_progress_fill() -> Vec<(String, String)> {
 }
 
 fn default_progress_indicator() -> Vec<(String, String)> {
-    vec![("".into(), "雷".into())]
+    vec![("".into(), "+".into())]
 }
 
 fn default_progress_empty() -> Vec<(String, String)> {
@@ -1026,18 +1026,21 @@ pub fn write_default_config(config_path: &Path) -> anyhow::Result<()> {
 
 pub fn load() -> anyhow::Result<Config<Placeholder>> {
     let config_dir = dirs::config_dir().context("Missing config dir")?;
-    
+
     let mut path = config_dir.clone();
     path.push("oatbar");
     path.push("config.toml");
-    
+
     let mut legacy_path = config_dir.clone();
     legacy_path.push("oatbar.toml");
 
     let final_path = if path.exists() {
         path
     } else if legacy_path.exists() {
-        warn!("Using legacy config path {:?}. Consider moving it to {:?}", legacy_path, path);
+        warn!(
+            "Using legacy config path {:?}. Consider moving it to {:?}",
+            legacy_path, path
+        );
         legacy_path
     } else {
         warn!("Config at {:?} is missing. Writing default config...", path);
@@ -1045,7 +1048,8 @@ pub fn load() -> anyhow::Result<Config<Placeholder>> {
         path
     };
 
-    let mut file = std::fs::File::open(&final_path).context(format!("unable to open {:?}", &final_path))?;
+    let mut file =
+        std::fs::File::open(&final_path).context(format!("unable to open {:?}", &final_path))?;
     let mut data = String::new();
     file.read_to_string(&mut data)?;
 
