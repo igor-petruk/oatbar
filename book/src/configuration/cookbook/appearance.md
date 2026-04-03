@@ -33,13 +33,16 @@ Specifying `separator_type = "gap"` is recommended. It gives `oatbar` a hint tha
 a separator. For example multiple separators in a row do not make sense and
 they will collapse if real blocks between them become hidden.
 
-### Empty space around bar
+### Empty space around bar and Rounded Corners
 
 By default `oatbar` looks more traditional.
 
 ![No Space](no-space.png)
 
-You can apply margins and border-lines to achieve some empty space around your bar.
+You can apply margins, transparent backgrounds, and edge blocks with `separator_radius` to achieve empty space and rounded corners. To achieve this:
+1. Make the `[[bar]]` background entirely transparent (e.g., `#00000000`) and apply `margin`.
+2. Make the standard blocks opaque via `[[default_block]]`.
+3. Flank your layout arrays with specific left (`L`) and right (`R`) endcap blocks utilizing `separator_radius` to form the rounded edges.
 
 ![Empty Space](empty-space.png)
 
@@ -94,10 +97,14 @@ separator_radius = 8.0
 ```
 
 
-### Partial bar
+### Partial bar and Subpanes
 
-Bars of `oatbar` can be further separated to small partial bars. It is possible
-to by further use of `L` and `R` bars and addition of completely transparent `E` block.
+Bars of `oatbar` can be further separated into smaller disconnected partial bars (or subpanes). You can achieve this by chaining together `R` (Right), `E` (Empty gap), and `L` (Left) blocks.
+
+This combination creates pill-like separation:
+* **`R` block**: Closes the preceding subpane with a rounded right edge.
+* **`E` block**: Acts as a transparent gap (must have `background = "#00000000"` and stripped of edge lines).
+* **`L` block**: Starts the next subpane with a rounded left edge.
 
 ![Partial Bar](partial-bar.png)
 
