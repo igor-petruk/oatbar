@@ -1,4 +1,8 @@
-# Oatbar 0.3.0 (Unreleased)
+# Oatbar 0.3.1
+
+Updated dependencies to the latest versions.
+
+# Oatbar 0.3.0
 
 This update introduces several major new features and reliability improvements, expanding Oatbar's reach to Wayland and enhancing its interaction with AI agents.
 
