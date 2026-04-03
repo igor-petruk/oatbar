@@ -1,3 +1,29 @@
+# Oatbar 0.3.0 (Unreleased)
+
+This update introduces several major new features and reliability improvements, expanding Oatbar's reach to Wayland and enhancing its interaction with AI agents.
+
+## Major Features
+
+- **Wayland Support**: Full support for Wayland compositors via `smithay-client-toolkit`. Oatbar now runs natively on modern displays.
+- **Tray Support (SNI)**: Integration with the **Status Notifier Item (SNI)** protocol. Display and interact with system tray icons from your status bar.
+- **MCP Server Integration**: A powerful new **Model Context Protocol (MCP)** server allows AI agents to interact directly with your status bar, reporting status and setting variables. You can configure
+your bar with the help of MCP because you agent has access to configs and data.
+- **MPRIS Support**: Control your music and media players directly from Oatbar. View metadata like artist and track titles in real-time.
+- **Battery Module**: Built-in support for monitoring battery status, including charging states and percentages.
+- **Improved Controls**: `oatctl poke` now supports targeting specific commands, making it easier to trigger updates for individual modules.
+
+## Smaller Fixes & Improvements
+
+- **Monitor Compatibility**: Fixed issues with monitor matching and vertical offsets (`monitor.y`) to ensure correct positioning on all screen layouts.
+- **Wayland Reliability**: Improved handling of laptop lid events to prevent crashes or layout issues.
+- **UI/UX Fixes**:
+    - Resolved a bug where workspaces wouldn't update when window titles remained static.
+    - Improved error reporting by including the command name in "Command failed" messages.
+- **Battery Formatting**: Refined the default formatting and behavior of the battery module.
+- **Dependency Management**: Updated core dependencies (including `xcb`) to fix stability issues and address reported bugs.
+
+---
+
 # Oatbar 0.2.0: The AI-Powered Status Bar
 
 We are excited to announce the release of **Oatbar 0.2.0**! This release brings a major new capability to your desktop: first-class integration with Large Language Models (LLMs).
