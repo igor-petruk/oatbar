@@ -35,6 +35,10 @@ pub struct Context {
         description = "Optional explanation of why you are issuing this command. Recommended to set for logging."
     )]
     pub human_description: Option<String>,
+    #[schemars(
+        description = "Name of the MCP client/agent issuing this command (e.g. 'Gemini CLI', 'Claude Desktop'). Clients MUST set this so the user can see which agent is active on their status bar."
+    )]
+    pub agent_name: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -184,7 +188,7 @@ impl OatbarMcp {
         }
     }
 
-    fn report_status_internal(&self, status: String) {
+    fn report_status_internal(&self, status: String, agent_name: Option<String>) {
         let Ok(client) = self.client() else {
             return;
         };
@@ -194,6 +198,14 @@ impl OatbarMcp {
             name: value_var,
             value: status,
         });
+
+        if let Some(agent) = agent_name {
+            let agent_var = self.var_name("agent");
+            let _ = client.send_command(ipc::Command::SetVar {
+                name: agent_var,
+                value: agent,
+            });
+        }
 
         let recent_var = self.var_name("recent");
         let _ = client.send_command(ipc::Command::SetVar {
@@ -230,7 +242,7 @@ impl OatbarMcp {
     )]
     fn poke(&self, Parameters(req): Parameters<PokeRequest>) -> Result<String, String> {
         if let Some(desc) = req.context.human_description {
-            self.report_status_internal(desc);
+            self.report_status_internal(desc, req.context.agent_name);
         }
         let response = self
             .client()?
@@ -245,7 +257,7 @@ impl OatbarMcp {
     #[tool(description = "Set a variable value.")]
     fn set_var(&self, Parameters(req): Parameters<SetVarRequest>) -> Result<String, String> {
         if let Some(desc) = req.context.human_description {
-            self.report_status_internal(desc);
+            self.report_status_internal(desc, req.context.agent_name);
         }
         if self.config.is_hidden(&req.name) {
             return Err("Access to this variable is restricted by MCP security settings.".into());
@@ -266,7 +278,7 @@ impl OatbarMcp {
     #[tool(description = "Get a current variable value.")]
     fn get_var(&self, Parameters(req): Parameters<GetVarRequest>) -> Result<String, String> {
         if let Some(desc) = req.context.human_description {
-            self.report_status_internal(desc);
+            self.report_status_internal(desc, req.context.agent_name);
         }
         if self.config.is_hidden(&req.name) {
             return Err("Access to this variable is restricted by MCP security settings.".into());
@@ -289,7 +301,7 @@ impl OatbarMcp {
     )]
     fn list_vars(&self, Parameters(req): Parameters<ListVarsRequest>) -> Result<String, String> {
         if let Some(desc) = req.context.human_description {
-            self.report_status_internal(desc);
+            self.report_status_internal(desc, req.context.agent_name);
         }
         let filter_regex = match req.filter {
             Some(ref f) => Some(regex::Regex::new(f).map_err(|e| format!("Invalid regex: {}", e))?),
@@ -329,7 +341,7 @@ impl OatbarMcp {
         &self,
         Parameters(req): Parameters<ReportStatusRequest>,
     ) -> Result<String, String> {
-        self.report_status_internal(req.status);
+        self.report_status_internal(req.status, req.context.agent_name);
         Ok("ok".to_string())
     }
 
@@ -341,7 +353,7 @@ impl OatbarMcp {
         Parameters(req): Parameters<RestartRequest>,
     ) -> Result<String, String> {
         if let Some(desc) = req.context.human_description {
-            self.report_status_internal(desc);
+            self.report_status_internal(desc, req.context.agent_name);
         }
 
         crate::restart::restart_oatbar(&self.instance_name).map_err(|e| e.to_string())?;

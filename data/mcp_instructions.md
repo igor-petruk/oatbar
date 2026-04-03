@@ -23,6 +23,11 @@ On any interaction with this MCP server, always populate the `human_description`
 field to explain what you are about to do (e.g., "Fetching uptime data...").
 Be creative and quirky in these descriptions.
 
+**Clients MUST also set the `agent_name` field** in every request's `Context` to
+identify themselves (e.g., `"Gemini CLI"`, `"Claude Desktop"`, `"Cursor"`). This
+value is published as the `mcp:agent` variable so the user can see which agent is
+currently driving their status bar.
+
 Report what you are about to do more specifically, do NOT report something useless
 like "Reading all variable names". The server will automatically use this description
 to update some `{mcp_vars}` variables that the user may choose to display on their status bar.
