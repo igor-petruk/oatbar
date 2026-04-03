@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "oatbar": {
+      "command": "cargo",
+      "args": ["run", "--bin", "oatbar-mcp"],
+      "trust": true
+    }
+  }
+}
