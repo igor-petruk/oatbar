@@ -1267,6 +1267,11 @@ impl BlockGroup {
             output.push((block_idx, b.get_dimensions()));
         }
 
+        // Remove trailing gap separators (e.g. when the last content block is hidden).
+        while matches!(output.last(), Some((idx, _)) if self.blocks[*idx].separator_type() == Some(Gap)) {
+            output.pop();
+        }
+
         // After this SR and LR pairs are possible. Remove:
         let input = output;
         let mut output = Vec::with_capacity(input.len());
