@@ -74,6 +74,7 @@ impl Server {
     fn handle_terminate(&self) -> anyhow::Result<ipc::Response> {
         std::thread::spawn(|| {
             std::thread::sleep(std::time::Duration::from_millis(50));
+            tracing::info!("Terminating via IPC request.");
             std::process::exit(0);
         });
         Ok(Default::default())

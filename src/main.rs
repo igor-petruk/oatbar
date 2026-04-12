@@ -74,6 +74,21 @@ fn main() -> anyhow::Result<()> {
 
     let _logging_guard = logging::init(&cli.instance_name)?;
 
+    std::panic::set_hook(Box::new(|info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "unknown".to_string());
+        let message = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "unknown panic payload".to_string()
+        };
+        tracing::error!("Panic at {}: {}", location, message);
+    }));
+
     let config = config::load()?;
     let commands = config.commands.clone();
 
@@ -107,6 +122,10 @@ fn main() -> anyhow::Result<()> {
         std::thread::sleep(std::time::Duration::from_secs(5));
     });
 
-    engine.run()?;
-    Ok(())
+    let result = engine.run();
+    match &result {
+        Ok(_) => tracing::info!("Application exited normally."),
+        Err(e) => tracing::error!("Application exited with error: {:?}", e),
+    }
+    result
 }
