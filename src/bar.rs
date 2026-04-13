@@ -216,16 +216,12 @@ impl Block for BaseBlock {
 
     fn get_dimensions(&self) -> Dimensions {
         let inner_dim = self.inner_block.get_dimensions();
-        // TODO: figure out correct handling of padding.
         let radius = if self.separator_type.is_some() {
-            let line_width = self
-                .display_options
-                .decorations
-                .line_width
-                .unwrap_or_default();
-            self.separator_radius
-                .map(|x| x + line_width * 0.5)
-                .unwrap_or_default()
+            // Use separator_radius directly (no line_width adjustment) so the width stays
+            // integer-valued.  The edgeline stroke's outer tip (lw/2 px) may overhang into
+            // the adjacent block's space, but that block renders afterwards with Source
+            // operator and its background immediately overwrites the overhang.
+            self.separator_radius.unwrap_or_default()
         } else {
             0.0
         };
@@ -275,7 +271,6 @@ impl Block for BaseBlock {
         let line_width = decorations.line_width.unwrap_or_default();
         context.set_line_width(line_width);
 
-        // TODO: figure out how to prevent a gap between neighbour blocks.
         let deg = std::f64::consts::PI / 180.0;
         let radius = self.separator_radius.unwrap_or_default();
 
@@ -308,9 +303,9 @@ impl Block for BaseBlock {
                 }
                 None | Some(config::SeparatorType::Gap) => {
                     context.rectangle(
-                        self.margin - line_width + 1.0,
+                        self.margin,
                         0.0,
-                        inner_dim.width + 2.0 * self.padding + 2.0 * line_width,
+                        inner_dim.width + 2.0 * self.padding,
                         self.height,
                     );
                 }
@@ -1268,7 +1263,8 @@ impl BlockGroup {
         }
 
         // Remove trailing gap separators (e.g. when the last content block is hidden).
-        while matches!(output.last(), Some((idx, _)) if self.blocks[*idx].separator_type() == Some(Gap)) {
+        while matches!(output.last(), Some((idx, _)) if self.blocks[*idx].separator_type() == Some(Gap))
+        {
             output.pop();
         }
 
@@ -1691,8 +1687,8 @@ impl Bar {
 
         let width = drawing_area_width
             - (self.bar_config.margin.left + self.bar_config.margin.right) as f64;
-        self.center_group_pos = (width - self.center_group.dimensions.width) / 2.0;
-        self.right_group_pos = width - self.right_group.dimensions.width;
+        self.center_group_pos = ((width - self.center_group.dimensions.width) / 2.0).round();
+        self.right_group_pos = (width - self.right_group.dimensions.width).round();
         left_changed || center_changed || right_changed
     }
 
