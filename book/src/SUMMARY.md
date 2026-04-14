@@ -24,6 +24,7 @@
   - [Tray](./configuration/reference/tray.md)
   - [MPRIS](./configuration/reference/mpris.md)
   - [MCP](./configuration/reference/mcp.md)
+  - [oatctl](./configuration/reference/oatctl.md)
 
 # Other 
 

@@ -75,6 +75,23 @@ the block can still render it with styling defined in the block config itself.
 
 ---
 
+## Visual Layout Debugging
+
+If you are seeing a layout bug, or you want the AI assistant to "see" how your bar looks before
+suggesting style changes, use `dump_svg`.
+
+The assistant can:
+- Call `dump_svg` to save the current bar state to a file like `/tmp/bar.svg`
+- Read the SVG file (if the MCP client supports file access) to analyze the actual rendered output
+- Identify overlapping blocks, incorrect colors, or missing icons
+- Propose surgical CSS-like fixes to your `config.toml`
+
+**Example:** ask the assistant: *"The CPU block looks too small, can you check its dimensions and fix it?"*
+
+The assistant dumps the bar, "sees" the small block in the SVG, and adjusts the `padding` or `margin` in your config.
+
+---
+
 ## Read Bar State for Context
 
 The assistant can call `list_vars` or `get_var` to read what oatbar currently knows — focused

@@ -6,3 +6,4 @@ This section contains detailed reference documentation for various `oatbar` modu
 - [Tray](./tray.md) — SNI system tray protocol
 - [MPRIS](./mpris.md) — Media player integration
 - [MCP](./mcp.md) — `oatbar-mcp` Model Context Protocol server
+- [oatctl](./oatctl.md) — Programmatic interaction and debug tool

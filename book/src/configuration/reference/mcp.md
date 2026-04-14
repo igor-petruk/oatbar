@@ -144,6 +144,17 @@ Use this after editing `config.toml` to apply changes without terminal disruptio
 |---|---|---|
 | `human_description` | string (optional) | Shown on the bar as a status update (updates `mcp:value` and `mcp:recent`). |
 
+### `dump_svg`
+
+Dumps the current visual state of the status bar into an SVG file. This is useful for debugging
+layout issues or allowing an AI assistant to "see" what the bar currently looks like.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `path` | string | Absolute path to write the SVG file to (e.g., `/tmp/bar.svg`). |
+| `index` | integer (optional) | Index of the bar to dump (usually `0`). |
+| `human_description` | string (optional) | Shown on the bar as a status update (updates `mcp:value` and `mcp:recent`). |
+
 ## Connecting an MCP Client
 
 Add the server to your MCP client configuration. The exact format depends on your client;
