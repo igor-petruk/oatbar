@@ -814,6 +814,31 @@ impl Engine for XOrgEngine {
                         engine.handle_event(&event).unwrap();
                     }
                     EngineMessage::Update(state_update) => {
+                        if let state::Update::DumpSvg(path, index) = &state_update {
+                            tracing::info!("Dumping SVG to: {}", path);
+                            let mut found = false;
+                            for window in engine.windows.values_mut() {
+                                if window.bar_config.index == *index {
+                                    if let Err(e) = crate::svg_dump::dump(
+                                        path,
+                                        window.width as f64,
+                                        window.height as f64,
+                                        window.back_buffer_context.font_cache.clone(),
+                                        #[cfg(feature = "image")]
+                                        window.back_buffer_context.image_loader.clone(),
+                                        &mut window.bar,
+                                    ) {
+                                        tracing::error!("Failed to dump SVG: {:?}", e);
+                                    }
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if !found {
+                                tracing::warn!("No bar with index {} found for SVG dump", index);
+                            }
+                            return;
+                        }
                         {
                             let mut state = engine.state.write().unwrap();
                             state.handle_state_update(state_update);

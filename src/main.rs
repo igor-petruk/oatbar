@@ -32,6 +32,7 @@ mod process;
 mod protocol;
 mod source;
 mod state;
+mod svg_dump;
 mod thread;
 mod timer;
 #[cfg(feature = "wayland")]

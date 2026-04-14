@@ -88,7 +88,7 @@ gtk4_icons = ["dep:gtk4", "dep:gdk4"]
 pprof = { version = "0.15", features = ["flamegraph"], optional = true }
 anyhow = "1"
 bytesize = "2.0"
-cairo-rs = { version = "0.22", default-features = false }
+cairo-rs = { version = "0.22", default-features = false, features = ["svg"] }
 derive_builder = "0.20"
 dirs = "6.0"
 pangocairo = "0.22"

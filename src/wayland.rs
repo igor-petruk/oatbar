@@ -666,6 +666,31 @@ impl Engine for WaylandEngine {
         loop_handle
             .insert_source(channel, move |state_update, _metadata, engine| {
                 if let calloop::channel::Event::Msg(state_update) = state_update {
+                    if let state::Update::DumpSvg(path, index) = &state_update {
+                        tracing::info!("Dumping SVG to: {}", path);
+                        let mut found = false;
+                        for window in engine.windows.values_mut() {
+                            if window.bar.bar_config.index == *index {
+                                if let Err(e) = crate::svg_dump::dump(
+                                    path,
+                                    window.width as f64,
+                                    window.height as f64,
+                                    window.font_cache.clone(),
+                                    #[cfg(feature = "image")]
+                                    window.image_loader.clone(),
+                                    &mut window.bar,
+                                ) {
+                                    tracing::error!("Failed to dump SVG: {:?}", e);
+                                }
+                                found = true;
+                                break;
+                            }
+                        }
+                        if !found {
+                            tracing::warn!("No bar with index {} found for SVG dump", index);
+                        }
+                        return;
+                    }
                     tracing::trace!("state_update: {:?}", state_update);
                     {
                         let mut state = engine.state.write().unwrap();

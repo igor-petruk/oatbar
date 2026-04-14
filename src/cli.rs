@@ -79,6 +79,14 @@ enum Commands {
     /// Restart oatbar by querying its launch command, terminating it securely via IPC,
     /// and respawning it strictly detached.
     Restart {},
+    /// Dump the current bar state to an absolute SVG file path.
+    DumpSvg {
+        /// Absolute path to write the SVG file to (e.g. /tmp/bar.svg).
+        path: String,
+        /// Index of the bar to dump (usually 0).
+        #[arg(short, long, default_value = "0")]
+        index: usize,
+    },
 }
 
 fn var_rotate(
@@ -143,6 +151,7 @@ fn main() -> anyhow::Result<()> {
             println!("oatbar restarted cleanly!");
             Ok(Default::default())
         }
+        Commands::DumpSvg { path, index } => client.send_command(ipc::Command::DumpSvg { path, index }),
     }?;
     if let Some(error) = response.error {
         return Err(anyhow!("{}", error));

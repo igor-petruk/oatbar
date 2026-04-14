@@ -42,6 +42,16 @@ pub struct Context {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct DumpSvgRequest {
+    #[serde(flatten)]
+    pub context: Context,
+    #[schemars(description = "Absolute path to write the SVG file to (e.g. /tmp/bar.svg).")]
+    pub path: String,
+    #[schemars(description = "Index of the bar to dump (usually 0).")]
+    pub index: usize,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct PokeRequest {
     #[serde(flatten)]
     pub context: Context,
@@ -159,6 +169,7 @@ fn load_config() -> Result<ConfigContainer> {
 
 #[derive(Debug, Clone)]
 pub struct OatbarMcp {
+    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
     instance_name: String,
     last_status_seq: std::sync::Arc<std::sync::atomic::AtomicU64>,
@@ -235,6 +246,26 @@ impl OatbarMcp {
                 .await;
             }
         });
+    }
+
+    #[tool(
+        description = "Dump the current bar state to an absolute SVG file path (e.g., /tmp/bar.svg). Useful for debugging layout or rendering issues. Note: If you just restarted oatbar or changed config, wait a few seconds before calling this to ensure variables have propagated and the state is stable."
+    )]
+    fn dump_svg(&self, Parameters(req): Parameters<DumpSvgRequest>) -> Result<String, String> {
+        if let Some(desc) = req.context.human_description {
+            self.report_status_internal(desc, req.context.agent_name.clone());
+        }
+        let response = self
+            .client()?
+            .send_command(ipc::Command::DumpSvg {
+                path: req.path,
+                index: req.index,
+            })
+            .map_err(|e| e.to_string())?;
+        if let Some(error) = response.error {
+            return Err(error);
+        }
+        Ok("SVG dumped successfully".into())
     }
 
     #[tool(

@@ -1493,7 +1493,7 @@ pub struct BarUpdates {
 }
 
 pub struct Bar {
-    bar_config: config::Bar<Placeholder>,
+    pub bar_config: config::Bar<Placeholder>,
     error: Option<String>,
     error_block: Box<dyn DebugBlock>,
     left_group: BlockGroup,

@@ -757,6 +757,8 @@ where
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
 pub struct Bar<Dynamic: Clone + Default + Debug> {
+    #[serde(skip)]
+    pub index: usize,
     pub blocks_left: Vec<String>,
     pub blocks_center: Vec<String>,
     pub blocks_right: Vec<String>,
@@ -794,6 +796,7 @@ impl Bar<Option<Placeholder>> {
                 .unwrap_or_else(|| Placeholder::infallable("#191919")),
             popup: self.popup || !self.show_if_matches.is_empty() || self.popup_at_edge,
             popup_at_edge: self.popup_at_edge,
+            index: 0,
             show_if_matches: self
                 .show_if_matches
                 .iter()
@@ -940,7 +943,16 @@ impl Config<Option<Placeholder>> {
             })
             .collect();
         Config {
-            bar: self.bar.iter().map(|b| b.with_default()).collect(),
+            bar: self
+                .bar
+                .iter()
+                .enumerate()
+                .map(|(index, b)| {
+                    let mut b = b.with_default();
+                    b.index = index;
+                    b
+                })
+                .collect(),
             blocks,
             var_order: self.vars_vec.iter().map(|v| v.name.clone()).collect(),
             vars: self

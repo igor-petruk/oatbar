@@ -14,6 +14,7 @@ pub enum Command {
     ListVars {},
     GetProcessInfo {},
     Terminate {},
+    DumpSvg { path: String, index: usize },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -61,6 +61,11 @@ impl Server {
         })
     }
 
+    fn handle_dump_svg(&self, path: String, index: usize) -> anyhow::Result<ipc::Response> {
+        self.state_update_tx.send(state::Update::DumpSvg(path, index))?;
+        Ok(Default::default())
+    }
+
     fn handle_get_process_info(&self) -> anyhow::Result<ipc::Response> {
         Ok(ipc::Response {
             data: Some(ipc::ResponseData::ProcessInfo {
@@ -95,6 +100,7 @@ impl Server {
                 ipc::Command::ListVars {} => self.handle_list_vars(),
                 ipc::Command::GetProcessInfo {} => self.handle_get_process_info(),
                 ipc::Command::Terminate {} => self.handle_terminate(),
+                ipc::Command::DumpSvg { path, index } => self.handle_dump_svg(path, index),
             }?;
             serde_json::to_writer(stream, &response)?;
         }
