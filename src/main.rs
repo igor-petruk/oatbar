@@ -60,6 +60,71 @@ struct Cli {
     instance_name: String,
 }
 
+struct ProcessInfo {
+    pid: libc::pid_t,
+    exe: String,
+    cmdline: String,
+}
+
+fn collect_process_chain(pid: libc::pid_t) -> Vec<ProcessInfo> {
+    let mut chain = Vec::new();
+    let mut current_pid = pid;
+    let mut visited = std::collections::HashSet::new();
+    loop {
+        if !visited.insert(current_pid) || current_pid <= 0 {
+            break;
+        }
+        let Ok(proc) = procfs::process::Process::new(current_pid) else {
+            break;
+        };
+        let exe = proc
+            .exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "<unknown>".to_owned());
+        let cmdline = proc
+            .cmdline()
+            .map(|args| args.join(" "))
+            .unwrap_or_else(|_| "<unknown>".to_owned());
+        let ppid = proc
+            .stat()
+            .map(|s| s.ppid)
+            .unwrap_or(0);
+        chain.push(ProcessInfo { pid: current_pid, exe, cmdline });
+        current_pid = ppid;
+    }
+    chain
+}
+
+fn spawn_signal_logger() -> anyhow::Result<()> {
+    use signal_hook::consts::signal::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
+    use signal_hook::iterator::SignalsInfo;
+    use signal_hook::iterator::exfiltrator::WithOrigin;
+    let mut signals = SignalsInfo::<WithOrigin>::new([SIGINT, SIGTERM, SIGHUP, SIGQUIT])?;
+    thread::spawn("signal-logger", move || {
+        for origin in &mut signals {
+            if let Some(sender) = origin.process {
+                let chain = collect_process_chain(sender.pid);
+                tracing::warn!(signal = origin.signal, "Received signal — sender process chain:");
+                for (i, info) in chain.iter().enumerate() {
+                    tracing::warn!(
+                        depth = i,
+                        pid = info.pid,
+                        exe = %info.exe,
+                        cmdline = %info.cmdline,
+                        "  process ancestor",
+                    );
+                }
+            } else {
+                tracing::warn!(signal = origin.signal, "Received signal (no sender info)");
+            }
+            // Restore and re-raise with the default OS handler so the process
+            // actually terminates (signal_hook suppresses default actions).
+            let _ = signal_hook::low_level::emulate_default_handler(origin.signal);
+        }
+        Ok(())
+    })
+}
+
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
@@ -89,6 +154,8 @@ fn main() -> anyhow::Result<()> {
         };
         tracing::error!("Panic at {}: {}", location, message);
     }));
+
+    spawn_signal_logger()?;
 
     let config = config::load()?;
     let commands = config.commands.clone();
