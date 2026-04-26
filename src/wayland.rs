@@ -142,11 +142,6 @@ impl WaylandWindow {
 
         // Don't draw if we haven't received configure event yet
         if width == 0 || height == 0 {
-            tracing::trace!(
-                "Skipping draw: window not yet configured ({}x{})",
-                width,
-                height
-            );
             return Ok(());
         }
 
@@ -253,7 +248,7 @@ impl WaylandWindow {
 
         if !self.bar_config.popup_at_edge && !self.visible {
             self.layer_surface.wl_surface().attach(None, 0, 0);
-            self.layer_surface.wl_surface().commit();
+            self.layer_surface.commit();
             return Ok(());
         }
 
@@ -307,7 +302,7 @@ impl WaylandWindow {
             }
         }
 
-        self.layer_surface.wl_surface().commit();
+        self.layer_surface.commit();
         Ok(())
     }
     pub fn wl_surface(&self) -> &wayland_client::protocol::wl_surface::WlSurface {
@@ -711,9 +706,10 @@ impl Engine for WaylandEngine {
             .expect("Failed to insert source");
 
         loop {
-            event_loop
-                .dispatch(None, self)
-                .context("Failed to dispatch event loop")?;
+            if let Err(e) = event_loop.dispatch(None, self) {
+                tracing::error!("Wayland event loop dispatch error: {:?}", e);
+                return Err(e).context("Failed to dispatch event loop");
+            }
         }
     }
 
@@ -950,7 +946,7 @@ impl sct::shell::wlr_layer::LayerShellHandler for WaylandEngine {
                 if let Err(e) =
                     window.draw(qh, &self.shm, &self.compositor_state, &mut self.loop_handle)
                 {
-                    tracing::error!("Failed to draw: {}", e);
+                    tracing::error!("Failed to draw: {:?}", e);
                 }
             }
         }
