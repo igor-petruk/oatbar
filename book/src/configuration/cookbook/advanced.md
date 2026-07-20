@@ -15,6 +15,35 @@ can use it in your WM keybindings too.
 If you have enabled `oatbar-desktop` command, you should have access to the `${desktop:workspace.value}`
 variable.
 
+### Per-monitor workspaces
+
+On compositors with per-monitor workspace support (Sway, Hyprland), `oatbar-desktop` emits
+per-monitor workspace variables of the form `desktop:workspace.<monitor_name>.{active,variants,value}`.
+
+Combined with the `#monitor_name` [contextual variable](../variable.md#contextual-variables), a single
+shared `workspace` block can automatically track the correct workspace for each bar:
+
+```toml
+[[bar]]
+monitor = "DP-1"
+blocks_left = ["workspace"]
+
+[[bar]]
+monitor = "HDMI-1"
+blocks_left = ["workspace"]
+
+[[block]]
+name = "workspace"
+type = "enum"
+active   = '${desktop:workspace.#monitor_name.active}'
+variants = '${desktop:workspace.#monitor_name.variants}'
+on_mouse_left = "oatbar-desktop $BLOCK_INDEX"
+```
+
+The `workspace` block is defined once. On the `DP-1` bar, `#monitor_name` expands to `DP-1`
+and the active/variants expressions resolve to `desktop:workspace.DP-1.*`. On the `HDMI-1`
+bar they resolve to `desktop:workspace.HDMI-1.*` — no duplication needed.
+
 ```toml
 [[command]]
 name="desktop"

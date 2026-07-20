@@ -46,8 +46,8 @@ on_mouse_left="rofi -show drun"
 [[block]]
 name = 'workspace'
 type = 'enum'
-active = '${desktop:workspace.active}'
-variants = '${desktop:workspace.variants}'
+active = '${desktop:workspace.#monitor_name.active}'
+variants = '${desktop:workspace.#monitor_name.variants}'
 on_mouse_left = "oatbar-desktop $BLOCK_INDEX"
 
 [[block]]

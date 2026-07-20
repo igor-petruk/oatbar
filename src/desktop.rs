@@ -48,6 +48,8 @@ fn detect_display_server() -> Option<DisplayServer> {
 struct Workspaces {
     current: usize,
     names: Vec<String>,
+    /// Per-monitor workspace data: monitor_name → (active_idx, workspace_names)
+    per_monitor: BTreeMap<String, (usize, Vec<String>)>,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +69,13 @@ fn print_update(state: &DesktopState) -> anyhow::Result<()> {
     other.insert("active".into(), state.workspaces.current.into());
     other.insert("variants".into(), state.workspaces.names.join(",").into());
     other.insert("value".into(), workspace_value.clone().into());
+    // Emit per-monitor workspace variables: desktop:workspace.<monitor>.{active,variants,value}
+    for (monitor_name, (active_idx, names)) in &state.workspaces.per_monitor {
+        let value = names.get(*active_idx).cloned().unwrap_or_default();
+        other.insert(format!("{}.active", monitor_name), (*active_idx).into());
+        other.insert(format!("{}.variants", monitor_name), names.join(",").into());
+        other.insert(format!("{}.value", monitor_name), value.into());
+    }
     let mut title_other = BTreeMap::new();
     title_other.insert("value".into(), state.active_window_title.clone().into());
     let blocks = vec![
@@ -99,7 +108,7 @@ fn print_update(state: &DesktopState) -> anyhow::Result<()> {
 mod x11_impl {
     use super::*;
     use xcb::x::{self, Atom, Window};
-    use xcb::Xid;
+    use xcb::{randr, Xid};
     use xutils::get_atom;
 
     fn get_workspaces(
@@ -122,6 +131,7 @@ mod x11_impl {
         Ok(Workspaces {
             current: current as usize,
             names: utf8.collect(),
+            per_monitor: BTreeMap::new(),
         })
     }
 
@@ -182,6 +192,36 @@ mod x11_impl {
         Ok(title)
     }
 
+    fn get_monitor_names(conn: &xcb::Connection, root: Window) -> Vec<String> {
+        let reply = match xutils::query(
+            conn,
+            &randr::GetMonitors {
+                window: root,
+                get_active: true,
+            },
+        ) {
+            Ok(r) => r,
+            Err(_) => return vec![],
+        };
+        reply
+            .monitors()
+            .filter_map(|info| {
+                xutils::query(conn, &x::GetAtomName { atom: info.name() })
+                    .ok()
+                    .map(|r| r.name().to_utf8().into())
+            })
+            .collect()
+    }
+
+    fn with_per_monitor(mut workspaces: Workspaces, monitor_names: &[String]) -> Workspaces {
+        // X11 workspaces are global; repeat the same data for every connected monitor.
+        workspaces.per_monitor = monitor_names
+            .iter()
+            .map(|name| (name.clone(), (workspaces.current, workspaces.names.clone())))
+            .collect();
+        workspaces
+    }
+
     pub fn run(set_workspace: Option<u32>) -> anyhow::Result<()> {
         let (conn, screen_num) =
             xcb::Connection::connect_with_xlib_display_and_extensions(&[], &[]).unwrap();
@@ -214,7 +254,9 @@ mod x11_impl {
         println!("{}", serde_json::to_string(&i3bar::Header::default())?);
         println!("[");
 
+        let monitor_names = get_monitor_names(&conn, screen.root());
         let workspaces = get_workspaces(screen.root(), &conn, &current_desktop, &desktop_names)?;
+        let workspaces = with_per_monitor(workspaces, &monitor_names);
         let title = get_active_window_title(&conn, screen.root(), &active_window, &window_name)?;
         let mut state = DesktopState {
             workspaces,
@@ -239,8 +281,13 @@ mod x11_impl {
             match event {
                 xcb::Event::X(x::Event::PropertyNotify(ev)) => {
                     if ev.atom() == current_desktop || ev.atom() == desktop_names {
-                        state.workspaces =
-                            get_workspaces(screen.root(), &conn, &current_desktop, &desktop_names)?;
+                        let ws = get_workspaces(
+                            screen.root(),
+                            &conn,
+                            &current_desktop,
+                            &desktop_names,
+                        )?;
+                        state.workspaces = with_per_monitor(ws, &monitor_names);
                         print_update(&state)?;
                     }
                     if ev.atom() == active_window || ev.atom() == window_name {
@@ -341,6 +388,7 @@ mod wayland_impl {
                 workspaces: Workspaces {
                     current: 0,
                     names: vec!["default".to_string()],
+                    per_monitor: BTreeMap::new(),
                 },
                 active_window_title: self.get_active_title(),
             };
@@ -523,6 +571,20 @@ mod sway_impl {
                 .unwrap_or(0);
         }
 
+        // Group workspaces by output for per-monitor variables
+        let mut by_output: BTreeMap<String, Vec<&swayipc::Workspace>> = BTreeMap::new();
+        for ws in &workspaces {
+            by_output.entry(ws.output.clone()).or_default().push(ws);
+        }
+        state.workspaces.per_monitor = by_output
+            .into_iter()
+            .map(|(output, ws_list)| {
+                let names: Vec<String> = ws_list.iter().map(|w| w.name.clone()).collect();
+                let active_idx = ws_list.iter().position(|w| w.visible).unwrap_or(0);
+                (output, (active_idx, names))
+            })
+            .collect();
+
         state.active_window_title = find_focused_node(&tree).unwrap_or_default();
         Ok(())
     }
@@ -544,6 +606,7 @@ mod sway_impl {
             workspaces: Workspaces {
                 current: 0,
                 names: vec![],
+                per_monitor: BTreeMap::new(),
             },
             active_window_title: String::new(),
         };
@@ -601,7 +664,7 @@ mod sway_impl {
 mod hyprland_impl {
     use super::*;
     use hyprland::{
-        data::{Client, Workspace, Workspaces as HyprlandWorkspaces},
+        data::{Client, Monitors, Workspace, Workspaces as HyprlandWorkspaces},
         dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
         event_listener::EventListener,
         prelude::*,
@@ -621,6 +684,26 @@ mod hyprland_impl {
             .iter()
             .position(|w| w.id == active_workspace.id)
             .unwrap_or(0);
+
+        // Group workspaces by monitor for per-monitor variables.
+        // Use Monitors to get each monitor's currently active workspace.
+        state.workspaces.per_monitor = match Monitors::get() {
+            Ok(monitors) => monitors
+                .iter()
+                .map(|monitor| {
+                    let mut names: Vec<String> = workspaces
+                        .iter()
+                        .filter(|w| w.monitor == monitor.name)
+                        .map(|w| w.name.clone())
+                        .collect();
+                    names.sort();
+                    let active_name = &monitor.active_workspace.name;
+                    let active_idx = names.iter().position(|n| n == active_name).unwrap_or(0);
+                    (monitor.name.clone(), (active_idx, names))
+                })
+                .collect(),
+            Err(_) => BTreeMap::new(),
+        };
 
         if let Ok(Some(active_client)) = Client::get_active() {
             state.active_window_title = active_client.title;
@@ -644,6 +727,7 @@ mod hyprland_impl {
             workspaces: super::Workspaces {
                 current: 0,
                 names: vec![],
+                per_monitor: BTreeMap::new(),
             },
             active_window_title: String::new(),
         }));

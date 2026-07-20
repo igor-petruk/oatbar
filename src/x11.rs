@@ -30,6 +30,7 @@ pub struct Window {
     bar: bar::Bar,
     // bar_index: usize,
     bar_config: config::Bar<parse::Placeholder>,
+    display_name: String,
     state: Arc<RwLock<state::State>>,
     screen: x::ScreenBuf,
     state_update_tx: crossbeam_channel::Sender<state::Update>,
@@ -76,6 +77,7 @@ impl Window {
                 height: screen.height_in_pixels(),
             });
 
+        let display_name = monitor.name.clone();
         let window_width = monitor.width;
         let window_height = height + margin.top + margin.bottom;
 
@@ -325,6 +327,7 @@ impl Window {
             swap_gc,
             // bar_index,
             bar,
+            display_name,
             state,
             state_update_tx,
             screen,
@@ -354,10 +357,14 @@ impl Window {
         let pointer_position = state.pointer_position.get(&self.name).copied();
         let mut error = state.build_error_msg();
 
+        let mut overlay = parse::OverlayContext::new(&state.vars);
+        overlay
+            .overlay
+            .insert("#monitor_name".to_string(), self.display_name.clone());
         let updates =
             match self
                 .bar
-                .update(&mut self.back_buffer_context, &state.vars, pointer_position)
+                .update(&mut self.back_buffer_context, &overlay, pointer_position)
             {
                 Ok(updates) => updates,
                 Err(e) => {

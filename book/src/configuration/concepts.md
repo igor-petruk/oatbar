@@ -38,6 +38,28 @@ type="text"
 value="Time: ${clock:value}"
 ```
 
+### Contextual variables (`#name`)
+
+Some variables are not stored in global state — they are injected per-bar at render time. Use `#name` syntax (with a `#` prefix) to reference them inside `${...}` expressions.
+
+The built-in contextual variable is:
+
+| Variable | Value |
+|---|---|
+| `#monitor_name` | The monitor/display name of the bar (e.g. `DP-1`, `HDMI-1`) |
+
+`#name` can appear as the entire expression or embedded within a longer variable key:
+
+```toml
+# Shows the monitor name of the bar this block is rendered on
+value = '${#monitor_name}'
+
+# Looks up workspace data scoped to this bar's monitor
+active = '${desktop:workspace.#monitor_name.active}'
+```
+
+This is particularly useful for **per-monitor workspace blocks** — a single shared block config that automatically tracks the correct workspace on each bar.
+
 ## Debugging
 
 Use `oatctl` to inspect the current state of variables and blocks.
