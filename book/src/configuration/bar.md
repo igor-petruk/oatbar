@@ -8,7 +8,7 @@ Here are all the properties it can have:
 |---|---|---|---|
 | `height` | int | `32` | Height of the bar in pixels. |
 | `position` | string | `bottom` | Position on screen: `top`, `bottom` or `center`. |
-| `monitor` | string | `primary` | Monitor name (from `xrandr`) to display the bar on. |
+| `monitor` | string | `primary` | Monitor name (from `xrandr`) to display the bar on. The contextual variable `#monitor_name` resolves to this value in block expressions. |
 | `blocks_left` | list | `[]` | List of block names to align to the left. |
 | `blocks_center` | list | `[]` | List of block names to align to the center. |
 | `blocks_right` | list | `[]` | List of block names to align to the right. |

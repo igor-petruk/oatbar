@@ -18,6 +18,12 @@ desktop:workspace.active=0
 desktop:workspace.full_text=workspace: 1
 desktop:workspace.value=1
 desktop:workspace.variants=1,2
+desktop:workspace.DP-1.active=0
+desktop:workspace.DP-1.variants=1,2
+desktop:workspace.DP-1.value=1
+desktop:workspace.HDMI-1.active=1
+desktop:workspace.HDMI-1.variants=3,4
+desktop:workspace.HDMI-1.value=3
 ...
 ```
 
@@ -67,6 +73,26 @@ replace=[
     [".*", ""] # Default/Catch-all
 ]
 ```
+
+## Contextual Variables
+
+Some variables are not stored in global state — they are injected per-bar at render time. Use `#name` syntax to reference them inside `${...}` expressions.
+
+| Variable | Description |
+|---|---|
+| `#monitor_name` | The monitor/display name of the bar being rendered (e.g. `DP-1`, `HDMI-1`) |
+
+`#name` can stand alone or appear inside a longer variable key:
+
+```toml
+# Shows which monitor this bar is on
+value = '${#monitor_name}'
+
+# Resolves to the workspace data for this bar's specific monitor
+active = '${desktop:workspace.#monitor_name.active}'
+```
+
+Contextual variables are never visible in `oatctl var ls` because they are not part of global state.
 
 ## Filters
 

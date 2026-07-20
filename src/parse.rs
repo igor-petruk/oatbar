@@ -17,6 +17,26 @@ impl PlaceholderContext for HashMap<String, String> {
     }
 }
 
+pub struct OverlayContext<'a> {
+    pub base: &'a dyn PlaceholderContext,
+    pub overlay: HashMap<String, String>,
+}
+
+impl<'a> OverlayContext<'a> {
+    pub fn new(base: &'a dyn PlaceholderContext) -> Self {
+        Self {
+            base,
+            overlay: HashMap::with_capacity(2),
+        }
+    }
+}
+
+impl PlaceholderContext for OverlayContext<'_> {
+    fn get(&self, key: &str) -> Option<&String> {
+        self.overlay.get(key).or_else(|| self.base.get(key))
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Placeholder {
@@ -230,7 +250,42 @@ impl VarToken {
     }
 
     pub fn resolve(&self, vars: &dyn PlaceholderContext) -> anyhow::Result<String> {
-        let mut value = vars.get(&self.name).cloned().unwrap_or_default();
+        let mut resolved_name = String::new();
+        let mut chars = self.name.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == '#' {
+                let mut var_name = String::new();
+                while let Some(&next_ch) = chars.peek() {
+                    if next_ch.is_alphanumeric() || next_ch == '_' {
+                        var_name.push(next_ch);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if !var_name.is_empty() {
+                    let key = format!("#{}", var_name);
+                    // If #name spans the entire var expression, return the value directly
+                    // to avoid a spurious second lookup with the expanded value as a key.
+                    if resolved_name.is_empty() && chars.peek().is_none() {
+                        let mut value = vars.get(&key).cloned().unwrap_or_default();
+                        for filter in self.filters.iter() {
+                            value = filter.apply(&value)?;
+                        }
+                        return Ok(value);
+                    }
+                    if let Some(val) = vars.get(&key) {
+                        resolved_name.push_str(val);
+                    }
+                } else {
+                    resolved_name.push('#');
+                }
+            } else {
+                resolved_name.push(ch);
+            }
+        }
+
+        let mut value = vars.get(&resolved_name).cloned().unwrap_or_default();
         for filter in self.filters.iter() {
             value = filter.apply(&value)?;
         }
@@ -367,5 +422,31 @@ mod tests {
         let result = Placeholder::new(&value).unwrap().resolve(&map);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "<test> hello $$ world, () default </test>");
+    }
+
+    #[test]
+    fn test_contextual_vars() {
+        let mut base = HashMap::new();
+        base.insert("desktop:workspace.DP-1.active".into(), "2".into());
+        let mut overlay = OverlayContext::new(&base);
+        overlay.overlay.insert("#monitor_name".into(), "DP-1".into());
+        // Nested #name expansion inside a var name
+        let result = Placeholder::new("${desktop:workspace.#monitor_name.active}")
+            .unwrap()
+            .resolve(&overlay)
+            .unwrap();
+        assert_eq!(result, "2");
+        // Top-level ${#monitor_name} expression
+        let result = Placeholder::new("${#monitor_name}")
+            .unwrap()
+            .resolve(&overlay)
+            .unwrap();
+        assert_eq!(result, "DP-1");
+        // Bare # character without a name is preserved
+        let result = Placeholder::new("color: #ff0000")
+            .unwrap()
+            .resolve(&overlay)
+            .unwrap();
+        assert_eq!(result, "color: #ff0000");
     }
 }

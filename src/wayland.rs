@@ -40,12 +40,14 @@ pub struct WaylandWindow {
     scale_factor: i32,
     visible: bool,
     bar_config: config::Bar<parse::Placeholder>,
+    display_name: String,
 }
 
 impl WaylandWindow {
     #[allow(clippy::too_many_arguments)]
     pub fn create_and_show(
         name: String,
+        display_name: String,
         config: &config::Config<parse::Placeholder>,
         bar_config: config::Bar<parse::Placeholder>,
         state: Arc<RwLock<state::State>>,
@@ -110,6 +112,7 @@ impl WaylandWindow {
 
         Ok(Self {
             name,
+            display_name,
             state,
             bar,
             font_cache,
@@ -203,7 +206,11 @@ impl WaylandWindow {
         let pointer_position = state.pointer_position.get(&self.name).copied();
         let mut error = state.build_error_msg();
 
-        let updates = match self.bar.update(&mut context, &state.vars, pointer_position) {
+        let mut overlay = parse::OverlayContext::new(&state.vars);
+        overlay
+            .overlay
+            .insert("#monitor_name".to_string(), self.display_name.clone());
+        let updates = match self.bar.update(&mut context, &overlay, pointer_position) {
             Ok(updates) => updates,
             Err(e) => {
                 error = Some(state::ErrorMessage {
@@ -606,8 +613,15 @@ impl WaylandEngine {
                         output
                     );
                 }
+                let display_name = bar.monitor.clone().unwrap_or_else(|| {
+                    self.output_state
+                        .info(&output)
+                        .and_then(|i| i.name.clone())
+                        .unwrap_or_else(|| "primary".into())
+                });
                 match WaylandWindow::create_and_show(
                     format!("oatbar-bar-{}", index),
+                    display_name,
                     &self.config,
                     bar.clone(),
                     self.state.clone(),
@@ -873,7 +887,7 @@ impl sct::compositor::CompositorHandler for WaylandEngine {
         surface: &wayland_client::protocol::wl_surface::WlSurface,
         output: &wayland_client::protocol::wl_output::WlOutput,
     ) {
-        // When a surface enters an output, pick up the output's scale factor
+        // When a surface enters an output, update display_name and scale factor
         if let Some(info) = self.output_state.info(output) {
             let new_factor = info.scale_factor;
             tracing::info!(
@@ -883,16 +897,37 @@ impl sct::compositor::CompositorHandler for WaylandEngine {
                 new_factor
             );
             for window in self.windows.values_mut() {
-                if window.wl_surface() == surface && window.scale_factor != new_factor {
+                if window.wl_surface() != surface {
+                    continue;
+                }
+                let name_changed = if let Some(name) = &info.name {
+                    if window.display_name != *name {
+                        tracing::info!(
+                            "Updating display_name: {:?} -> {:?}",
+                            window.display_name,
+                            name
+                        );
+                        window.display_name = name.clone();
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                let scale_changed = window.scale_factor != new_factor;
+                if scale_changed {
                     window.scale_factor = new_factor;
                     window.pool = None;
+                }
+                if name_changed || scale_changed {
                     if let Err(e) =
                         window.draw(qh, &self.shm, &self.compositor_state, &mut self.loop_handle)
                     {
                         tracing::error!("Failed to redraw after output enter: {}", e);
                     }
-                    break;
                 }
+                break;
             }
         }
     }
